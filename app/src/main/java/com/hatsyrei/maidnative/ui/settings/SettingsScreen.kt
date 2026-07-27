@@ -23,18 +23,22 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
@@ -48,11 +52,16 @@ fun SettingsScreen(
     onApiKey: (String) -> Unit,
     onModel: (String) -> Unit,
     onRefreshModels: () -> Unit,
-    onScan: () -> Unit,
+    onScan: (String) -> Unit,
+    onResetScan: () -> Unit,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
     var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
+    var apiKeyFocused by remember { mutableStateOf(false) }
+
+    // Reset the scan button to its idle state each time Settings is opened.
+    LaunchedEffect(Unit) { onResetScan() }
 
     Scaffold(
         topBar = {
@@ -88,33 +97,34 @@ fun SettingsScreen(
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
                 FilledIconButton(
-                    onClick = onScan,
+                    onClick = { onScan(baseURL) },
                     enabled = !state.scanning && !scanSucceeded,
+                    modifier = Modifier.size(56.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
+                        disabledContainerColor = Color.White,
+                        disabledContentColor = Color.Black,
+                    ),
                 ) {
                     when {
                         state.scanning -> CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(22.dp),
                             strokeWidth = 2.dp,
+                            color = Color.Black,
                         )
                         scanSucceeded -> Icon(Icons.Filled.Check, contentDescription = "Endpoint found")
                         else -> Icon(Icons.Filled.Search, contentDescription = "Scan for endpoint")
                     }
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(
-                    onClick = { onBaseURL(baseURL) },
-                    label = { Text("Save endpoint & load models") },
-                    leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
-                )
-                AssistChip(
-                    onClick = {
-                        baseURL = SettingsRepository.DEFAULT_BASE_URL
-                        onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
-                    },
-                    label = { Text("Reset to default") },
-                )
-            }
+            AssistChip(
+                onClick = {
+                    baseURL = SettingsRepository.DEFAULT_BASE_URL
+                    onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
+                },
+                label = { Text("Reset to default") },
+            )
 
             OutlinedTextField(
                 value = apiKey,
@@ -122,11 +132,15 @@ fun SettingsScreen(
                 label = { Text("API key (optional for local endpoints)") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            AssistChip(
-                onClick = { onApiKey(apiKey) },
-                label = { Text("Save API key") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focus ->
+                        // Persist the key automatically when the field loses focus.
+                        if (apiKeyFocused && !focus.isFocused && apiKey != state.settings.apiKey) {
+                            onApiKey(apiKey)
+                        }
+                        apiKeyFocused = focus.isFocused
+                    },
             )
 
             Text("Model", style = MaterialTheme.typography.titleMedium)
@@ -135,7 +149,7 @@ fun SettingsScreen(
             }
             if (state.models.isEmpty()) {
                 Text(
-                    "No models loaded. Save the endpoint above to fetch /models.",
+                    "No models loaded. Tap the scan button or refresh to fetch /models.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

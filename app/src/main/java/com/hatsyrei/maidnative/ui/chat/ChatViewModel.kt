@@ -90,18 +90,25 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
 
+    /** Clear transient scan state so re-entering Settings shows a fresh scan button. */
+    fun resetScan() {
+        _state.value = _state.value.copy(scanning = false, foundURL = null)
+    }
+
     /**
      * Discover a local OpenAI-compatible endpoint (mirrors base-url-field.tsx).
-     * If the current base URL already normalizes and validates, adopt it instead
-     * of scanning the whole subnet; otherwise scan and adopt the first match.
+     * If [candidate] (the Base URL currently in the field) normalizes and
+     * validates, adopt it instead of scanning the whole subnet; otherwise scan
+     * and adopt the first match. On success the endpoint is saved automatically,
+     * which triggers model loading via the settings collector.
      */
-    fun scanEndpoint() {
+    fun scanEndpoint(candidate: String) {
         if (_state.value.scanning) return
-        _state.value = _state.value.copy(scanning = true, error = null)
+        _state.value = _state.value.copy(scanning = true, foundURL = null, error = null)
         viewModelScope.launch {
             val found = withContext(Dispatchers.IO) {
                 runCatching {
-                    val normalized = EndpointScanner.normalizeBaseUrl(_state.value.settings.baseURL)
+                    val normalized = EndpointScanner.normalizeBaseUrl(candidate)
                     if (normalized != null && EndpointScanner.validateEndpoint(normalized)) normalized
                     else EndpointScanner.scanForEndpoint()
                 }
