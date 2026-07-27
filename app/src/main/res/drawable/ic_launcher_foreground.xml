@@ -7,10 +7,10 @@
          The group transform maps the original SVG path coordinates into the
          adaptive-icon 108x108 canvas, centered within the safe zone. -->
     <group
-        android:scaleX="1.06638"
-        android:scaleY="0.99414"
-        android:translateX="-36.083155"
-        android:translateY="-79.71447">
+        android:scaleX="0.68248274"
+        android:scaleY="0.63624695"
+        android:translateX="-3.636019"
+        android:translateY="-31.560061">
         <!-- Blue lettering: the "A" and the "i" stem -->
         <path
             android:strokeColor="#18A0FF"
