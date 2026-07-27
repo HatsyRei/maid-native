@@ -34,7 +34,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 | Persistence (messages) | `expo-sqlite` + hand-written incremental diff | Room (KSP) — **interim in prototype: JSON snapshot file** (`data/store/MessageStore.kt`), to be replaced |
 | Preferences | `@react-native-async-storage` + `use-stored-*` hooks | Jetpack DataStore (Preferences) — **done** |
 | HTTP / streaming | `openai` SDK over `expo/fetch` | OkHttp (SSE) — **done** |
-| Markdown | `@novastera-oss/react-native-markdown-display` | **Decided: `com.mikepenz:multiplatform-markdown-renderer-m3`** (pure Compose, Material 3, actively maintained). Prototype currently ships an interim hand-rolled Compose renderer (`ui/markdown/Markdown.kt`) to be replaced. Note: pass `retainState = true` for streaming to avoid a loading flash. |
+| Markdown | `@novastera-oss/react-native-markdown-display` | **Done: `com.mikepenz:multiplatform-markdown-renderer-m3` v0.32.0** (pure Compose, Material 3). Pinned to 0.32.0 to match Compose 1.7.6 (newer versions require Compose 1.8+); 0.32.0 also parses synchronously so there is no streaming loading flash. `ui/markdown/Markdown.kt` is now a thin wrapper (`MarkdownText`) over the library with body pinned to `bodyMedium`. |
 | Images (markdown) | expo-image / Glide | Coil |
 | Clipboard | expo-clipboard | `ClipboardManager` / Compose `ClipboardManager` |
 | File pick / export | expo-document-picker | Storage Access Framework (`ActivityResultContracts`) |
@@ -84,7 +84,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 ### 4.5 UI / UX (Material 3 parity)
 - [x] Hardcoded dark theme seeded from `#2196F3` (Compose M3 color scheme). *(Dynamic color optional/later.)*
 - [x] Composer pill (rounded, borderless multiline input, filled send/stop button, enabled/disabled transition).
-- [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown done via interim renderer; markdown **image** rule pending — needs Coil.)*
+- [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown via `multiplatform-markdown-renderer-m3`; markdown **image** rule pending — needs Coil.)*
 - [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant). *(Anchored to the touch point; trailing M3 icons; delete behind a confirm dialog.)*
 - [x] Model selector pill + dropdown menu in the top bar (RN parity).
 - [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export and import/backup-all pending.)*
@@ -125,12 +125,12 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 1. **M0 — Prototype:** ✅ **Done.** Buildable/installable Compose skeleton, dark M3, side-by-side id, signing.
 2. **M1 — Tree core:** 🟡 **Partial.** `message-nodes` Kotlin port + test parity ✅. Room schema + incremental persistence ❌ (interim JSON snapshot store in place).
 3. **M2 — Streaming:** ✅ **Done.** OpenAI client (models + SSE completions + abort) ✅, settings (DataStore) ✅, model selection ✅. *(Retry parity + endpoint scan not yet.)*
-4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (interim renderer), reasoning (inline), composer, long-press menu, branch navigation ✅. Collapsible reasoning, model-selector pill, markdown images pending.
+4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`), reasoning (inline), composer, long-press menu, branch navigation ✅. Collapsible reasoning, model-selector pill, markdown images pending.
 5. **M4 — Drawer & data ops:** 🟡 **Partial.** Drawer conversation list + rename + delete ✅. Export/import/backup, endpoint scan, custom headers/params ❌.
 6. **M5 — Polish & parity sign-off:** 🟡 **Started.** Edge-to-edge + keyboard-inset + scroll-hijack fixes ✅. Real icon/splash, dynamic theming pass, on-device A/B vs RN, size/battery verification ❌.
 
 ### 7.1 Immediate next steps (next session)
-1. Swap the interim Markdown renderer for **`com.mikepenz:multiplatform-markdown-renderer-m3`** (use `retainState = true` for streaming); delete `ui/markdown/Markdown.kt` once parity confirmed.
+1. ~~Swap the interim Markdown renderer for **`com.mikepenz:multiplatform-markdown-renderer-m3`**~~ **DONE** (v0.32.0, pinned for Compose 1.7.6 compatibility).
 2. Room persistence (schema mirror + incremental diff), replacing `data/store/MessageStore.kt`; persist partial replies so a mid-stream crash survives.
 3. Endpoint scan, custom headers/params editors, export/import, model-selector pill, collapsible reasoning, real icon/splash.
 4. Work through the on-device parity backlog in §10 (drawer width, keyboard-on-drawer, menu styling/anchoring, delete-confirm, composer typography).

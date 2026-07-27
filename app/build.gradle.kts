@@ -80,6 +80,8 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.renderer.m3)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }
