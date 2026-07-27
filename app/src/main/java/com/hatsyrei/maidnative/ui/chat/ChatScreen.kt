@@ -966,18 +966,10 @@ private fun MessageItem(
                 modifier = Modifier.padding(top = 4.dp),
             )
         } else if (body.isNotEmpty()) {
-            if (isUser) {
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            } else {
-                MarkdownText(
-                    markdown = body,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
+            MarkdownText(
+                markdown = body,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
 
         if (siblingCount > 1) {
