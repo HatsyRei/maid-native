@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -122,28 +124,21 @@ fun SettingsScreen(
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = Color.White,
                         contentColor = Color.Black,
-                        disabledContainerColor = Color.White,
-                        disabledContentColor = Color.Black,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 ) {
                     when {
                         state.scanning -> CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
                             strokeWidth = 2.dp,
-                            color = Color.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         scanSucceeded -> Icon(Icons.Filled.Check, contentDescription = "Endpoint found")
                         else -> Icon(Icons.Filled.Search, contentDescription = "Scan for endpoint")
                     }
                 }
             }
-            AssistChip(
-                onClick = {
-                    baseURL = SettingsRepository.DEFAULT_BASE_URL
-                    onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
-                },
-                label = { Text("Reset to default") },
-            )
 
             OutlinedTextField(
                 value = apiKey,
@@ -166,6 +161,16 @@ fun SettingsScreen(
                         apiKeyFocused = focus.isFocused
                     },
             )
+
+            AssistChip(
+                onClick = {
+                    baseURL = SettingsRepository.DEFAULT_BASE_URL
+                    onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
+                },
+                label = { Text("Reset to default") },
+            )
+
+            Spacer(Modifier.height(8.dp))
 
             Text("Model", style = MaterialTheme.typography.titleMedium)
             state.error?.let {

@@ -87,6 +87,7 @@ import androidx.compose.ui.window.PopupProperties
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
+import com.hatsyrei.maidnative.ui.icons.ArrowUpwardIcon
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import kotlinx.coroutines.launch
@@ -836,7 +837,7 @@ private fun Composer(
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.weight(1f),
-            placeholder = { Text(if (enabled) "Message" else "Set an endpoint & model in Settings") },
+            placeholder = { Text("Message") },
             shape = RoundedCornerShape(28.dp),
             maxLines = 5,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
@@ -847,7 +848,7 @@ private fun Composer(
             ),
         )
         val fabColor =
-            if (busy || canSend) MaterialTheme.colorScheme.primary
+            if (busy || canSend) Color.White
             else MaterialTheme.colorScheme.surfaceVariant
         Box(
             modifier = Modifier
@@ -866,15 +867,15 @@ private fun Composer(
                 enabled = busy || canSend,
             ) {
                 if (busy) {
-                    // Filled square = stop (material-icons-core has no Stop glyph).
+                    // Perfectly square = stop (material-icons-core has no Stop glyph).
                     Box(
                         modifier = Modifier
                             .size(16.dp)
-                            .background(Color.Black, RoundedCornerShape(3.dp)),
+                            .background(Color.Black),
                     )
                 } else {
                     Icon(
-                        Icons.AutoMirrored.Filled.Send,
+                        ArrowUpwardIcon,
                         contentDescription = "Send",
                         tint = if (canSend) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -48,3 +48,27 @@ val ContentCopyIcon: ImageVector by lazy {
         }
     }.build()
 }
+
+val ArrowUpwardIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "ArrowUpward",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.White)) {
+            moveTo(4f, 12f)
+            lineToRelative(1.41f, 1.41f)
+            lineTo(11f, 7.83f)
+            verticalLineTo(20f)
+            horizontalLineToRelative(2f)
+            verticalLineTo(7.83f)
+            lineToRelative(5.58f, 5.59f)
+            lineTo(20f, 12f)
+            lineToRelative(-8f, -8f)
+            lineToRelative(-8f, 8f)
+            close()
+        }
+    }.build()
+}
