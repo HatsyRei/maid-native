@@ -59,7 +59,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [ ] Custom default headers (key/value map).
 - [ ] Custom request parameters (arbitrary map merged into the completion body; UUID-keyed rows in the editor). *(Client already accepts a parameters map; no editor UI yet.)*
 - [x] Model list via `GET /models`, refreshed on endpoint change; auto-select first / preserve valid stored selection. *(Refresh-on-focus not wired; refresh is manual + on endpoint change.)*
-- [ ] Endpoint auto-discovery: subnet scan for OpenAI-compatible hosts.
+- [x] Endpoint auto-discovery: subnet scan for OpenAI-compatible hosts. *(`data/remote/EndpointScanner.kt`, port of RN `scan-endpoint.ts`: probes `http://<ip>:8080/v1/models` across the local /24 then extended /21, 400ms timeout, 64-way concurrency. Scan button next to Base URL field validates the current URL first, then scans; shows spinner while scanning and a check on success.)*
 
 ### 4.2 Chat / streaming
 - [x] Streaming chat completions (SSE), incremental token append.
@@ -178,4 +178,4 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype. To be
 
 ### Settings
 - [x] **Reset-to-default endpoint (FIXED 2026-07-27):** added a "Reset to default" chip next to the Base URL save action.
-- **Missing endpoint search:** Settings lacks the "search/scan for local server" button next to the Base URL field (RN parity). Wire to the endpoint scan (also tracked in §4.1).
+- **Endpoint search:** DONE — search/scan button next to the Base URL field validates the current URL, then scans the local subnet (§4.1).

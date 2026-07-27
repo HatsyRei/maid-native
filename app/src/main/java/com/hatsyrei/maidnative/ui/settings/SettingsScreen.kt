@@ -4,16 +4,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -41,6 +48,7 @@ fun SettingsScreen(
     onApiKey: (String) -> Unit,
     onModel: (String) -> Unit,
     onRefreshModels: () -> Unit,
+    onScan: () -> Unit,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
@@ -66,13 +74,33 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(
-                value = baseURL,
-                onValueChange = { baseURL = it },
-                label = { Text("Base URL") },
-                singleLine = true,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = baseURL,
+                    onValueChange = { baseURL = it },
+                    label = { Text("Base URL") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
+                FilledIconButton(
+                    onClick = onScan,
+                    enabled = !state.scanning && !scanSucceeded,
+                ) {
+                    when {
+                        state.scanning -> CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        scanSucceeded -> Icon(Icons.Filled.Check, contentDescription = "Endpoint found")
+                        else -> Icon(Icons.Filled.Search, contentDescription = "Scan for endpoint")
+                    }
+                }
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
                     onClick = { onBaseURL(baseURL) },

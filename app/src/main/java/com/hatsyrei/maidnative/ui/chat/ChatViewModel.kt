@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
+import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.domain.tree.Mappings
@@ -27,6 +28,8 @@ data class ChatUiState(
     val models: List<String> = emptyList(),
     val settings: SettingsRepository.Settings = SettingsRepository.Settings(),
     val busy: Boolean = false,
+    val scanning: Boolean = false,
+    val foundURL: String? = null,
     val error: String? = null,
 ) {
     /** Visible conversation = active thread from root, skipping the system node. */
@@ -86,6 +89,38 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setBaseURL(value: String) = viewModelScope.launch { settingsRepo.setBaseURL(value) }
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
+
+    /**
+     * Discover a local OpenAI-compatible endpoint (mirrors base-url-field.tsx).
+     * If the current base URL already normalizes and validates, adopt it instead
+     * of scanning the whole subnet; otherwise scan and adopt the first match.
+     */
+    fun scanEndpoint() {
+        if (_state.value.scanning) return
+        _state.value = _state.value.copy(scanning = true, error = null)
+        viewModelScope.launch {
+            val found = withContext(Dispatchers.IO) {
+                runCatching {
+                    val normalized = EndpointScanner.normalizeBaseUrl(_state.value.settings.baseURL)
+                    if (normalized != null && EndpointScanner.validateEndpoint(normalized)) normalized
+                    else EndpointScanner.scanForEndpoint()
+                }
+            }
+            found.onSuccess { url ->
+                if (url != null) {
+                    _state.value = _state.value.copy(foundURL = url)
+                    settingsRepo.setBaseURL(url) // triggers refreshModels via the settings collector
+                } else {
+                    _state.value = _state.value.copy(
+                        error = "Could not find an OpenAI-compatible endpoint on the local network.",
+                    )
+                }
+            }.onFailure {
+                _state.value = _state.value.copy(error = it.message)
+            }
+            _state.value = _state.value.copy(scanning = false)
+        }
+    }
 
     fun newChat() {
         // Mirror drawer-content.tsx `createChat`: create the system root node up

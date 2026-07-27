@@ -66,6 +66,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                 onApiKey = viewModel::setApiKey,
                 onModel = viewModel::setModel,
                 onRefreshModels = viewModel::refreshModels,
+                onScan = viewModel::scanEndpoint,
                 onBack = { screen = Screen.Chat },
             )
         }
