@@ -1,6 +1,8 @@
 package com.hatsyrei.maidnative.ui.chat
 
 import android.app.Application
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
@@ -10,6 +12,7 @@ import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
+import com.hatsyrei.maidnative.domain.tree.validateMappings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -174,6 +177,90 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(mappings = next, root = newRoot)
         persist()
+    }
+
+    /**
+     * Suggested export filename for a conversation: its title + `.json`, matching
+     * the RN app (`${title || "New Chat"}.json`). Only path separators are
+     * stripped so titles like "Steampunk D&D" survive intact.
+     */
+    fun exportFileName(rootId: String): String {
+        val title = _state.value.mappings[rootId]?.metadata?.get("title") as? String
+        val safe = (title?.trim().orEmpty().ifEmpty { "New Chat" }).replace('/', '_')
+        return "$safe.json"
+    }
+
+    /** Write a single conversation (root + descendants) to [uri] as JSON. */
+    fun exportConversation(rootId: String, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val nodes = _state.value.mappings.values.filter { it.root == rootId }
+                if (nodes.isEmpty()) error("Conversation is empty.")
+                val json = MessageStore.encodeExport(nodes)
+                getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
+                    it.write(json.toByteArray())
+                } ?: error("Could not open file for writing.")
+            }.onFailure {
+                _state.value = _state.value.copy(error = "Export failed: ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * Back up every conversation into the user-picked directory [treeUri], one
+     * `<title>.json` file per root (mirrors the RN "backup all chats" action).
+     */
+    fun backupAllChats(treeUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val resolver = getApplication<Application>().contentResolver
+                val dirUri = DocumentsContract.buildDocumentUriUsingTree(
+                    treeUri, DocumentsContract.getTreeDocumentId(treeUri),
+                )
+                val snapshot = _state.value.mappings
+                for (root in MessageTree.getRoots(snapshot)) {
+                    val nodes = snapshot.values.filter { it.root == root.id }
+                    val json = MessageStore.encodeExport(nodes)
+                    val fileUri = DocumentsContract.createDocument(
+                        resolver, dirUri, "application/json", exportFileName(root.id),
+                    ) ?: continue
+                    resolver.openOutputStream(fileUri)?.use { it.write(json.toByteArray()) }
+                }
+            }.onFailure {
+                _state.value = _state.value.copy(error = "Backup failed: ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * Import one or more conversation files, mirroring the RN `loadMappings`:
+     * each file is parsed, validated, then merged into the store **by original
+     * id** (so re-importing the same export is idempotent rather than creating
+     * duplicates). The active conversation is left unchanged.
+     */
+    fun importConversations(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val merged = withContext(Dispatchers.IO) {
+                val resolver = getApplication<Application>().contentResolver
+                val next = LinkedHashMap(_state.value.mappings)
+                for (uri in uris) {
+                    runCatching {
+                        val text = resolver.openInputStream(uri)
+                            ?.use { it.readBytes().decodeToString() }
+                            ?: error("Could not read file.")
+                        val parsed = LinkedHashMap<String, MessageNode>()
+                        for (node in MessageStore.decodeExport(text)) parsed[node.id] = node
+                        next.putAll(validateMappings(parsed))
+                    }
+                }
+                next
+            }
+            if (merged.size != _state.value.mappings.size || merged != _state.value.mappings) {
+                _state.value = _state.value.copy(mappings = merged)
+                persist()
+            }
+        }
     }
 
     /** Mirrors prompt-button.tsx: build system/user/assistant nodes, then stream. */

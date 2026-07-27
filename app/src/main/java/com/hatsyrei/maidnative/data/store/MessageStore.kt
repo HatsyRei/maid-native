@@ -24,44 +24,88 @@ class MessageStore(private val file: File) {
         runCatching {
             val text = file.readText()
             if (text.isBlank()) return@runCatching LinkedHashMap<String, MessageNode>()
-            val arr = JSONArray(text)
-            val out = LinkedHashMap<String, MessageNode>(arr.length())
-            for (i in 0 until arr.length()) {
-                val o = arr.getJSONObject(i)
-                val node = MessageNode(
-                    id = o.getString("id"),
-                    role = o.getString("role"),
-                    content = o.getString("content"),
-                    root = o.getString("root"),
-                    parent = o.optStringOrNull("parent"),
-                    child = o.optStringOrNull("child"),
-                    metadata = o.optJSONObject("metadata")?.toMap() ?: emptyMap(),
-                )
-                out[node.id] = node
-            }
+            val out = LinkedHashMap<String, MessageNode>()
+            for (node in decodeNodes(JSONArray(text))) out[node.id] = node
             out
         }.getOrElse { LinkedHashMap() }
     }
 
     suspend fun save(mappings: Mappings): Unit = withContext(Dispatchers.IO) {
-        val arr = JSONArray()
-        for (node in mappings.values) {
-            val o = JSONObject()
-            o.put("id", node.id)
-            o.put("role", node.role)
-            o.put("content", node.content)
-            o.put("root", node.root)
-            o.put("parent", node.parent)
-            o.put("child", node.child)
-            o.put("metadata", JSONObject(node.metadata.mapValues { it.value ?: JSONObject.NULL }))
-            arr.put(o)
-        }
+        val text = encodeNodes(mappings.values).toString()
         // Atomic-ish write: temp then rename.
         val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeText(arr.toString())
+        tmp.writeText(text)
         if (!tmp.renameTo(file)) {
-            file.writeText(arr.toString())
+            file.writeText(text)
             tmp.delete()
+        }
+    }
+
+    companion object {
+        /** Serialize a single node to its JSON object shape. */
+        private fun nodeToJson(node: MessageNode): JSONObject = JSONObject().apply {
+            put("id", node.id)
+            put("role", node.role)
+            put("content", node.content)
+            put("root", node.root)
+            put("parent", node.parent)
+            put("child", node.child)
+            put("metadata", JSONObject(node.metadata.mapValues { it.value ?: JSONObject.NULL }))
+        }
+
+        private fun jsonToNode(o: JSONObject): MessageNode = MessageNode(
+            id = o.getString("id"),
+            role = o.getString("role"),
+            content = o.getString("content"),
+            root = o.getString("root"),
+            parent = o.optStringOrNull("parent"),
+            child = o.optStringOrNull("child"),
+            metadata = o.optJSONObject("metadata")?.toMap() ?: emptyMap(),
+        )
+
+        /** Serialize nodes to a JSON array (the on-disk snapshot shape). */
+        fun encodeNodes(nodes: Collection<MessageNode>): JSONArray {
+            val arr = JSONArray()
+            for (node in nodes) arr.put(nodeToJson(node))
+            return arr
+        }
+
+        /** Parse a JSON array of nodes into [MessageNode]s. */
+        fun decodeNodes(arr: JSONArray): List<MessageNode> {
+            val out = ArrayList<MessageNode>(arr.length())
+            for (i in 0 until arr.length()) out += jsonToNode(arr.getJSONObject(i))
+            return out
+        }
+
+        /**
+         * Serialize a conversation for export. Matches the React Native app's
+         * format: a JSON object keyed by node id, values are node objects
+         * (a direct dump of the `mappings` map). Insertion order is preserved.
+         */
+        fun encodeExport(nodes: Collection<MessageNode>): String {
+            val obj = JSONObject()
+            for (node in nodes) obj.put(node.id, nodeToJson(node))
+            return obj.toString(2)
+        }
+
+        /**
+         * Parse an exported conversation. Primary format is the React Native
+         * app's `mappings` dump: a JSON object keyed by node id. Also tolerates
+         * a bare `[...]` array or an `{ "nodes": [...] }` envelope.
+         */
+        fun decodeExport(text: String): List<MessageNode> {
+            val trimmed = text.trim()
+            if (trimmed.startsWith("[")) return decodeNodes(JSONArray(trimmed))
+            val obj = JSONObject(trimmed)
+            if (obj.has("nodes")) return decodeNodes(obj.getJSONArray("nodes"))
+            // React Native map form: keys are ids, values are node objects.
+            val out = ArrayList<MessageNode>(obj.length())
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val v = obj.get(keys.next())
+                if (v is JSONObject && v.has("id")) out += jsonToNode(v)
+            }
+            return out
         }
     }
 }

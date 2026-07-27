@@ -87,7 +87,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown via `multiplatform-markdown-renderer-m3`; markdown **image** rule pending — needs Coil.)*
 - [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant). *(Anchored to the touch point; trailing M3 icons; delete behind a confirm dialog.)*
 - [x] Model selector pill + dropdown menu in the top bar (RN parity).
-- [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export and import/backup-all pending.)*
+- [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export (per-chat), import (multi-file), and backup-all done via SAF; RN-compatible JSON format.)*
 - [ ] Custom scroll thumb (or drop it — decide during UI pass).
 - [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`. Auto-scroll removed 2026-07-27; instead a bottom spacer (`viewport − 96dp`, a trailing `Spacer` item under `BoxWithConstraints`) lets the user scroll the last message up near the top and scroll ahead to watch streaming text — mirrors RN commit `dd8fb76`.)*
 - [ ] App icon + Android 12 splash (reuse existing `assets/images/*`). *(Placeholder adaptive icon only.)*
@@ -126,7 +126,7 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 2. **M1 — Tree core:** 🟡 **Partial.** `message-nodes` Kotlin port + test parity ✅. Room schema + incremental persistence ❌ (interim JSON snapshot store in place).
 3. **M2 — Streaming:** ✅ **Done.** OpenAI client (models + SSE completions + abort) ✅, settings (DataStore) ✅, model selection ✅. *(Retry parity + endpoint scan not yet.)*
 4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`), reasoning (inline), composer, long-press menu, branch navigation ✅. Collapsible reasoning, model-selector pill, markdown images pending.
-5. **M4 — Drawer & data ops:** 🟡 **Partial.** Drawer conversation list + rename + delete ✅. Export/import/backup, endpoint scan, custom headers/params ❌.
+5. **M4 — Drawer & data ops:** 🟡 **Partial.** Drawer conversation list + rename + delete ✅. Export / import / backup-all ✅ (SAF, RN-compatible format + `validateMappings` port). Endpoint scan ✅. Custom headers/params ❌.
 6. **M5 — Polish & parity sign-off:** 🟡 **Started.** Edge-to-edge + keyboard-inset + scroll-hijack fixes ✅. Real icon/splash, dynamic theming pass, on-device A/B vs RN, size/battery verification ❌.
 
 ### 7.1 Immediate next steps (next session)

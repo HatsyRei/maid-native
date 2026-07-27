@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.ui.icons
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -72,3 +73,40 @@ val ArrowUpwardIcon: ImageVector by lazy {
         }
     }.build()
 }
+
+/** Material `file_download` (per-chat Export, mirrors the RN chat menu icon). */
+val FileDownloadIcon: ImageVector by lazy {
+    materialIcon("FileDownload", "M19,9h-4V3H9v6H5l7,7 7,-7zM5,18v2h14v-2H5z")
+}
+
+/** Material `folder_open` (drawer Import button, mirrors the RN load-mappings icon). */
+val FolderOpenIcon: ImageVector by lazy {
+    materialIcon(
+        "FolderOpen",
+        "M20,6h-8l-2,-2H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 " +
+            "2,-0.9 2,-2V8c0,-1.1 -0.9,-2 -2,-2zM20,18L4,18V8h16v10z",
+    )
+}
+
+/** Material `save_alt` (drawer Backup-all button, mirrors the RN backup icon). */
+val SaveAltIcon: ImageVector by lazy {
+    materialIcon(
+        "SaveAlt",
+        "M19,12v7H5v-7H3v7c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2v-7h-2zM13,12.67l2.59,-2.58" +
+            "L17,11.5l-5,5 -5,-5 1.41,-1.41L11,12.67V3h2v9.67z",
+    )
+}
+
+private fun materialIcon(name: String, pathData: String): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            pathData = PathParser().parsePathString(pathData).toNodes(),
+            fill = SolidColor(Color.White),
+        )
+    }.build()

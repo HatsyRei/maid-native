@@ -56,6 +56,10 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             onRenameChat = viewModel::renameChat,
             onDeleteChat = viewModel::deleteChat,
             onSelectModel = viewModel::setModel,
+            exportFileName = viewModel::exportFileName,
+            onExportConversation = viewModel::exportConversation,
+            onImportConversations = viewModel::importConversations,
+            onBackupAllChats = viewModel::backupAllChats,
         )
 
         Screen.Settings -> {

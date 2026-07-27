@@ -1,6 +1,9 @@
 package com.hatsyrei.maidnative.ui.chat
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -89,6 +92,9 @@ import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.icons.ArrowUpwardIcon
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
+import com.hatsyrei.maidnative.ui.icons.FileDownloadIcon
+import com.hatsyrei.maidnative.ui.icons.FolderOpenIcon
+import com.hatsyrei.maidnative.ui.icons.SaveAltIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -117,14 +123,33 @@ fun ChatScreen(
     onRenameChat: (String, String) -> Unit,
     onDeleteChat: (String) -> Unit,
     onSelectModel: (String) -> Unit,
+    exportFileName: (String) -> String,
+    onExportConversation: (String, Uri) -> Unit,
+    onImportConversations: (List<Uri>) -> Unit,
+    onBackupAllChats: (Uri) -> Unit,
 ) {
     val listState = rememberLazyListState()
     var editTarget by remember { mutableStateOf<EditTarget?>(null) }
     var renameTarget by remember { mutableStateOf<RenameTarget?>(null) }
     var deleteMsgTarget by remember { mutableStateOf<String?>(null) }
     var deleteChatTarget by remember { mutableStateOf<String?>(null) }
+    var exportRoot by remember { mutableStateOf<String?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        val root = exportRoot
+        if (uri != null && root != null) onExportConversation(root, uri)
+        exportRoot = null
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> if (uris.isNotEmpty()) onImportConversations(uris) }
+    val backupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri -> if (uri != null) onBackupAllChats(uri) }
 
     // Back button closes the drawer instead of leaving the app.
     BackHandler(enabled = drawerState.isOpen) {
@@ -152,6 +177,12 @@ fun ChatScreen(
                 onNewChat = { onNewChat() },
                 onRename = { id -> renameTarget = RenameTarget(id, "") },
                 onDeleteChat = { id -> deleteChatTarget = id },
+                onExport = { id ->
+                    exportRoot = id
+                    exportLauncher.launch(exportFileName(id))
+                },
+                onImport = { importLauncher.launch(arrayOf("application/json")) },
+                onBackupAll = { backupLauncher.launch(null) },
             )
         },
     ) {
@@ -470,6 +501,9 @@ private fun DrawerContent(
     onNewChat: () -> Unit,
     onRename: (String) -> Unit,
     onDeleteChat: (String) -> Unit,
+    onExport: (String) -> Unit,
+    onImport: () -> Unit,
+    onBackupAll: () -> Unit,
 ) {
     ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.85f)) {
         Row(
@@ -484,6 +518,12 @@ private fun DrawerContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onImport) {
+                Icon(FolderOpenIcon, contentDescription = "Import conversations")
+            }
+            IconButton(onClick = onBackupAll) {
+                Icon(SaveAltIcon, contentDescription = "Back up all chats")
+            }
             IconButton(onClick = onNewChat) {
                 Icon(Icons.Filled.Add, contentDescription = "New chat")
             }
@@ -507,6 +547,7 @@ private fun DrawerContent(
                     onClick = { onSelect(root.id) },
                     onRename = { onRename(root.id) },
                     onDelete = { onDeleteChat(root.id) },
+                    onExport = { onExport(root.id) },
                 )
             }
         }
@@ -520,6 +561,7 @@ private fun DrawerChatItem(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onExport: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
@@ -565,6 +607,11 @@ private fun DrawerChatItem(
                 text = { Text("Rename") },
                 trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = { menuOpen = false; onRename() },
+            )
+            DropdownMenuItem(
+                text = { Text("Export") },
+                trailingIcon = { Icon(FileDownloadIcon, contentDescription = null) },
+                onClick = { menuOpen = false; onExport() },
             )
             DropdownMenuItem(
                 text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
