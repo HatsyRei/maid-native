@@ -88,7 +88,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
 
     fun newChat() {
-        _state.value = _state.value.copy(root = null)
+        // Mirror drawer-content.tsx `createChat`: create the system root node up
+        // front so the conversation shows in the drawer immediately, then make it
+        // the active chat. The first `submit` then attaches to this existing root.
+        val s = _state.value.settings
+        val rootId = UUID.randomUUID().toString()
+        val next = MessageTree.addNode(
+            _state.value.mappings, rootId, "system",
+            s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
+            null, null, null, mapOf("title" to "New Chat"),
+        )
+        _state.value = _state.value.copy(mappings = next, root = rootId)
+        persist()
     }
 
     /** Switch the active conversation to an existing root. */

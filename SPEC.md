@@ -54,7 +54,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 Derived from the current RN app. Each item is a parity target for the native app.
 
 ### 4.1 Endpoint & model
-- [x] OpenAI-compatible base URL (default `https://api.openai.com/v1`), editable. *(reset-to-default button pending.)*
+- [x] OpenAI-compatible base URL (default `https://api.openai.com/v1`), editable, with a reset-to-default button.
 - [x] API key (required only for the official OpenAI endpoint; `local-openai-compatible` placeholder allowed otherwise).
 - [ ] Custom default headers (key/value map).
 - [ ] Custom request parameters (arbitrary map merged into the completion body; UUID-keyed rows in the editor). *(Client already accepts a parameters map; no editor UI yet.)*
@@ -66,7 +66,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [x] Stop / abort mid-stream.
 - [ ] Retry (maxRetries=3) parity.
 - [x] Drop trailing empty assistant placeholder before sending (prevents llama.cpp assistant-prefix corruption).
-- [~] "Reasoning" content: parsed (`domain/Reasoning.kt`) and rendered, but **inline** — collapsible section pending.
+- [x] "Reasoning" content: parsed (`domain/Reasoning.kt`) and rendered in a collapsible section (default collapsed, chevron header).
 - [~] Streaming render throttle: using `Flow.buffer()`; conflation/sampling not yet tuned. Fixed a separate bug where org.json returned literal `"null"` for the opening `content:null` delta.
 
 ### 4.3 Conversation tree (the high-risk port)
@@ -85,11 +85,11 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [x] Hardcoded dark theme seeded from `#2196F3` (Compose M3 color scheme). *(Dynamic color optional/later.)*
 - [x] Composer pill (rounded, borderless multiline input, filled send/stop button, enabled/disabled transition).
 - [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown done via interim renderer; markdown **image** rule pending — needs Coil.)*
-- [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant).
-- [ ] Model selector pill + dropdown menu. *(Model selection currently lives in Settings as FilterChips.)*
-- [~] Navigation drawer: conversation list, rename, delete. *(Export and import/backup-all pending; delete has no confirm dialog yet.)*
+- [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant). *(Anchored to the touch point; trailing M3 icons; delete behind a confirm dialog.)*
+- [x] Model selector pill + dropdown menu in the top bar (RN parity).
+- [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export and import/backup-all pending.)*
 - [ ] Custom scroll thumb (or drop it — decide during UI pass).
-- [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`; streaming auto-scroll gated on `!canScrollForward` so it no longer fights the user.)*
+- [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`. Auto-scroll removed 2026-07-27; instead a bottom spacer (`viewport − 96dp`, a trailing `Spacer` item under `BoxWithConstraints`) lets the user scroll the last message up near the top and scroll ahead to watch streaming text — mirrors RN commit `dd8fb76`.)*
 - [ ] App icon + Android 12 splash (reuse existing `assets/images/*`). *(Placeholder adaptive icon only.)*
 
 ## 5. Architecture (native)
@@ -159,19 +159,23 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype. To be
 
 ### Composer
 - [x] **Keyboard lift overshoot (FIXED 2026-07-23):** the composer was raised by ~one extra nav-bar height because the content `Column` applied both the Scaffold's bottom inset (`.padding(padding)`, which includes the navigation bar) and `.imePadding()` (whose IME inset also spans the nav-bar region under `adjustResize`) — double-counting the nav bar. Fixed by inserting `.consumeWindowInsets(padding)` between them so `imePadding()` only adds the height beyond the already-consumed nav-bar inset. Verified on-device.
-- **Font parity:** composer input font family/size differs from the RN app. Match the RN typography (family + size + weight).
-- **Model selector pill missing:** RN shows a model-selector pill at the top of the composer next to the hamburger; native has none (model selection is only in Settings). Add the pill + dropdown.
+- [x] **Message typography parity (FIXED 2026-07-27):** the role label and message body sizes were swapped. Corrected to the RN scale (`utilities/typography.ts`, standard M3): role label = `titleMedium` in `primary`; message/markdown body = `bodyMedium`; reasoning = `bodyMedium` italic in `onSurfaceVariant`; reasoning toggle = `labelLarge` in `primary`.
+- **Font parity:** composer *input* font family/size still differs from the RN app. Match the RN typography (family + size + weight).
+- [x] **Model selector pill (FIXED 2026-07-27):** added a centered model-selector pill + dropdown in the top bar (hamburger | pill | settings), mirroring the RN layout. Model selection still also available in Settings.
 
 ### Navigation drawer
-- **Drawer covers full width:** opens edge-to-edge instead of leaving a right-hand sliver showing the composer/chat behind (RN parity). Constrain `ModalDrawerSheet` max width.
-- **New-chat doesn't create an entry:** the New-chat (+) action doesn't add a conversation row to the drawer until the user actually sends a first message. RN parity: create/show the new chat entry immediately.
-- **Keyboard not dismissed on open:** opening the navigation drawer does not collapse the soft keyboard; the keyboard overlays on top of the drawer. Dismiss the IME (clear focus / hide keyboard) when the drawer opens.
+- [x] **Drawer width (FIXED 2026-07-27):** `ModalDrawerSheet` constrained to 85% width so a right-hand sliver of the chat shows behind it (RN parity).
+- [x] **New-chat creates an entry (FIXED 2026-07-27):** the New-chat (+) action now creates the `system` root node up front (`ChatViewModel.newChat`, mirroring `drawer-content.tsx` `createChat`) and makes it the active chat, so the conversation shows in the drawer immediately; the first `submit` attaches to that existing root.
+- [x] **Keyboard dismiss on open (FIXED 2026-07-27):** opening the drawer now clears focus and hides the IME so it no longer overlays the conversation list.
+- [x] **Back button parity (FIXED 2026-07-27):** a `BackHandler` closes the open drawer (and Settings returns to chat) instead of the system Back leaving the app.
+- [x] **Drawer stays open on interaction (FIXED 2026-07-27):** selecting a chat or tapping New-chat no longer auto-closes the drawer; it switches the active chat behind the open drawer and persists until the user swipes it away.
 
 ### Menus
-- **Long-press menu position:** the message long-press `DropdownMenu` appears at an awkward spot (often far-left of the touch point) rather than anchored to the press location. Anchor to the touch offset.
-- **Chat entry menu trigger:** drawer chat entry currently uses the three-dot (⋮) icon tap; RN opens the entry menu via long-press. Match RN (long-press).
-- **Menu styling:** pop-up menus lack Material theming — no leading icons and no rounded corners. Apply M3 menu styling + item icons.
-- **Delete needs confirmation:** the delete menu item deletes immediately with no warning dialog. Add a confirm dialog (RN parity).
+- [x] **Long-press menu position (FIXED 2026-07-27):** message and drawer long-press menus now pop up centered on the touch point via a raw `Popup` + custom `PopupPositionProvider` (`TapContextMenu`), mirroring the RN app's zero-size anchor at `pageX/pageY`. (The earlier `DropdownMenu(offset=…)` approach drifted to screen edges for wide anchors.)
+- [x] **Chat entry menu trigger (FIXED 2026-07-27):** drawer chat entries now open their menu via long-press (custom `DrawerChatItem` with a selected-state pill), matching RN; the three-dot icon was removed.
+- [x] **Menu styling (FIXED 2026-07-27):** pop-up menus now use rounded corners and trailing M3 icons (Regenerate/Refresh, Modify/Edit, Revise/Send, Copy, Delete/Delete-red; Rename/Edit in the drawer), with a divider before Delete. Width tightened (`widthIn` ~168–172dp) + column padding so the trailing icon sits near the label and content clears the rounded edges; the model-picker dropdown got extra horizontal item padding too.
+- [x] **Delete confirmation (FIXED 2026-07-27):** both message-delete and conversation-delete now go through a confirm `AlertDialog`.
 
 ### Settings
+- [x] **Reset-to-default endpoint (FIXED 2026-07-27):** added a "Reset to default" chip next to the Base URL save action.
 - **Missing endpoint search:** Settings lacks the "search/scan for local server" button next to the Base URL field (RN parity). Wire to the endpoint scan (also tracked in §4.1).

@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -72,11 +73,20 @@ fun SettingsScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            AssistChip(
-                onClick = { onBaseURL(baseURL) },
-                label = { Text("Save endpoint & load models") },
-                leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
-            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = { onBaseURL(baseURL) },
+                    label = { Text("Save endpoint & load models") },
+                    leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                )
+                AssistChip(
+                    onClick = {
+                        baseURL = SettingsRepository.DEFAULT_BASE_URL
+                        onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
+                    },
+                    label = { Text("Reset to default") },
+                )
+            }
 
             OutlinedTextField(
                 value = apiKey,

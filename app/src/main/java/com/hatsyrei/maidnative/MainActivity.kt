@@ -2,6 +2,7 @@ package com.hatsyrei.maidnative
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -54,15 +55,19 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             onSelectChat = viewModel::selectChat,
             onRenameChat = viewModel::renameChat,
             onDeleteChat = viewModel::deleteChat,
+            onSelectModel = viewModel::setModel,
         )
 
-        Screen.Settings -> SettingsScreen(
-            state = state,
-            onBaseURL = viewModel::setBaseURL,
-            onApiKey = viewModel::setApiKey,
-            onModel = viewModel::setModel,
-            onRefreshModels = viewModel::refreshModels,
-            onBack = { screen = Screen.Chat },
-        )
+        Screen.Settings -> {
+            BackHandler { screen = Screen.Chat }
+            SettingsScreen(
+                state = state,
+                onBaseURL = viewModel::setBaseURL,
+                onApiKey = viewModel::setApiKey,
+                onModel = viewModel::setModel,
+                onRefreshModels = viewModel::refreshModels,
+                onBack = { screen = Screen.Chat },
+            )
+        }
     }
 }

@@ -66,7 +66,7 @@ fun MarkdownText(
 
                 is Block.Paragraph -> Text(
                     text = inline(block.text, linkColor, inlineCodeBg),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = color,
                 )
 
@@ -85,7 +85,7 @@ fun MarkdownText(
                     )
                     Text(
                         text = inline(block.text, linkColor, inlineCodeBg),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 10.dp),
                     )
@@ -96,12 +96,12 @@ fun MarkdownText(
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = if (block.ordered) "${index + 1}. " else "\u2022 ",
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = color,
                             )
                             Text(
                                 text = inline(item, linkColor, inlineCodeBg),
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = color,
                             )
                         }

@@ -1,19 +1,24 @@
 package com.hatsyrei.maidnative.ui.chat
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -22,12 +27,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -38,18 +50,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,16 +67,30 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
+import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private data class EditTarget(val id: String, val initial: String, val revise: Boolean)
 private data class RenameTarget(val id: String, val initial: String)
@@ -91,19 +115,29 @@ fun ChatScreen(
     onSelectChat: (String) -> Unit,
     onRenameChat: (String, String) -> Unit,
     onDeleteChat: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
     var editTarget by remember { mutableStateOf<EditTarget?>(null) }
     var renameTarget by remember { mutableStateOf<RenameTarget?>(null) }
+    var deleteMsgTarget by remember { mutableStateOf<String?>(null) }
+    var deleteChatTarget by remember { mutableStateOf<String?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Only pin to the bottom while the user is already there; if they've scrolled
-    // up to read history mid-stream, don't yank them back down every token.
-    val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
-    LaunchedEffect(state.conversation.size, state.conversation.lastOrNull()?.content) {
-        if (state.conversation.isNotEmpty() && atBottom) {
-            listState.scrollToItem(state.conversation.size - 1, Int.MAX_VALUE)
+    // Back button closes the drawer instead of leaving the app.
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
+    // Dismiss the soft keyboard when the drawer opens so it doesn't overlay the
+    // conversation list (RN parity).
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(drawerState.isOpen) {
+        if (drawerState.isOpen) {
+            focusManager.clearFocus()
+            keyboard?.hide()
         }
     }
 
@@ -113,16 +147,10 @@ fun ChatScreen(
             DrawerContent(
                 roots = MessageTree.getRoots(state.mappings),
                 activeRoot = state.root,
-                onSelect = { id ->
-                    onSelectChat(id)
-                    scope.launch { drawerState.close() }
-                },
-                onNewChat = {
-                    onNewChat()
-                    scope.launch { drawerState.close() }
-                },
+                onSelect = { id -> onSelectChat(id) },
+                onNewChat = { onNewChat() },
                 onRename = { id -> renameTarget = RenameTarget(id, "") },
-                onDeleteChat = onDeleteChat,
+                onDeleteChat = { id -> deleteChatTarget = id },
             )
         },
     ) {
@@ -130,14 +158,14 @@ fun ChatScreen(
             state = state,
             listState = listState,
             onOpenDrawer = { scope.launch { drawerState.open() } },
-            onNewChat = onNewChat,
             onOpenSettings = onOpenSettings,
             onSubmit = onSubmit,
             onStop = onStop,
             onRegenerate = onRegenerate,
-            onDelete = onDelete,
+            onDelete = { id -> deleteMsgTarget = id },
             onPrevBranch = onPrevBranch,
             onNextBranch = onNextBranch,
+            onSelectModel = onSelectModel,
             onRequestEdit = { id, initial, revise -> editTarget = EditTarget(id, initial, revise) },
         )
     }
@@ -163,6 +191,30 @@ fun ChatScreen(
             },
         )
     }
+
+    deleteMsgTarget?.let { id ->
+        ConfirmDialog(
+            title = "Delete message",
+            message = "Delete this message and everything below it? This can't be undone.",
+            onDismiss = { deleteMsgTarget = null },
+            onConfirm = {
+                onDelete(id)
+                deleteMsgTarget = null
+            },
+        )
+    }
+
+    deleteChatTarget?.let { id ->
+        ConfirmDialog(
+            title = "Delete conversation",
+            message = "Delete this conversation permanently? This can't be undone.",
+            onDismiss = { deleteChatTarget = null },
+            onConfirm = {
+                onDeleteChat(id)
+                deleteChatTarget = null
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,7 +223,6 @@ private fun ChatScaffold(
     state: ChatUiState,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onOpenDrawer: () -> Unit,
-    onNewChat: () -> Unit,
     onOpenSettings: () -> Unit,
     onSubmit: (String) -> Unit,
     onStop: () -> Unit,
@@ -179,31 +230,25 @@ private fun ChatScaffold(
     onDelete: (String) -> Unit,
     onPrevBranch: (String) -> Unit,
     onNextBranch: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
     onRequestEdit: (id: String, initial: String, revise: Boolean) -> Unit,
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Filled.Menu, contentDescription = "Conversations")
                     }
                 },
                 title = {
-                    Column {
-                        Text("Maid Native")
-                        val subtitle = when {
-                            state.settings.model.isNotEmpty() -> state.settings.model
-                            state.models.isEmpty() -> "no endpoint"
-                            else -> "select a model"
-                        }
-                        Text(subtitle, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ModelSelector(
+                        models = state.models,
+                        selected = state.settings.model,
+                        onSelect = onSelectModel,
+                    )
                 },
                 actions = {
-                    IconButton(onClick = onNewChat) {
-                        Icon(Icons.Filled.Add, contentDescription = "New chat")
-                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
@@ -218,31 +263,44 @@ private fun ChatScaffold(
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            LazyColumn(
-                state = listState,
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(state.conversation, key = { it.id }) { node ->
-                    val siblings = node.parent?.let { MessageTree.getChildren(state.mappings, it) }
-                        ?: emptyList()
-                    val index = siblings.indexOfFirst { it.id == node.id }
-                    MessageItem(
-                        node = node,
-                        siblingIndex = index,
-                        siblingCount = siblings.size,
-                        busy = state.busy,
-                        onRegenerate = { onRegenerate(node.id) },
-                        onDelete = { onDelete(node.id) },
-                        onRequestEdit = { revise ->
-                            onRequestEdit(node.id, node.content, revise)
-                        },
-                        onPrevBranch = { node.parent?.let(onPrevBranch) },
-                        onNextBranch = { node.parent?.let(onNextBranch) },
-                    )
+                // Bottom spacer (viewport height - 96dp) so the last message can be
+                // scrolled up near the top and streaming text scrolled into view
+                // (mirrors the RN app's ListFooterComponent).
+                val spacerHeight = (maxHeight - 96.dp).coerceAtLeast(0.dp)
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(state.conversation, key = { it.id }) { node ->
+                        val siblings = node.parent?.let { MessageTree.getChildren(state.mappings, it) }
+                            ?: emptyList()
+                        val index = siblings.indexOfFirst { it.id == node.id }
+                        MessageItem(
+                            node = node,
+                            siblingIndex = index,
+                            siblingCount = siblings.size,
+                            busy = state.busy,
+                            onRegenerate = { onRegenerate(node.id) },
+                            onDelete = { onDelete(node.id) },
+                            onRequestEdit = { revise ->
+                                onRequestEdit(node.id, node.content, revise)
+                            },
+                            onPrevBranch = { node.parent?.let(onPrevBranch) },
+                            onNextBranch = { node.parent?.let(onNextBranch) },
+                        )
+                    }
+                    if (state.conversation.isNotEmpty()) {
+                        item(key = "__bottom_spacer__") {
+                            Spacer(Modifier.height(spacerHeight))
+                        }
+                    }
                 }
             }
             state.error?.let { err ->
@@ -326,6 +384,82 @@ private fun RenameDialog(
     )
 }
 
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModelSelector(
+    models: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val label = when {
+        selected.isNotEmpty() -> selected
+        models.isEmpty() -> "no endpoint"
+        else -> "select a model"
+    }
+    Box {
+        Surface(
+            onClick = { if (models.isNotEmpty()) open = true },
+            enabled = models.isNotEmpty(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                )
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+            }
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            models.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model) },
+                    trailingIcon = if (model == selected) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null,
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                    onClick = {
+                        open = false
+                        onSelect(model)
+                    },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DrawerContent(
@@ -336,7 +470,7 @@ private fun DrawerContent(
     onRename: (String) -> Unit,
     onDeleteChat: (String) -> Unit,
 ) {
-    ModalDrawerSheet {
+    ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.85f)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -366,46 +500,144 @@ private fun DrawerContent(
                 }
             }
             items(roots, key = { it.id }) { root ->
-                var menuOpen by remember { mutableStateOf(false) }
-                Box {
-                    NavigationDrawerItem(
-                        label = {
-                            Text(
-                                text = chatTitle(root),
-                                maxLines = 1,
-                            )
-                        },
-                        selected = root.id == activeRoot,
-                        onClick = { onSelect(root.id) },
-                        badge = {
-                            IconButton(onClick = { menuOpen = true }) {
-                                Icon(
-                                    Icons.Filled.MoreVert,
-                                    contentDescription = "Conversation options",
-                                )
-                            }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            onClick = { menuOpen = false; onRename(root.id) },
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text("Delete", color = MaterialTheme.colorScheme.error)
-                            },
-                            onClick = { menuOpen = false; onDeleteChat(root.id) },
-                        )
-                    }
-                }
+                DrawerChatItem(
+                    title = chatTitle(root),
+                    selected = root.id == activeRoot,
+                    onClick = { onSelect(root.id) },
+                    onRename = { onRename(root.id) },
+                    onDelete = { onDeleteChat(root.id) },
+                )
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerChatItem(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = if (selected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                Color.Transparent
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { onClick() },
+                            onLongPress = { pressOffset = it; menuOpen = true },
+                        )
+                    }
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    text = title,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+        }
+        TapContextMenu(
+            expanded = menuOpen,
+            touchOffset = pressOffset,
+            onDismiss = { menuOpen = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Rename") },
+                trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = { menuOpen = false; onRename() },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                trailingIcon = {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+                onClick = { menuOpen = false; onDelete() },
+            )
+        }
+    }
+}
+
+/**
+ * A context menu that pops up centered horizontally on the user's touch point
+ * (mirrors the RN app anchoring a zero-size rect at pageX/pageY). Uses a raw
+ * [Popup] with a custom position provider because [DropdownMenu] only supports
+ * anchor-relative offsets, which drift to screen edges for wide anchors.
+ */
+@Composable
+private fun TapContextMenu(
+    expanded: Boolean,
+    touchOffset: Offset,
+    onDismiss: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    if (!expanded) return
+    val provider = remember(touchOffset) {
+        TapMenuPositionProvider(IntOffset(touchOffset.x.roundToInt(), touchOffset.y.roundToInt()))
+    }
+    Popup(
+        popupPositionProvider = provider,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 3.dp,
+            shadowElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 168.dp, max = 172.dp)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+/**
+ * Centers the popup horizontally on [touch] (relative to the popup's anchor)
+ * and places its top at the touch point, clamped inside the window.
+ */
+private class TapMenuPositionProvider(private val touch: IntOffset) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val x = anchorBounds.left + touch.x - popupContentSize.width / 2
+        val y = anchorBounds.top + touch.y
+        return IntOffset(
+            x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+            y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+        )
+    }
+}
+
 @Composable
 private fun MessageItem(
     node: MessageNode,
@@ -422,6 +654,8 @@ private fun MessageItem(
     val (content, reasoning) = if (isUser) node.content to null else Reasoning.split(node)
     val clipboard = LocalClipboardManager.current
     var menuOpen by remember { mutableStateOf(false) }
+    var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    var reasoningExpanded by remember(node.id) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -430,31 +664,110 @@ private fun MessageItem(
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isUser) 0.35f else 0.6f),
                 RoundedCornerShape(16.dp),
             )
-            .combinedClickable(
-                onClick = {},
-                onLongClick = { menuOpen = true },
-            )
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = { pressOffset = it; menuOpen = true })
+            }
             .padding(14.dp),
     ) {
+        Box {
+            TapContextMenu(
+                expanded = menuOpen,
+                touchOffset = pressOffset,
+                onDismiss = { menuOpen = false },
+            ) {
+                if (node.role == "assistant") {
+                    DropdownMenuItem(
+                        text = { Text("Regenerate") },
+                        trailingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                        enabled = !busy,
+                        onClick = { menuOpen = false; onRegenerate() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Modify") },
+                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        enabled = !busy,
+                        onClick = { menuOpen = false; onRequestEdit(false) },
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = { Text("Revise") },
+                        trailingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                        enabled = !busy,
+                        onClick = { menuOpen = false; onRequestEdit(true) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Modify") },
+                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        enabled = !busy,
+                        onClick = { menuOpen = false; onRequestEdit(false) },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Copy") },
+                    trailingIcon = { Icon(ContentCopyIcon, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        clipboard.setText(AnnotatedString(node.content))
+                    },
+                )
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    enabled = !busy,
+                    onClick = { menuOpen = false; onDelete() },
+                )
+            }
+        }
         Text(
             text = if (isUser) "You" else "Assistant",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
         )
         if (!reasoning.isNullOrEmpty()) {
-            Text(
-                text = reasoning,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clickable { reasoningExpanded = !reasoningExpanded },
+            ) {
+                Icon(
+                    imageVector = if (reasoningExpanded) {
+                        Icons.Filled.KeyboardArrowUp
+                    } else {
+                        Icons.Filled.KeyboardArrowDown
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = if (reasoningExpanded) "Hide reasoning" else "Show reasoning",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (reasoningExpanded) {
+                Text(
+                    text = reasoning,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+                )
+            }
         }
         val body = content ?: if (node.role == "assistant" && node.content.isEmpty()) "…" else ""
         if (body.isNotEmpty()) {
             if (isUser) {
                 Text(
                     text = body,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             } else {
@@ -496,46 +809,6 @@ private fun MessageItem(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-        }
-
-        Box {
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                if (node.role == "assistant") {
-                    DropdownMenuItem(
-                        text = { Text("Regenerate") },
-                        enabled = !busy,
-                        onClick = { menuOpen = false; onRegenerate() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Modify") },
-                        enabled = !busy,
-                        onClick = { menuOpen = false; onRequestEdit(false) },
-                    )
-                } else {
-                    DropdownMenuItem(
-                        text = { Text("Revise") },
-                        enabled = !busy,
-                        onClick = { menuOpen = false; onRequestEdit(true) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Modify") },
-                        enabled = !busy,
-                        onClick = { menuOpen = false; onRequestEdit(false) },
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text("Copy") },
-                    onClick = {
-                        menuOpen = false
-                        clipboard.setText(AnnotatedString(node.content))
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                    enabled = !busy,
-                    onClick = { menuOpen = false; onDelete() },
-                )
             }
         }
     }
