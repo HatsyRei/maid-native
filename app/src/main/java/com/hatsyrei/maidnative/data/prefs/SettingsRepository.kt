@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -41,7 +42,7 @@ class SettingsRepository(private val context: Context) {
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
-        const val DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
+        const val DEFAULT_SYSTEM_PROMPT = ConversationDefaults.SYSTEM_PROMPT
 
         private val KEY_BASE_URL = stringPreferencesKey("open-ai-base-url")
         private val KEY_API_KEY = stringPreferencesKey("open-ai-api-key")

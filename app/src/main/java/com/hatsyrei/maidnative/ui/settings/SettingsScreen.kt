@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
@@ -62,9 +63,6 @@ fun SettingsScreen(
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
     var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
-    var baseURLFocused by remember { mutableStateOf(false) }
-    var apiKeyFocused by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
 
     // Reset the scan button to its idle state each time Settings is opened.
     LaunchedEffect(Unit) { onResetScan() }
@@ -94,25 +92,13 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                OutlinedTextField(
-                    value = baseURL,
-                    onValueChange = { baseURL = it },
-                    label = { Text("Base URL") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        onBaseURL(baseURL)
-                        focusManager.clearFocus()
-                    }),
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { focus ->
-                            // Persist automatically when the field loses focus.
-                            if (baseURLFocused && !focus.isFocused && baseURL != state.settings.baseURL) {
-                                onBaseURL(baseURL)
-                            }
-                            baseURLFocused = focus.isFocused
-                        },
+                AutoSaveTextField(
+                    text = baseURL,
+                    onTextChange = { baseURL = it },
+                    committed = state.settings.baseURL,
+                    label = "Base URL",
+                    onCommit = onBaseURL,
+                    modifier = Modifier.weight(1f),
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
                 FilledIconButton(
@@ -138,26 +124,14 @@ fun SettingsScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API key (optional for local endpoints)") },
-                singleLine = true,
+            AutoSaveTextField(
+                text = apiKey,
+                onTextChange = { apiKey = it },
+                committed = state.settings.apiKey,
+                label = "API key (optional for local endpoints)",
+                onCommit = onApiKey,
+                modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = {
-                    onApiKey(apiKey)
-                    focusManager.clearFocus()
-                }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focus ->
-                        // Persist the key automatically when the field loses focus.
-                        if (apiKeyFocused && !focus.isFocused && apiKey != state.settings.apiKey) {
-                            onApiKey(apiKey)
-                        }
-                        apiKeyFocused = focus.isFocused
-                    },
             )
 
             Spacer(Modifier.height(8.dp))
@@ -186,4 +160,38 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+/**
+ * An [OutlinedTextField] that commits its value on IME "Done" and when it loses
+ * focus (only when the text actually differs from the last [committed] value).
+ */
+@Composable
+private fun AutoSaveTextField(
+    text: String,
+    onTextChange: (String) -> Unit,
+    committed: String,
+    label: String,
+    onCommit: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    OutlinedTextField(
+        value = text,
+        onValueChange = onTextChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = visualTransformation,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = {
+            onCommit(text)
+            focusManager.clearFocus()
+        }),
+        modifier = modifier.onFocusChanged { focus ->
+            if (focused && !focus.isFocused && text != committed) onCommit(text)
+            focused = focus.isFocused
+        },
+    )
 }

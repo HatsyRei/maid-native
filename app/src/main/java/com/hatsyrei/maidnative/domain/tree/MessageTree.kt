@@ -24,6 +24,32 @@ object MessageTree {
         return next
     }
 
+    /**
+     * Visit [start] and every descendant reachable via parent -> child links
+     * (branch-aware), in DFS order. Backs sibling ordering with insertion order.
+     */
+    private inline fun forEachDescendant(
+        mappings: Map<String, MessageNode>,
+        start: String,
+        action: (String) -> Unit,
+    ) {
+        val childrenByParent = LinkedHashMap<String, MutableList<String>>()
+        for (node in mappings.values) {
+            val parent = node.parent ?: continue
+            if (!mappings.containsKey(parent)) continue
+            childrenByParent.getOrPut(parent) { mutableListOf() }.add(node.id)
+        }
+        val seen = mutableSetOf<String>()
+        val stack = ArrayDeque<String>()
+        stack.addLast(start)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!seen.add(id)) continue
+            action(id)
+            childrenByParent[id]?.forEach { stack.addLast(it) }
+        }
+    }
+
     fun hasNode(mappings: Mappings, id: String): Boolean = mappings.containsKey(id)
 
     fun getNode(mappings: Mappings, id: String): MessageNode? = mappings[id]
@@ -74,25 +100,9 @@ object MessageTree {
      */
     fun getRootMapping(mappings: Mappings, root: String): Mappings {
         mappings[root] ?: return emptyMap()
-
-        val childrenByParent = LinkedHashMap<String, MutableList<String>>()
-        for (node in mappings.values) {
-            val parent = node.parent ?: continue
-            if (!mappings.containsKey(parent)) continue
-            childrenByParent.getOrPut(parent) { mutableListOf() }.add(node.id)
-        }
-
         val out = LinkedHashMap<String, MessageNode>()
-        val seen = mutableSetOf<String>()
-        val stack = ArrayDeque<String>()
-        stack.addLast(root)
-        while (stack.isNotEmpty()) {
-            val id = stack.removeLast()
-            if (seen.contains(id)) continue
-            seen.add(id)
-            val node = mappings[id] ?: continue
-            out[id] = node
-            childrenByParent[id]?.forEach { stack.addLast(it) }
+        forEachDescendant(mappings, root) { id ->
+            mappings[id]?.let { out[id] = it }
         }
         return out
     }
@@ -292,22 +302,8 @@ object MessageTree {
                 draft[id] = draft.getValue(id).copy(parent = null)
             }
             // Rewrite root on this node + all descendants (branch-aware).
-            val childrenByParent = LinkedHashMap<String, MutableList<String>>()
-            for (n in draft.values) {
-                val p = n.parent ?: continue
-                childrenByParent.getOrPut(p) { mutableListOf() }.add(n.id)
-            }
-            val seen = mutableSetOf<String>()
-            val stack = ArrayDeque<String>()
-            stack.addLast(id)
-            while (stack.isNotEmpty()) {
-                val curId = stack.removeLast()
-                if (seen.contains(curId)) continue
-                seen.add(curId)
-                draft[curId]?.let { cur ->
-                    draft[curId] = cur.copy(root = id)
-                }
-                childrenByParent[curId]?.forEach { stack.addLast(it) }
+            forEachDescendant(draft, id) { curId ->
+                draft[curId]?.let { draft[curId] = it.copy(root = id) }
             }
         }
     }

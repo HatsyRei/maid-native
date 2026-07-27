@@ -2,7 +2,6 @@ package com.hatsyrei.maidnative.ui.chat
 
 import android.app.Application
 import android.net.Uri
-import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hatsyrei.maidnative.data.db.MaidDatabase
@@ -10,7 +9,9 @@ import com.hatsyrei.maidnative.data.db.MessageRepository
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
+import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
+import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -65,6 +66,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
     private val client = OpenAiClient()
     private val repo = MessageRepository(MaidDatabase.get(app).messageDao())
+    private val fileStore = ConversationFileStore(app.contentResolver)
     private val legacyFile = File(app.filesDir, "messages.json")
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -170,7 +172,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val next = MessageTree.addNode(
             _state.value.mappings, rootId, "system",
             s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
-            null, null, null, mapOf("title" to "New Chat"),
+            null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
         )
         _state.value = _state.value.copy(mappings = next, root = rootId)
         persist()
@@ -185,7 +187,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Rename a conversation by updating its root node's title metadata. */
     fun renameChat(rootId: String, title: String) {
         if (_state.value.busy) return
-        val t = title.trim().ifEmpty { "New Chat" }
+        val t = title.trim().ifEmpty { ConversationDefaults.CHAT_TITLE }
         val next = MessageTree.updateContent(
             _state.value.mappings, rootId, { it }, { it + ("title" to t) },
         )
@@ -215,7 +217,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun exportFileName(rootId: String): String {
         val title = _state.value.mappings[rootId]?.metadata?.get("title") as? String
-        val safe = (title?.trim().orEmpty().ifEmpty { "New Chat" }).replace('/', '_')
+        val safe = (title?.trim().orEmpty().ifEmpty { ConversationDefaults.CHAT_TITLE }).replace('/', '_')
         return "$safe.json"
     }
 
@@ -225,10 +227,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
                 if (nodes.isEmpty()) error("Conversation is empty.")
-                val json = MessageStore.encodeExport(nodes)
-                getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-                    it.write(json.toByteArray())
-                } ?: error("Could not open file for writing.")
+                fileStore.write(uri, MessageStore.encodeExport(nodes))
             }.onFailure {
                 _state.value = _state.value.copy(error = "Export failed: ${it.message}")
             }
@@ -242,19 +241,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun backupAllChats(treeUri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                val resolver = getApplication<Application>().contentResolver
-                val dirUri = DocumentsContract.buildDocumentUriUsingTree(
-                    treeUri, DocumentsContract.getTreeDocumentId(treeUri),
-                )
                 val snapshot = _state.value.mappings
-                for (root in MessageTree.getRoots(snapshot)) {
+                val files = MessageTree.getRoots(snapshot).map { root ->
                     val nodes = snapshot.values.filter { it.root == root.id }
-                    val json = MessageStore.encodeExport(nodes)
-                    val fileUri = DocumentsContract.createDocument(
-                        resolver, dirUri, "application/json", exportFileName(root.id),
-                    ) ?: continue
-                    resolver.openOutputStream(fileUri)?.use { it.write(json.toByteArray()) }
+                    exportFileName(root.id) to MessageStore.encodeExport(nodes)
                 }
+                fileStore.backup(treeUri, files)
             }.onFailure {
                 _state.value = _state.value.copy(error = "Backup failed: ${it.message}")
             }
@@ -271,13 +263,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             val merged = withContext(Dispatchers.IO) {
-                val resolver = getApplication<Application>().contentResolver
                 val next = LinkedHashMap(_state.value.mappings)
                 for (uri in uris) {
                     runCatching {
-                        val text = resolver.openInputStream(uri)
-                            ?.use { it.readBytes().decodeToString() }
-                            ?: error("Could not read file.")
+                        val text = fileStore.read(uri)
                         val parsed = LinkedHashMap<String, MessageNode>()
                         for (node in MessageStore.decodeExport(text)) parsed[node.id] = node
                         next.putAll(validateMappings(parsed))
@@ -310,7 +299,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             next = MessageTree.addNode(
                 next, parent, "system",
                 s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
-                null, null, null, mapOf("title" to "New Chat"),
+                null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
             )
         }
         val rootId = existingRoot ?: parent

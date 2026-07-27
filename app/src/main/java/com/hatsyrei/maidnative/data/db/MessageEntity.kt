@@ -3,6 +3,8 @@ package com.hatsyrei.maidnative.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import com.hatsyrei.maidnative.data.toJsonObject
+import com.hatsyrei.maidnative.data.toMap
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import org.json.JSONObject
 
@@ -53,20 +55,11 @@ data class MessageEntity(
 object MetadataConverter {
 
     @TypeConverter
-    fun encode(map: Map<String, Any?>): String =
-        JSONObject(map.mapValues { it.value ?: JSONObject.NULL }).toString()
+    fun encode(map: Map<String, Any?>): String = map.toJsonObject().toString()
 
     @TypeConverter
     fun decode(json: String): Map<String, Any?> {
         if (json.isBlank()) return emptyMap()
-        val obj = JSONObject(json)
-        val out = LinkedHashMap<String, Any?>()
-        val keys = obj.keys()
-        while (keys.hasNext()) {
-            val k = keys.next()
-            val v = obj.get(k)
-            out[k] = if (v === JSONObject.NULL) null else v
-        }
-        return out
+        return JSONObject(json).toMap()
     }
 }

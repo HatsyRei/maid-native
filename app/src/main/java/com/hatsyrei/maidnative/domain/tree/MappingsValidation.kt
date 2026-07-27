@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.domain.tree
 
+import com.hatsyrei.maidnative.domain.ConversationDefaults
 import java.util.UUID
 
 /**
@@ -36,10 +37,10 @@ fun validateMappings(input: Mappings): LinkedHashMap<String, MessageNode> {
         val system = MessageNode(
             id = systemId,
             role = "system",
-            content = "You are a helpful assistant.",
+            content = ConversationDefaults.SYSTEM_PROMPT,
             root = systemId,
             child = movedId,
-            metadata = mapOf("title" to "New Chat"),
+            metadata = mapOf("title" to ConversationDefaults.CHAT_TITLE),
         )
         map.remove(oldId)
         map[systemId] = system
@@ -58,7 +59,7 @@ fun validateMappings(input: Mappings): LinkedHashMap<String, MessageNode> {
 
     // 3. Empty roots get the default system prompt.
     for (root in MessageTree.getRoots(map).filter { it.content.isBlank() }) {
-        map[root.id] = root.copy(content = "You are a helpful assistant.")
+        map[root.id] = root.copy(content = ConversationDefaults.SYSTEM_PROMPT)
     }
 
     // 4. Drop childless roots (empty conversations).

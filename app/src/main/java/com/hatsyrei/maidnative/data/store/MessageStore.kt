@@ -1,5 +1,8 @@
 package com.hatsyrei.maidnative.data.store
 
+import com.hatsyrei.maidnative.data.optStringOrNull
+import com.hatsyrei.maidnative.data.toJsonObject
+import com.hatsyrei.maidnative.data.toMap
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,7 +28,7 @@ object MessageStore {
         put("root", node.root)
         put("parent", node.parent)
         put("child", node.child)
-        put("metadata", JSONObject(node.metadata.mapValues { it.value ?: JSONObject.NULL }))
+        put("metadata", node.metadata.toJsonObject())
     }
 
     private fun jsonToNode(o: JSONObject): MessageNode = MessageNode(
@@ -82,18 +85,4 @@ object MessageStore {
         }
         return out
     }
-}
-
-private fun JSONObject.optStringOrNull(key: String): String? =
-    if (isNull(key) || !has(key)) null else optString(key).ifEmpty { null }
-
-private fun JSONObject.toMap(): Map<String, Any?> {
-    val map = LinkedHashMap<String, Any?>()
-    val keys = keys()
-    while (keys.hasNext()) {
-        val k = keys.next()
-        val v = get(k)
-        map[k] = if (v === JSONObject.NULL) null else v
-    }
-    return map
 }
