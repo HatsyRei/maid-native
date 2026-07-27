@@ -25,7 +25,13 @@ fun MarkdownText(
     // hierarchy while staying in scale with the chat text.
     val base = MaterialTheme.typography.bodyMedium
     val heading = @Composable { scale: Float ->
-        base.copy(fontSize = base.fontSize * scale, fontWeight = FontWeight.Medium)
+        base.copy(
+            fontSize = base.fontSize * scale,
+            // Scale line height with the font so wrapped heading lines keep a
+            // proportional gap instead of squishing together.
+            lineHeight = base.lineHeight * scale,
+            fontWeight = FontWeight.Medium,
+        )
     }
     Markdown(
         content = markdown,
@@ -45,7 +51,7 @@ fun MarkdownText(
         ),
         // Wider gap between blocks so a blank line (paragraph break) reads with
         // clear separation, closer to the RN markdown display.
-        padding = markdownPadding(block = 4.dp),
+        padding = markdownPadding(block = 5.dp),
         modifier = modifier.fillMaxWidth(),
     )
 }
