@@ -17,22 +17,12 @@ android {
         versionName = "0.1.0"
     }
 
-    signingConfigs {
-        create("release") {
-            // Local dev keystore (git-ignored). Prototype credentials — not a
-            // production release key. Regenerate/replace before any public build.
-            storeFile = rootProject.file("maidnative-dev.keystore")
-            storePassword = "maidnative"
-            keyAlias = "maidnative"
-            keyPassword = "maidnative"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // Use the auto-generated debug signing key for release builds.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -3,10 +3,10 @@
 # Clean build helper for the Maid Native experimental app.
 #
 # Usage:
-#   ./build.sh              # clean + assemble debug APK (default)
-#   ./build.sh release      # clean + assemble signed release APK
+#   ./build.sh              # clean + assemble signed release APK (default)
+#   ./build.sh debug        # clean + assemble debug APK
 #   ./build.sh test         # clean + run unit tests
-#   ./build.sh install      # clean + assemble debug + install to a connected device
+#   ./build.sh install      # clean + assemble release + install to a connected device
 #
 # Honors existing JAVA_HOME / ANDROID_HOME if already exported; otherwise falls
 # back to the locations used during development.
@@ -43,12 +43,12 @@ echo "JAVA_HOME=${JAVA_HOME:-<unset>}"
 echo "ANDROID_HOME=${ANDROID_HOME:-<unset (relying on local.properties)>}"
 
 # --- Task selection --------------------------------------------------------
-TARGET="${1:-debug}"
+TARGET="${1:-release}"
 case "$TARGET" in
   debug)   GRADLE_TASK="clean :app:assembleDebug" ;;
   release) GRADLE_TASK="clean :app:assembleRelease" ;;
   test)    GRADLE_TASK="clean :app:testDebugUnitTest" ;;
-  install) GRADLE_TASK="clean :app:assembleDebug" ;;
+  install) GRADLE_TASK="clean :app:assembleRelease" ;;
   *)
     echo "Unknown target '$TARGET' (expected: debug | release | test | install)" >&2
     exit 2
@@ -61,7 +61,7 @@ echo "==> ./gradlew $GRADLE_TASK --no-daemon"
 
 # --- Post-build ------------------------------------------------------------
 if [[ "$TARGET" == "install" ]]; then
-  APK="app/build/outputs/apk/debug/app-arm64-v8a-debug.apk"
+  APK="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
   echo "==> adb install -r $APK"
   adb install -r "$APK"
 fi
