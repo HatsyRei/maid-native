@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -51,7 +53,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -82,6 +83,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
@@ -282,11 +284,13 @@ private fun ChatScaffold(
                     }
                 },
                 title = {
-                    ModelSelector(
-                        models = state.models,
-                        selected = state.settings.model,
-                        onSelect = onSelectModel,
-                    )
+                    if (state.models.isNotEmpty()) {
+                        ModelSelector(
+                            models = state.models,
+                            selected = state.settings.model,
+                            onSelect = onSelectModel,
+                        )
+                    }
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
@@ -468,16 +472,12 @@ private fun ModelSelector(
     selected: String,
     onSelect: (String) -> Unit,
 ) {
+    if (models.isEmpty()) return
     var open by remember { mutableStateOf(false) }
-    val label = when {
-        selected.isNotEmpty() -> selected
-        models.isEmpty() -> "no endpoint"
-        else -> "select a model"
-    }
+    val label = selected.ifEmpty { "select a model" }
     Box {
         Surface(
-            onClick = { if (models.isNotEmpty()) open = true },
-            enabled = models.isNotEmpty(),
+            onClick = { open = true },
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
@@ -495,27 +495,66 @@ private fun ModelSelector(
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
             }
         }
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            models.forEach { model ->
-                MenuOption(
-                    text = model,
-                    modifier = Modifier.width(240.dp),
-                    textColor = if (model == selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    onClick = {
-                        open = false
-                        onSelect(model)
-                    },
-                )
+        if (open) {
+            val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
+            val provider = remember(gapPx) { CenteredBelowAnchorPositionProvider(gapPx) }
+            Popup(
+                popupPositionProvider = provider,
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 6.dp,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .width(240.dp)
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 6.dp, vertical = 8.dp),
+                    ) {
+                        models.forEach { model ->
+                            MenuOption(
+                                text = model,
+                                textColor = if (model == selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                onClick = {
+                                    open = false
+                                    onSelect(model)
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/**
+ * Centers the popup horizontally on the anchor and places it just below,
+ * clamped inside the window. Mirrors [TapMenuPositionProvider] but anchors to
+ * the selector pill instead of a touch point so the menu lines up with the pill.
+ */
+private class CenteredBelowAnchorPositionProvider(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val x = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+        val y = anchorBounds.bottom + gap
+        return IntOffset(
+            x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+            y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+        )
     }
 }
 
