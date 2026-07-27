@@ -4,6 +4,14 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,8 +34,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -58,8 +68,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,13 +80,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -282,7 +290,11 @@ private fun ChatScaffold(
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(
+                            Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 },
             )
@@ -295,6 +307,10 @@ private fun ChatScaffold(
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
+            // Reset to the top of the conversation whenever the active chat changes.
+            LaunchedEffect(state.root) {
+                listState.scrollToItem(0)
+            }
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
@@ -518,13 +534,13 @@ private fun DrawerContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onImport) {
+            IconButton(onClick = onImport, modifier = Modifier.size(40.dp)) {
                 Icon(FolderOpenIcon, contentDescription = "Import conversations")
             }
-            IconButton(onClick = onBackupAll) {
+            IconButton(onClick = onBackupAll, modifier = Modifier.size(40.dp)) {
                 Icon(SaveAltIcon, contentDescription = "Back up all chats")
             }
-            IconButton(onClick = onNewChat) {
+            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Filled.Add, contentDescription = "New chat")
             }
         }
@@ -565,14 +581,22 @@ private fun DrawerChatItem(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    var pressed by remember { mutableStateOf(false) }
+    // Fade the pill between focused and unfocused states (RN parity).
+    val pillColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+        animationSpec = tween(450),
+        label = "chatPillBg",
+    )
+    val pillTextColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        animationSpec = tween(450),
+        label = "chatPillText",
+    )
     Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                Color.Transparent
-            },
+            color = pillColor,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Box(
@@ -580,6 +604,11 @@ private fun DrawerChatItem(
                     .fillMaxWidth()
                     .pointerInput(Unit) {
                         detectTapGestures(
+                            onPress = {
+                                pressed = true
+                                tryAwaitRelease()
+                                pressed = false
+                            },
                             onTap = { onClick() },
                             onLongPress = { pressOffset = it; menuOpen = true },
                         )
@@ -590,11 +619,8 @@ private fun DrawerChatItem(
                     text = title,
                     maxLines = 1,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                    // Dim just the label while pressed as the long-press cue.
+                    color = if (pressed) pillTextColor.copy(alpha = 0.5f) else pillTextColor,
                 )
             }
         }
@@ -703,17 +729,30 @@ private fun MessageItem(
     val clipboard = LocalClipboardManager.current
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    var pressed by remember { mutableStateOf(false) }
     var reasoningExpanded by remember(node.id) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isUser) 0.35f else 0.6f),
+                MaterialTheme.colorScheme.surfaceContainerLow,
+                RoundedCornerShape(16.dp),
+            )
+            .background(
+                if (pressed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                else Color.Transparent,
                 RoundedCornerShape(16.dp),
             )
             .pointerInput(Unit) {
-                detectTapGestures(onLongPress = { pressOffset = it; menuOpen = true })
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                    },
+                    onLongPress = { pressOffset = it; menuOpen = true },
+                )
             }
             .padding(14.dp),
     ) {
@@ -810,8 +849,11 @@ private fun MessageItem(
                 )
             }
         }
-        val body = content ?: if (node.role == "assistant" && node.content.isEmpty()) "…" else ""
-        if (body.isNotEmpty()) {
+        val body = content ?: ""
+        if (node.role == "assistant" && body.isBlank()) {
+            // Waiting on the endpoint / first tokens: show an animated typing cue.
+            TypingIndicator(modifier = Modifier.padding(top = 6.dp))
+        } else if (body.isNotEmpty()) {
             if (isUser) {
                 Text(
                     text = body,
@@ -862,6 +904,38 @@ private fun MessageItem(
     }
 }
 
+/**
+ * A three-dot pulsing indicator shown in an assistant bubble while the app
+ * waits for the endpoint to start streaming a response.
+ */
+@Composable
+private fun TypingIndicator(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "typing")
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(500, delayMillis = index * 160, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(color.copy(alpha = alpha), CircleShape),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Composer(
@@ -872,36 +946,59 @@ private fun Composer(
 ) {
     var text by remember { mutableStateOf("") }
     val canSend = enabled && text.trim().isNotEmpty()
+    val active = busy || canSend
 
+    // Single full-width pill (RN prompt-input-group): the input spans the width
+    // and the send/stop button lives inside the pill at the right end.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 12.dp, vertical = 14.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                RoundedCornerShape(30.dp),
+            )
+            .padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        TextField(
+        BasicTextField(
             value = text,
             onValueChange = { text = it },
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Message") },
-            shape = RoundedCornerShape(28.dp),
-            maxLines = 5,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-            ),
-        )
-        val fabColor =
-            if (busy || canSend) Color.White
-            else MaterialTheme.colorScheme.surfaceVariant
-        Box(
             modifier = Modifier
-                .padding(bottom = 4.dp)
-                .background(fabColor, RoundedCornerShape(24.dp)),
-        ) {
+                .weight(1f)
+                .heightIn(max = 120.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            maxLines = 5,
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (text.isEmpty()) {
+                        Text(
+                            text = "Message",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+        val fabColor by animateColorAsState(
+            targetValue = if (active) Color.White else MaterialTheme.colorScheme.surfaceContainerHigh,
+            animationSpec = tween(400),
+            label = "fabColor",
+        )
+        val arrowTint by animateColorAsState(
+            targetValue = if (canSend) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
+            animationSpec = tween(400),
+            label = "arrowTint",
+        )
+        Box(modifier = Modifier.background(fabColor, CircleShape)) {
             IconButton(
                 onClick = {
                     if (busy) {
@@ -911,21 +1008,23 @@ private fun Composer(
                         text = ""
                     }
                 },
-                enabled = busy || canSend,
+                enabled = active,
             ) {
-                if (busy) {
-                    // Perfectly square = stop (material-icons-core has no Stop glyph).
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(Color.Black),
-                    )
-                } else {
-                    Icon(
-                        ArrowUpwardIcon,
-                        contentDescription = "Send",
-                        tint = if (canSend) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Crossfade(targetState = busy, animationSpec = tween(400), label = "sendStop") { streaming ->
+                    if (streaming) {
+                        // Perfectly square = stop (material-icons-core has no Stop glyph).
+                        Box(
+                            modifier = Modifier
+                                .size(13.dp)
+                                .background(Color.Black),
+                        )
+                    } else {
+                        Icon(
+                            ArrowUpwardIcon,
+                            contentDescription = "Send",
+                            tint = arrowTint,
+                        )
+                    }
                 }
             }
         }

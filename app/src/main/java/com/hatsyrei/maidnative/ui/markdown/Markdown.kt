@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.markdownPadding
 
 /**
  * Renders assistant markdown using the multiplatform-markdown-renderer library
@@ -27,6 +29,9 @@ fun MarkdownText(
             list = MaterialTheme.typography.bodyMedium,
             quote = MaterialTheme.typography.bodyMedium,
         ),
+        // Wider gap between blocks so a blank line (paragraph break) reads with
+        // clear separation, closer to the RN markdown display.
+        padding = markdownPadding(block = 8.dp),
         modifier = modifier.fillMaxWidth(),
     )
 }
