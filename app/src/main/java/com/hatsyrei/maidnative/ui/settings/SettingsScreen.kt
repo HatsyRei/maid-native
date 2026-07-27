@@ -2,8 +2,6 @@ package com.hatsyrei.maidnative.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +22,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -49,8 +46,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
+import com.hatsyrei.maidnative.ui.chat.ModelSelector
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     state: ChatUiState,
@@ -175,15 +173,11 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.models.forEach { model ->
-                        FilterChip(
-                            selected = model == state.settings.model,
-                            onClick = { onModel(model) },
-                            label = { Text(model) },
-                        )
-                    }
-                }
+                ModelSelector(
+                    models = state.models,
+                    selected = state.settings.model,
+                    onSelect = onModel,
+                )
             }
             AssistChip(
                 onClick = onRefreshModels,

@@ -469,7 +469,7 @@ private fun ConfirmDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ModelSelector(
+internal fun ModelSelector(
     models: List<String>,
     selected: String,
     onSelect: (String) -> Unit,
@@ -850,7 +850,8 @@ private fun MessageItem(
                 RoundedCornerShape(16.dp),
             )
             .background(
-                if (pressed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                // Darken (dim) the card while pressed as the long-press cue.
+                if (pressed) Color.Black.copy(alpha = 0.18f)
                 else Color.Transparent,
                 RoundedCornerShape(16.dp),
             )
