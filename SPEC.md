@@ -4,7 +4,7 @@ Status: **In progress — working vertical slice on-device (M0–M3 largely done
 Owner: hatsyrei
 Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side with the existing React Native `maid` app during migration.
 
-> **Progress at a glance (2026-07-23):** Buildable/installable Compose app streaming real chat against an OpenAI-compatible endpoint on a physical device. Conversation-tree logic + reasoning ported with passing unit tests; DataStore settings; OkHttp SSE streaming + model listing; full chat UI with message controls (regenerate/revise/modify/copy/delete), branch navigation, a navigation drawer (select/rename/delete conversations), and Markdown rendering. Signed release APK ≈ **1.3 MB**. Remaining big rocks: Room persistence (interim JSON store today), endpoint scan, custom headers/params, export/import, model-selector pill, icon/splash, and swapping the interim Markdown renderer for a library.
+> **Progress at a glance (2026-07-27):** Buildable/installable Compose app streaming real chat against an OpenAI-compatible endpoint on a physical device. Conversation-tree logic + reasoning ported with passing unit tests; DataStore settings; OkHttp SSE streaming + model listing; full chat UI with message controls (regenerate/revise/modify/copy/delete), branch navigation, a navigation drawer (select/rename/delete conversations), Markdown rendering (library-based, incl. user messages), a model-selector pill, endpoint subnet scan, chat export/import (RN-compatible), a draggable scroll thumb, and a real launcher icon (Maid Ai monogram). Signed release APK ≈ **1.3 MB**. Remaining big rocks: Room persistence (interim JSON store today), custom headers/params editors, Android 12 splash, and the retry/parity/polish backlog in §10.
 
 ---
 
@@ -84,13 +84,13 @@ Derived from the current RN app. Each item is a parity target for the native app
 ### 4.5 UI / UX (Material 3 parity)
 - [x] Hardcoded dark theme seeded from `#2196F3` (Compose M3 color scheme). *(Dynamic color optional/later.)*
 - [x] Composer pill (rounded, borderless multiline input, filled send/stop button, enabled/disabled transition).
-- [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown via `multiplatform-markdown-renderer-m3`; markdown **image** rule pending — needs Coil.)*
+- [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown via `multiplatform-markdown-renderer-m3`; both user and assistant messages render as Markdown; markdown **image** rule pending — needs Coil.)*
 - [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant). *(Anchored to the touch point; trailing M3 icons; delete behind a confirm dialog.)*
-- [x] Model selector pill + dropdown menu in the top bar (RN parity).
+- [x] Model selector pill + dropdown menu in the top bar (RN parity). *(Pill hidden when no models available; dropdown menu centered on the pill.)*
 - [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export (per-chat), import (multi-file), and backup-all done via SAF; RN-compatible JSON format.)*
-- [ ] Custom scroll thumb (or drop it — decide during UI pass).
+- [x] Custom scroll thumb. *(`ui/chat/DraggableScrollbar.kt`: draggable scroll thumb for the conversation view.)*
 - [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`. Auto-scroll removed 2026-07-27; instead a bottom spacer (`viewport − 96dp`, a trailing `Spacer` item under `BoxWithConstraints`) lets the user scroll the last message up near the top and scroll ahead to watch streaming text — mirrors RN commit `dd8fb76`.)*
-- [ ] App icon + Android 12 splash (reuse existing `assets/images/*`). *(Placeholder adaptive icon only.)*
+- [~] App icon + Android 12 splash (reuse existing `assets/images/*`). *(Real adaptive launcher icon done — Maid Ai monogram foreground with padding; Android 12 splash still pending.)*
 
 ## 5. Architecture (native)
 
@@ -125,14 +125,14 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 1. **M0 — Prototype:** ✅ **Done.** Buildable/installable Compose skeleton, dark M3, side-by-side id, signing.
 2. **M1 — Tree core:** 🟡 **Partial.** `message-nodes` Kotlin port + test parity ✅. Room schema + incremental persistence ❌ (interim JSON snapshot store in place).
 3. **M2 — Streaming:** ✅ **Done.** OpenAI client (models + SSE completions + abort) ✅, settings (DataStore) ✅, model selection ✅. *(Retry parity + endpoint scan not yet.)*
-4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`), reasoning (inline), composer, long-press menu, branch navigation ✅. Collapsible reasoning, model-selector pill, markdown images pending.
+4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`, user + assistant), reasoning (inline), composer, long-press menu, branch navigation, model-selector pill, draggable scroll thumb ✅. Collapsible reasoning, markdown images pending.
 5. **M4 — Drawer & data ops:** 🟡 **Partial.** Drawer conversation list + rename + delete ✅. Export / import / backup-all ✅ (SAF, RN-compatible format + `validateMappings` port). Endpoint scan ✅. Custom headers/params ❌.
-6. **M5 — Polish & parity sign-off:** 🟡 **Started.** Edge-to-edge + keyboard-inset + scroll-hijack fixes ✅. Real icon/splash, dynamic theming pass, on-device A/B vs RN, size/battery verification ❌.
+6. **M5 — Polish & parity sign-off:** 🟡 **Started.** Edge-to-edge + keyboard-inset + scroll-hijack fixes, real launcher icon (Maid Ai monogram) ✅. Android 12 splash, dynamic theming pass, on-device A/B vs RN, size/battery verification ❌.
 
 ### 7.1 Immediate next steps (next session)
 1. ~~Swap the interim Markdown renderer for **`com.mikepenz:multiplatform-markdown-renderer-m3`**~~ **DONE** (v0.32.0, pinned for Compose 1.7.6 compatibility).
 2. Room persistence (schema mirror + incremental diff), replacing `data/store/MessageStore.kt`; persist partial replies so a mid-stream crash survives.
-3. Endpoint scan, custom headers/params editors, export/import, model-selector pill, collapsible reasoning, real icon/splash.
+3. Custom headers/params editors, collapsible reasoning, Android 12 splash. *(Endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon — DONE.)*
 4. Work through the on-device parity backlog in §10 (drawer width, keyboard-on-drawer, menu styling/anchoring, delete-confirm, composer typography).
 
 ## 8. Risks
