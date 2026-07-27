@@ -38,10 +38,23 @@ data class ChatUiState(
     val scanning: Boolean = false,
     val foundURL: String? = null,
     val error: String? = null,
+    val streamingId: String? = null,
+    val streamingText: String = "",
 ) {
-    /** Visible conversation = active thread from root, skipping the system node. */
+    /**
+     * Visible conversation = active thread from root, skipping the system node.
+     * While a stream is in flight the growing reply lives in [streamingText]
+     * (not the tree), so overlay it onto the streaming node here. The tree map
+     * itself is left untouched per token and rewritten exactly once when the
+     * stream ends or is stopped.
+     */
     val conversation: List<MessageNode>
-        get() = root?.let { MessageTree.getConversation(mappings, it).drop(1) } ?: emptyList()
+        get() {
+            val thread = root?.let { MessageTree.getConversation(mappings, it).drop(1) }
+                ?: return emptyList()
+            val id = streamingId ?: return thread
+            return thread.map { if (it.id == id) it.copy(content = streamingText) else it }
+        }
 
     val ready: Boolean
         get() = settings.model.isNotEmpty() && models.contains(settings.model)
@@ -379,7 +392,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startStream(rootId: String, responseId: String) {
         val s = _state.value.settings
-        _state.value = _state.value.copy(busy = true, error = null)
+        _state.value = _state.value.copy(
+            busy = true, error = null, streamingId = responseId, streamingText = "",
+        )
         persist()
         val conversation = MessageTree.getConversation(_state.value.mappings, rootId)
         streamJob = viewModelScope.launch {
@@ -397,13 +412,29 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun appendToResponse(responseId: String, chunk: String) {
-        val updated = MessageTree.updateContent(_state.value.mappings, responseId, { it + chunk })
-        _state.value = _state.value.copy(mappings = updated)
+        // Real-time streaming updates a lightweight buffer only; the tree map is
+        // never copied per token. The buffer is committed into the tree once in
+        // finishStreaming(). Guard against a stale chunk from a superseded job.
+        if (_state.value.streamingId != responseId) return
+        _state.value = _state.value.copy(streamingText = _state.value.streamingText + chunk)
     }
 
     private fun finishStreaming() {
         if (!_state.value.busy) return
-        _state.value = _state.value.copy(busy = false)
+        // Commit the accumulated reply into the tree in a single map write, then
+        // persist once (per-token writes were intentionally suppressed above).
+        val id = _state.value.streamingId
+        val committed = if (id != null) {
+            MessageTree.setContent(_state.value.mappings, id, _state.value.streamingText)
+        } else {
+            _state.value.mappings
+        }
+        _state.value = _state.value.copy(
+            mappings = committed,
+            busy = false,
+            streamingId = null,
+            streamingText = "",
+        )
         persist()
     }
 

@@ -179,3 +179,28 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype. To be
 ### Settings
 - [x] **Reset-to-default endpoint (FIXED 2026-07-27):** added a "Reset to default" chip next to the Base URL save action.
 - **Endpoint search:** DONE — search/scan button next to the Base URL field validates the current URL, then scans the local subnet (§4.1).
+
+## 11. Battery usage audit (2026-07-27)
+
+Quick static audit of energy-relevant code paths. No continuous background work exists — the app has no services, no `WAKE_LOCK`/`FOREGROUND_SERVICE` permissions, no polling loops or timers, and no location/sensor usage (`INTERNET` is the only permission). Work is entirely user- or stream-driven. Findings and their dispositions (after review 2026-07-27) below.
+
+### Worth exploring
+
+- [x] **Whole-map copy per token — FIXED 2026-07-27 (was the one genuine inefficiency).** Previously `MessageTree.updateContent` deep-copied the full `Mappings` (`LinkedHashMap` via `copyOf`) and emitted a fresh `ChatUiState` on **every** token → O(N) allocation churn per delta for large conversations. Resolved by **decoupling the streaming buffer from the tree** (option 2 below): `ChatUiState` now carries a lightweight `streamingId`/`streamingText` pair, `appendToResponse` only appends to that string per token, and the `conversation` getter overlays it onto the streaming node for real-time display. The tree map is left untouched during streaming and rewritten **exactly once** in `finishStreaming` (via `MessageTree.setContent`), followed by the single existing persist. (Disk writes were already once-at-end — `appendToResponse` never persisted — so only the in-memory copy needed fixing.) Real-time streaming output is preserved; only the latest message re-parses markdown since its `key`-ed list item is the only one whose content changes.
+  - Alternatives considered: (1) **persistent map** (`kotlinx.collections.immutable`, order-preserving `PersistentMap`) — O(log N) `put` with structural sharing, near drop-in for `copyOf`, but still touches the tree per token; (3) **coalesce/throttle tokens** — fewer emissions but still O(N) per batch. Option 2 was chosen because it removes per-token tree churn entirely while matching the requirement that copying happen only once after the stream completes or is stopped.
+
+- **Per-token full-document markdown re-parse — intentional, memoization to be explored (medium–high).** `MarkdownText` (`ui/markdown/Markdown.kt`) re-parses the **entire** assistant message on every recomposition; during streaming that is ~O(tokens × length) main-thread CPU for one reply, and the likeliest source of jank on long answers. **Accepted as intentional for now.** Note on memoization: caching keyed on the streaming message's own content gives little, since its content changes every token (the `key`-ed `LazyColumn` items already spare the *other, stable* messages). The practical lever is coalescing token updates (option 3 above), optionally hoisting the parse so it runs at the throttled cadence rather than per recomposition.
+
+### Accepted / intentional (no action)
+
+- **No read/idle timeout on the streaming socket.** `OpenAiClient` sets `readTimeout(0)` **intentionally** so a slow model isn't cut off. A stalled/half-open connection can keep the socket (and radio) awake until the user taps Stop; accepted as a deliberate trade-off for reliable long generations.
+- **Streaming continues while backgrounded.** The stream runs in `viewModelScope`, not tied to UI visibility, so generation keeps running off-screen. **Intentional** — a reply should not be lost because the user briefly leaves the app.
+- **Subnet scan burst.** `EndpointScanner.scanForEndpoint` fires up to `CONCURRENCY = 64` concurrent probes across a /24 (≈254 hosts) and, on miss, an extended /21 (up to ~2046 hosts) at a 400 ms timeout — a short, intense radio + CPU spike. **Intentional and bounded:** triggered only by explicit user action (never periodically in the background), batched, and cancels remaining probes once a match is found.
+
+### Positives (no action needed)
+
+- No wake locks, foreground services, alarms, or `keepScreenOn`.
+- No background polling, timers, or `while(true)` loops; all coroutines are event- or stream-scoped.
+- Persistence is cheap: writes are coalesced through a `CONFLATED` channel with a single consumer, and `MessageRepository` writes only the diff (skipping the DB entirely when nothing changed).
+- Scanner and streaming clients cancel their in-flight work correctly (`cancelChildren`, `EventSource.cancel`, `awaitClose`).
+- The scrollbar fade uses a single idle `delay` gated on scroll events, not a running animation loop.
