@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -39,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
@@ -58,7 +62,9 @@ fun SettingsScreen(
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
     var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
+    var baseURLFocused by remember { mutableStateOf(false) }
     var apiKeyFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     // Reset the scan button to its idle state each time Settings is opened.
     LaunchedEffect(Unit) { onResetScan() }
@@ -86,14 +92,27 @@ fun SettingsScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 OutlinedTextField(
                     value = baseURL,
                     onValueChange = { baseURL = it },
                     label = { Text("Base URL") },
                     singleLine = true,
-                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        onBaseURL(baseURL)
+                        focusManager.clearFocus()
+                    }),
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { focus ->
+                            // Persist automatically when the field loses focus.
+                            if (baseURLFocused && !focus.isFocused && baseURL != state.settings.baseURL) {
+                                onBaseURL(baseURL)
+                            }
+                            baseURLFocused = focus.isFocused
+                        },
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
                 FilledIconButton(
@@ -132,6 +151,11 @@ fun SettingsScreen(
                 label = { Text("API key (optional for local endpoints)") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    onApiKey(apiKey)
+                    focusManager.clearFocus()
+                }),
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { focus ->
