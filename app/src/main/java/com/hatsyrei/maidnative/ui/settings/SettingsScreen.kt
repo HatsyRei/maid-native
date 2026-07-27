@@ -162,14 +162,6 @@ fun SettingsScreen(
                     },
             )
 
-            AssistChip(
-                onClick = {
-                    baseURL = SettingsRepository.DEFAULT_BASE_URL
-                    onBaseURL(SettingsRepository.DEFAULT_BASE_URL)
-                },
-                label = { Text("Reset to default") },
-            )
-
             Spacer(Modifier.height(8.dp))
 
             Text("Model", style = MaterialTheme.typography.titleMedium)

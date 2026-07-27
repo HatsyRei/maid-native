@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -88,6 +89,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -571,7 +573,10 @@ private fun DrawerContent(
     onImport: () -> Unit,
     onBackupAll: () -> Unit,
 ) {
-    ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.85f)) {
+    ModalDrawerSheet(
+        modifier = Modifier.fillMaxWidth(0.85f),
+        drawerContainerColor = Color.Black,
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1044,6 +1049,9 @@ private fun Composer(
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             maxLines = 5,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+            ),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.padding(vertical = 12.dp),
