@@ -6,11 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -326,6 +321,7 @@ private fun ChatScaffold(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    val latestId = state.conversation.lastOrNull()?.id
                     items(state.conversation, key = { it.id }) { node ->
                         val siblings = node.parent?.let { MessageTree.getChildren(state.mappings, it) }
                             ?: emptyList()
@@ -335,6 +331,7 @@ private fun ChatScaffold(
                             siblingIndex = index,
                             siblingCount = siblings.size,
                             busy = state.busy,
+                            isLatest = node.id == latestId,
                             onRegenerate = { onRegenerate(node.id) },
                             onDelete = { onDelete(node.id) },
                             onRequestEdit = { revise ->
@@ -356,7 +353,7 @@ private fun ChatScaffold(
                     text = err,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
                 )
             }
             Composer(
@@ -718,6 +715,7 @@ private fun MessageItem(
     siblingIndex: Int,
     siblingCount: Int,
     busy: Boolean,
+    isLatest: Boolean,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onRequestEdit: (revise: Boolean) -> Unit,
@@ -850,9 +848,16 @@ private fun MessageItem(
             }
         }
         val body = content ?: ""
-        if (node.role == "assistant" && body.isBlank()) {
-            // Waiting on the endpoint / first tokens: show an animated typing cue.
-            TypingIndicator(modifier = Modifier.padding(top = 6.dp))
+        if (node.role == "assistant" && body.isBlank() && busy && isLatest) {
+            // Placeholder shown only on the newest assistant bubble while waiting
+            // on the endpoint / first tokens. Gated on `busy` so it clears if the
+            // stream ends or errors before any tokens arrive.
+            Text(
+                text = "…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         } else if (body.isNotEmpty()) {
             if (isUser) {
                 Text(
@@ -900,38 +905,6 @@ private fun MessageItem(
                     )
                 }
             }
-        }
-    }
-}
-
-/**
- * A three-dot pulsing indicator shown in an assistant bubble while the app
- * waits for the endpoint to start streaming a response.
- */
-@Composable
-private fun TypingIndicator(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "typing")
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        repeat(3) { index ->
-            val alpha by transition.animateFloat(
-                initialValue = 0.25f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(500, delayMillis = index * 160, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "dot$index",
-            )
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .background(color.copy(alpha = alpha), CircleShape),
-            )
         }
     }
 }
@@ -1011,19 +984,27 @@ private fun Composer(
                 enabled = active,
             ) {
                 Crossfade(targetState = busy, animationSpec = tween(400), label = "sendStop") { streaming ->
-                    if (streaming) {
-                        // Perfectly square = stop (material-icons-core has no Stop glyph).
-                        Box(
-                            modifier = Modifier
-                                .size(13.dp)
-                                .background(Color.Black),
-                        )
-                    } else {
-                        Icon(
-                            ArrowUpwardIcon,
-                            contentDescription = "Send",
-                            tint = arrowTint,
-                        )
+                    // Fixed-size, center-aligned box so the small stop square stays
+                    // centered during the crossfade instead of snapping from the
+                    // top-start corner of the larger send arrow's bounds.
+                    Box(
+                        modifier = Modifier.size(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (streaming) {
+                            // Perfectly square = stop (material-icons-core has no Stop glyph).
+                            Box(
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .background(Color.Black),
+                            )
+                        } else {
+                            Icon(
+                                ArrowUpwardIcon,
+                                contentDescription = "Send",
+                                tint = arrowTint,
+                            )
+                        }
                     }
                 }
             }
