@@ -352,6 +352,11 @@ private fun ChatScaffold(
                         }
                     }
                 }
+                DraggableScrollbar(
+                    listState = listState,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    trailingSpacerHeight = spacerHeight,
+                )
             }
             state.error?.let { err ->
                 Text(
