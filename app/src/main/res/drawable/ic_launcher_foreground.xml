@@ -3,9 +3,27 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simple placeholder mark: a rounded square accent. Replace with the
-         real Maid logo (from assets/images) during the icon/splash pass. -->
-    <path
-        android:fillColor="#2196F3"
-        android:pathData="M38,38 h32 a6,6 0 0 1 6,6 v20 a6,6 0 0 1 -6,6 h-32 a6,6 0 0 1 -6,-6 v-20 a6,6 0 0 1 6,-6 z" />
+    <!-- Maid "Ai" monogram, ported from ../maid/assets/graphics/logo.svg.
+         The group transform maps the original SVG path coordinates into the
+         adaptive-icon 108x108 canvas, centered within the safe zone. -->
+    <group
+        android:scaleX="1.06638"
+        android:scaleY="0.99414"
+        android:translateX="-36.083155"
+        android:translateY="-79.71447">
+        <!-- Blue lettering: the "A" and the "i" stem -->
+        <path
+            android:strokeColor="#18A0FF"
+            android:strokeWidth="8.16302"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="m 59.758151,156.06472 15.732008,-43.17831 13.666685,43.17831 M 109.1424,124.91619 v 31.14853" />
+        <!-- White accent: the diagonal stroke and the "i" dot -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8.16302"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M 89.156844,156.06472 109.1424,124.91619 m 1e-5,-12.02918 v 0" />
+    </group>
 </vector>
