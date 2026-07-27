@@ -31,7 +31,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 | Language / UI | TypeScript + React Native + Expo | Kotlin + Jetpack Compose |
 | Design system | Material 3 (hand-rolled tokens) | Compose Material 3 (`androidx.compose.material3`) |
 | Navigation | expo-router (file-based) | `navigation-compose` (or a small sealed-class nav) |
-| Persistence (messages) | `expo-sqlite` + hand-written incremental diff | Room (KSP) — **interim in prototype: JSON snapshot file** (`data/store/MessageStore.kt`), to be replaced |
+| Persistence (messages) | `expo-sqlite` + hand-written incremental diff | Room (KSP) — **done** (`data/db/`: entity/DAO/database + `MessageRepository` incremental diff, WAL); legacy JSON snapshot migrated in on first launch |
 | Preferences | `@react-native-async-storage` + `use-stored-*` hooks | Jetpack DataStore (Preferences) — **done** |
 | HTTP / streaming | `openai` SDK over `expo/fetch` | OkHttp (SSE) — **done** |
 | Markdown | `@novastera-oss/react-native-markdown-display` | **Done: `com.mikepenz:multiplatform-markdown-renderer-m3` v0.32.0** (pure Compose, Material 3). Pinned to 0.32.0 to match Compose 1.7.6 (newer versions require Compose 1.8+); 0.32.0 also parses synchronously so there is no streaming loading flash. `ui/markdown/Markdown.kt` is now a thin wrapper (`MarkdownText`) over the library with body pinned to `bodyMedium`. |
@@ -76,8 +76,8 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [x] **Test-first**: Kotlin test suites (`MessageTreeTest`, `ReasoningTest`) mirror the JS behavior; green.
 
 ### 4.4 Persistence
-- [ ] Room schema mirroring the `messages` table (`id, role, content, root, parent, child, metadata`), WAL. *(Interim: whole-map JSON snapshot in `filesDir/messages.json`, atomic temp+rename.)*
-- [ ] Incremental diff writes (only changed rows upsert, vanished ids delete).
+- [x] Room schema mirroring the `messages` table (`id, role, content, root, parent, child, metadata`), WAL. *(`data/db/`: `MessageEntity`/`MessageDao`/`MaidDatabase`; WAL journal mode enabled. One-time migration seeds Room from the legacy `filesDir/messages.json` snapshot, then retires the file.)*
+- [x] Incremental diff writes (only changed rows upsert, vanished ids delete). *(`MessageRepository` diffs each save against a last-persisted snapshot: `@Upsert` only changed/new nodes, delete only vanished ids, and skip the DB entirely when nothing changed. Writes are coalesced through a CONFLATED channel with a single consumer so bursts collapse to one write and diff state is never touched concurrently.)*
 - [~] Structural-vs-content save distinction: persists on structural change and at stream end; per-token content is **not** persisted (churn suppressed) — but that means a force-close mid-stream loses the partial reply.
 - [x] Hydrate on load (root restored from stored mappings). *(Mid-stream crash resilience pending — see above.)*
 

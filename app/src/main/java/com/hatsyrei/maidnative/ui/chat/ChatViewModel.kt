@@ -5,6 +5,8 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hatsyrei.maidnative.data.db.MaidDatabase
+import com.hatsyrei.maidnative.data.db.MessageRepository
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
@@ -15,11 +17,13 @@ import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.domain.tree.validateMappings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -47,18 +51,30 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settingsRepo = SettingsRepository(app)
     private val client = OpenAiClient()
-    private val store = MessageStore(File(app.filesDir, "messages.json"))
+    private val repo = MessageRepository(MaidDatabase.get(app).messageDao())
+    private val legacyFile = File(app.filesDir, "messages.json")
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var streamJob: Job? = null
 
+    // Coalesces persist requests: a single consumer serializes writes (so the
+    // repository's diff state is never touched concurrently) and CONFLATED
+    // keeps only the latest pending snapshot, collapsing bursts (e.g. rapid
+    // branch navigation) into one incremental write.
+    private val saveRequests = Channel<Mappings>(Channel.CONFLATED)
+
     init {
         viewModelScope.launch {
-            val loaded = store.load()
+            val loaded = repo.load(legacyFile)
             val root = MessageTree.getRoots(loaded).firstOrNull()?.id
             _state.value = _state.value.copy(mappings = loaded, root = root)
+        }
+        viewModelScope.launch {
+            saveRequests.consumeAsFlow().collect { snapshot ->
+                runCatching { repo.save(snapshot) }
+            }
         }
         viewModelScope.launch {
             settingsRepo.settings.collect { s ->
@@ -392,7 +408,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun persist() {
-        val snapshot = _state.value.mappings
-        viewModelScope.launch { runCatching { store.save(snapshot) } }
+        // Non-blocking: hand the latest snapshot to the single-consumer save
+        // loop. The repository writes only the diff, and skips the DB entirely
+        // when nothing changed.
+        saveRequests.trySend(_state.value.mappings)
     }
 }
