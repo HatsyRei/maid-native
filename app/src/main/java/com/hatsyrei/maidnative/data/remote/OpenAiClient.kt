@@ -22,9 +22,23 @@ import java.util.concurrent.TimeUnit
  */
 class OpenAiClient {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS) // streaming: no read timeout
+    // Streaming completions: the server pushes tokens over a long-lived socket,
+    // so there is deliberately NO read timeout (a slow / "thinking" model must
+    // not be cut off mid-generation). Connect is still bounded so an
+    // unreachable host fails fast instead of holding the radio awake.
+    private val streamClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        .build()
+
+    // Non-streaming requests (the models list) reuse the streaming client's
+    // connection pool + dispatcher (cheap via newBuilder) but add finite read
+    // and overall timeouts. Without these the models GET would inherit
+    // readTimeout(0) and a half-open connection could hang the request — and
+    // keep the socket/radio awake — indefinitely.
+    private val client = streamClient.newBuilder()
+        .readTimeout(5, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
     data class Config(val baseURL: String, val apiKey: String, val model: String)
@@ -95,7 +109,7 @@ class OpenAiClient {
             }
         }
 
-        val eventSource = EventSources.createFactory(client).newEventSource(request, listener)
+        val eventSource = EventSources.createFactory(streamClient).newEventSource(request, listener)
         awaitClose { eventSource.cancel() }
     }
 

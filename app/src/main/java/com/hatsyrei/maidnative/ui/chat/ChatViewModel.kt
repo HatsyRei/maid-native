@@ -74,6 +74,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private var streamJob: Job? = null
 
+    // Guards the automatic model fetch so it runs at most once per app launch
+    // (plus once per endpoint change). A failed fetch leaves the models list
+    // empty; without this flag the settings collector would re-fetch on every
+    // subsequent settings emission, hammering an unreachable endpoint and
+    // draining the battery. After a failure the user re-triggers a fetch
+    // manually via the Settings refresh/scan buttons.
+    private var autoFetchedModels = false
+
     // Coalesces persist requests: a single consumer serializes writes (so the
     // repository's diff state is never touched concurrently) and CONFLATED
     // keeps only the latest pending snapshot, collapsing bursts (e.g. rapid
@@ -96,12 +104,28 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val changedEndpoint = s.baseURL != _state.value.settings.baseURL ||
                     s.apiKey != _state.value.settings.apiKey
                 _state.value = _state.value.copy(settings = s)
-                if (_state.value.models.isEmpty() || changedEndpoint) refreshModels()
+                // Fetch models once on launch, and again only when the endpoint
+                // actually changes. Never auto-retry after a failure: doing so
+                // would re-connect on every settings emission and drain the
+                // battery. The user re-triggers a fetch via the Settings
+                // refresh/scan buttons (which call refreshModels directly).
+                if (!autoFetchedModels || changedEndpoint) {
+                    val firstLaunch = !autoFetchedModels
+                    autoFetchedModels = true
+                    // The startup fetch fails silently so opening the app
+                    // offline doesn't cover the (locally-stored) conversation
+                    // with a network-error banner. An endpoint change is an
+                    // explicit user action, so surface its failures.
+                    refreshModels(silent = firstLaunch)
+                }
             }
         }
     }
 
-    fun refreshModels() {
+    /** Manual model refresh (Settings button / scan): surfaces failures to the user. */
+    fun refreshModels() = refreshModels(silent = false)
+
+    private fun refreshModels(silent: Boolean) {
         viewModelScope.launch {
             val s = _state.value.settings
             val result = withContext(Dispatchers.IO) {
@@ -115,7 +139,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     setModel(models.first())
                 }
             }.onFailure {
-                _state.value = _state.value.copy(models = emptyList(), error = it.message)
+                // Silent (startup) failures leave the reading surface clean;
+                // user-initiated failures show the error banner.
+                _state.value = _state.value.copy(
+                    models = emptyList(),
+                    error = if (silent) _state.value.error else it.message,
+                )
             }
         }
     }
