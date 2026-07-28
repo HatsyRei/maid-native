@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.tree.MessageTree
+import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -246,6 +247,9 @@ private fun ChatScaffold(
         ) {
             // Reset to the top of the conversation whenever the active chat changes.
             LaunchedEffect(state.root) {
+                // Drop the previous chat's cached markdown parses so their ASTs
+                // don't linger on the heap; the new conversation reparses on demand.
+                clearMarkdownParseCache()
                 listState.scrollToItem(0)
             }
             BoxWithConstraints(
@@ -257,6 +261,16 @@ private fun ChatScaffold(
                 // scrolled up near the top and streaming text scrolled into view
                 // (mirrors the RN app's ListFooterComponent).
                 val spacerHeight = (maxHeight - 96.dp).coerceAtLeast(0.dp)
+                // Precompute the parent -> children grouping once per structural
+                // change instead of re-scanning every node's siblings on each
+                // recomposition (getChildren is O(nodes), so the per-item lookup
+                // was O(nodes^2) per frame in long chats). `state.mappings` is a
+                // new instance only when the tree actually changes (edit, delete,
+                // regenerate), so this stays valid across those and is skipped
+                // during streaming (same instance, reference-equal key).
+                val childrenByParent = remember(state.mappings) {
+                    state.mappings.values.groupBy { it.parent }
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -265,7 +279,7 @@ private fun ChatScaffold(
                 ) {
                     val latestId = state.conversation.lastOrNull()?.id
                     items(state.conversation, key = { it.id }) { node ->
-                        val siblings = node.parent?.let { MessageTree.getChildren(state.mappings, it) }
+                        val siblings = node.parent?.let { childrenByParent[it] }
                             ?: emptyList()
                         val index = siblings.indexOfFirst { it.id == node.id }
                         MessageItem(

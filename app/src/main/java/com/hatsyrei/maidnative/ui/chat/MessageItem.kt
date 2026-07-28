@@ -232,6 +232,9 @@ internal fun MessageItem(
             MarkdownText(
                 markdown = body,
                 modifier = Modifier.padding(top = 8.dp),
+                // The streaming bubble's content changes every token; skip the
+                // parse cache for it so we don't flood it with transient partials.
+                cache = !(busy && isLatest),
             )
         }
     }
