@@ -3,12 +3,12 @@ package com.hatsyrei.maidnative.ui.chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -144,16 +144,52 @@ internal fun MessageItem(
                 )
             }
         }
-        Text(
-            text = if (isUser) "You" else "Assistant",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (isUser) "You" else "Assistant",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            if (siblingCount > 1) {
+                IconButton(
+                    onClick = onPrevBranch,
+                    enabled = siblingIndex > 0 && !busy,
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.KeyboardArrowLeft,
+                        contentDescription = "Previous branch",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "${siblingIndex + 1} / $siblingCount",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                IconButton(
+                    onClick = onNextBranch,
+                    enabled = siblingIndex < siblingCount - 1 && !busy,
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = "Next branch",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
         if (!reasoning.isNullOrEmpty()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .padding(top = 6.dp)
+                    .padding(top = 10.dp)
                     .clickable { reasoningExpanded = !reasoningExpanded },
             ) {
                 Icon(
@@ -190,47 +226,13 @@ internal fun MessageItem(
                 text = "…",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 8.dp),
             )
         } else if (body.isNotEmpty()) {
             MarkdownText(
                 markdown = body,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 8.dp),
             )
-        }
-
-        if (siblingCount > 1) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = onPrevBranch,
-                    enabled = siblingIndex > 0 && !busy,
-                ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous branch",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = "${siblingIndex + 1} / $siblingCount",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                IconButton(
-                    onClick = onNextBranch,
-                    enabled = siblingIndex < siblingCount - 1 && !busy,
-                ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowRight,
-                        contentDescription = "Next branch",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
         }
     }
 }

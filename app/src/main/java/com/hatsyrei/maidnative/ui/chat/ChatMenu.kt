@@ -127,8 +127,8 @@ internal fun TapContextMenu(
 }
 
 /**
- * Centers the popup horizontally on [touch] (relative to the popup's anchor)
- * and places its top at the touch point, clamped inside the window.
+ * Centers the popup on [touch] (relative to the popup's anchor) both
+ * horizontally and vertically, clamped inside the window.
  */
 private class TapMenuPositionProvider(private val touch: IntOffset) : PopupPositionProvider {
     override fun calculatePosition(
@@ -138,7 +138,7 @@ private class TapMenuPositionProvider(private val touch: IntOffset) : PopupPosit
         popupContentSize: IntSize,
     ): IntOffset {
         val x = anchorBounds.left + touch.x - popupContentSize.width / 2
-        val y = anchorBounds.top + touch.y
+        val y = anchorBounds.top + touch.y - popupContentSize.height / 2
         return IntOffset(
             x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
             y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
