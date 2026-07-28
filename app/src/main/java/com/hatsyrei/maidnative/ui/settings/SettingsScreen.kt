@@ -155,8 +155,18 @@ fun SettingsScreen(
             }
             AssistChip(
                 onClick = onRefreshModels,
+                enabled = !state.refreshingModels,
                 label = { Text("Refresh models") },
-                leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                leadingIcon = {
+                    if (state.refreshingModels) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                    }
+                },
             )
         }
     }

@@ -37,6 +37,7 @@ data class ChatUiState(
     val settings: SettingsRepository.Settings = SettingsRepository.Settings(),
     val busy: Boolean = false,
     val scanning: Boolean = false,
+    val refreshingModels: Boolean = false,
     val foundURL: String? = null,
     val error: String? = null,
     val streamingId: String? = null,
@@ -126,25 +127,34 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshModels() = refreshModels(silent = false)
 
     private fun refreshModels(silent: Boolean) {
+        // Ignore overlapping requests (e.g. spam-tapping Refresh) so we never
+        // fire N concurrent /models calls. The button is also disabled in the
+        // UI while this flag is set; this guard covers the non-UI callers.
+        if (_state.value.refreshingModels) return
+        _state.value = _state.value.copy(refreshingModels = true)
         viewModelScope.launch {
-            val s = _state.value.settings
-            val result = withContext(Dispatchers.IO) {
-                runCatching { client.listModels(OpenAiClient.Config(s.baseURL, s.apiKey, s.model)) }
-            }
-            result.onSuccess { models ->
-                val current = _state.value.settings.model
-                _state.value = _state.value.copy(models = models, error = null)
-                // Auto-select first model if none valid (mirrors open-ai.tsx).
-                if (models.isNotEmpty() && (current.isEmpty() || !models.contains(current))) {
-                    setModel(models.first())
+            try {
+                val s = _state.value.settings
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { client.listModels(OpenAiClient.Config(s.baseURL, s.apiKey, s.model)) }
                 }
-            }.onFailure {
-                // Silent (startup) failures leave the reading surface clean;
-                // user-initiated failures show the error banner.
-                _state.value = _state.value.copy(
-                    models = emptyList(),
-                    error = if (silent) _state.value.error else it.message,
-                )
+                result.onSuccess { models ->
+                    val current = _state.value.settings.model
+                    _state.value = _state.value.copy(models = models, error = null)
+                    // Auto-select first model if none valid (mirrors open-ai.tsx).
+                    if (models.isNotEmpty() && (current.isEmpty() || !models.contains(current))) {
+                        setModel(models.first())
+                    }
+                }.onFailure {
+                    // Silent (startup) failures leave the reading surface clean;
+                    // user-initiated failures show the error banner.
+                    _state.value = _state.value.copy(
+                        models = emptyList(),
+                        error = if (silent) _state.value.error else it.message,
+                    )
+                }
+            } finally {
+                _state.value = _state.value.copy(refreshingModels = false)
             }
         }
     }
