@@ -41,6 +41,8 @@ import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
+import com.hatsyrei.maidnative.ui.markdown.StreamingMarkdownText
+import com.mikepenz.markdown.model.StreamingMarkdownState
 
 @Composable
 internal fun MessageItem(
@@ -54,6 +56,7 @@ internal fun MessageItem(
     onRequestEdit: (revise: Boolean) -> Unit,
     onPrevBranch: () -> Unit,
     onNextBranch: () -> Unit,
+    streamingState: StreamingMarkdownState? = null,
 ) {
     val isUser = node.role == "user"
     val (content, reasoning) = if (isUser) node.content to null else Reasoning.split(node)
@@ -228,13 +231,17 @@ internal fun MessageItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        } else if (streamingState != null) {
+            // Actively streaming: render from the incrementally parsed state so
+            // each token re-parses only the trailing block, not the whole reply.
+            StreamingMarkdownText(
+                state = streamingState,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         } else if (body.isNotEmpty()) {
             MarkdownText(
                 markdown = body,
                 modifier = Modifier.padding(top = 8.dp),
-                // The streaming bubble's content changes every token; skip the
-                // parse cache for it so we don't flood it with transient partials.
-                cache = !(busy && isLatest),
             )
         }
     }

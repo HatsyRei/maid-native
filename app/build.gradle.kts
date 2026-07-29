@@ -1,13 +1,15 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.hatsyrei.maidnative"
-    compileSdk = 36
+    // 37 is the floor imposed by markdown-renderer 0.43.0. targetSdk stays at 36
+    // deliberately: compiling against newer APIs is independent of opting in to
+    // new runtime behavior.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.hatsyrei.maidnative"
@@ -67,6 +69,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)

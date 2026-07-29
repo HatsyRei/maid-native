@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
+import com.hatsyrei.maidnative.ui.markdown.rememberChatStreamingMarkdownState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -271,6 +272,15 @@ private fun ChatScaffold(
                 val childrenByParent = remember(state.mappings) {
                     state.mappings.values.groupBy { it.parent }
                 }
+                // Hoisted above the list on purpose: `LazyColumn` disposes items
+                // that scroll out of view, and the incremental parser is
+                // append-only, so it cannot be rebuilt from scratch mid-stream.
+                val streamingId = state.streamingId
+                val streamingMarkdown = if (streamingId != null) {
+                    rememberChatStreamingMarkdownState(streamingId, state.streamingText)
+                } else {
+                    null
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -295,6 +305,7 @@ private fun ChatScaffold(
                             },
                             onPrevBranch = { node.parent?.let(onPrevBranch) },
                             onNextBranch = { node.parent?.let(onNextBranch) },
+                            streamingState = streamingMarkdown.takeIf { node.id == streamingId },
                         )
                     }
                     if (state.conversation.isNotEmpty()) {
