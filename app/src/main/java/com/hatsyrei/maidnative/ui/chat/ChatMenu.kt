@@ -89,6 +89,29 @@ internal fun MenuOption(
 }
 
 /**
+ * The shared popup chrome for every menu in the app: rounded container surface
+ * plus the option-list padding. [modifier] sizes (and, for long lists, scrolls)
+ * the option column.
+ */
+@Composable
+internal fun MenuSurface(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 3.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Column(
+            modifier = modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+            content = content,
+        )
+    }
+}
+
+/**
  * A context menu that pops up centered horizontally on the user's touch point
  * (mirrors the RN app anchoring a zero-size rect at pageX/pageY). Uses a raw
  * [Popup] with a custom position provider because [androidx.compose.material3.DropdownMenu]
@@ -110,19 +133,7 @@ internal fun TapContextMenu(
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 3.dp,
-            shadowElevation = 6.dp,
-        ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(min = 168.dp, max = 172.dp)
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                content = content,
-            )
-        }
+        MenuSurface(Modifier.widthIn(min = 168.dp, max = 172.dp), content)
     }
 }
 

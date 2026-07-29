@@ -3,11 +3,14 @@ package com.hatsyrei.maidnative.ui.markdown
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -90,31 +93,53 @@ fun clearMarkdownParseCache() = MarkdownParseCache.clear()
  * Shared chat markdown styling. Body text is pinned to `bodyMedium` to match the
  * rest of the chat message typography.
  */
+@Immutable
 private class ChatMarkdownStyle(
     val typography: MarkdownTypography,
     val padding: MarkdownPadding,
     val annotator: MarkdownAnnotator,
 )
 
+private val LocalChatMarkdownStyle = staticCompositionLocalOf<ChatMarkdownStyle> {
+    error("ChatMarkdownStyle not provided; wrap the content in ProvideChatMarkdownStyle.")
+}
+
+/**
+ * Builds the chat markdown style **once** for the whole app and publishes it via
+ * a composition local.
+ *
+ * The style was previously rebuilt inside every markdown composable, which meant
+ * six scaled heading [androidx.compose.ui.text.TextStyle] allocations (plus the
+ * typography/padding holders) per visible bubble per recomposition — i.e. per
+ * streamed token. `markdownTypography`/`markdownPadding` are themselves
+ * `@Composable`, so they cannot be hoisted into a `remember` block; providing
+ * them from above the state-reading composables is what actually takes them off
+ * the hot path.
+ *
+ * Call this immediately inside the theme: its body then runs once per activity
+ * rather than once per state change.
+ */
 @Composable
-private fun rememberChatMarkdownStyle(): ChatMarkdownStyle {
+fun ProvideChatMarkdownStyle(content: @Composable () -> Unit) {
     val base = MaterialTheme.typography.bodyMedium
-    val heading = @Composable { scale: Float ->
-        base.copy(
-            fontSize = base.fontSize * scale,
-            // Scale line height with the font so wrapped heading lines keep a
-            // proportional gap instead of squishing together.
-            lineHeight = base.lineHeight * scale,
-            fontWeight = FontWeight.Medium,
-        )
+    val headings = remember(base) {
+        // Scale line height with the font so wrapped heading lines keep a
+        // proportional gap instead of squishing together.
+        listOf(2.0f, 1.75f, 1.5f, 1.3f, 1.15f, 1.05f).map { scale ->
+            base.copy(
+                fontSize = base.fontSize * scale,
+                lineHeight = base.lineHeight * scale,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
     val typography: MarkdownTypography = markdownTypography(
-        h1 = heading(2.0f),
-        h2 = heading(1.75f),
-        h3 = heading(1.5f),
-        h4 = heading(1.3f),
-        h5 = heading(1.15f),
-        h6 = heading(1.05f),
+        h1 = headings[0],
+        h2 = headings[1],
+        h3 = headings[2],
+        h4 = headings[3],
+        h5 = headings[4],
+        h6 = headings[5],
         text = base,
         paragraph = base,
         ordered = base,
@@ -122,14 +147,17 @@ private fun rememberChatMarkdownStyle(): ChatMarkdownStyle {
         list = base,
         quote = base,
     )
+    // Wider gap between blocks so a blank line (paragraph break) reads with clear
+    // separation, closer to the RN markdown display.
+    val padding = markdownPadding(block = 5.dp)
     // Render a single newline (EOL) as a line break instead of collapsing it to a
     // space (the library's CommonMark-correct default). Matches the RN markdown
     // display, which keeps single newlines as breaks.
     val annotator = remember { markdownAnnotator(config = markdownAnnotatorConfig(eolAsNewLine = true)) }
-    // Wider gap between blocks so a blank line (paragraph break) reads with clear
-    // separation, closer to the RN markdown display.
-    val padding = markdownPadding(block = 5.dp)
-    return ChatMarkdownStyle(typography, padding, annotator)
+    val style = remember(typography, padding, annotator) {
+        ChatMarkdownStyle(typography, padding, annotator)
+    }
+    CompositionLocalProvider(LocalChatMarkdownStyle provides style, content = content)
 }
 
 /**
@@ -145,7 +173,7 @@ fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
 ) {
-    val style = rememberChatMarkdownStyle()
+    val style = LocalChatMarkdownStyle.current
     val state = remember(markdown) {
         MarkdownParseCache.get(markdown)
             ?: parseMarkdown(markdown).also {
@@ -208,7 +236,7 @@ fun StreamingMarkdownText(
     state: StreamingMarkdownState,
     modifier: Modifier = Modifier,
 ) {
-    val style = rememberChatMarkdownStyle()
+    val style = LocalChatMarkdownStyle.current
     Markdown(
         streamingMarkdownState = state,
         typography = style.typography,

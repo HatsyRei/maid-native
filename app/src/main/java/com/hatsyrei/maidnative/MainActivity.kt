@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative
 
+import android.content.ComponentCallbacks2
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -21,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
+import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.settings.SettingsScreen
 import com.hatsyrei.maidnative.ui.theme.MaidNativeTheme
 
@@ -36,6 +38,19 @@ class MainActivity : ComponentActivity() {
                 MaidNativeApp(viewModel)
             }
         }
+    }
+
+    /**
+     * The markdown parse cache retains up to ~5 MB of AST and was otherwise only
+     * dropped on a conversation switch, so a backgrounded app held it for no
+     * benefit — raising the odds of being killed and paying a full cold start
+     * (and a full reparse) later. Release it as soon as the system signals it
+     * wants the memory back; the visible conversation reparses on demand.
+     */
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) clearMarkdownParseCache()
     }
 }
 

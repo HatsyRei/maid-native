@@ -1,7 +1,6 @@
 package com.hatsyrei.maidnative.ui.chat
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -73,33 +72,25 @@ internal fun ModelSelector(
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 6.dp,
+                MenuSurface(
+                    Modifier
+                        .width(240.dp)
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .width(240.dp)
-                            .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 6.dp, vertical = 8.dp),
-                    ) {
-                        models.forEach { model ->
-                            MenuOption(
-                                text = model,
-                                textColor = if (model == selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                                onClick = {
-                                    open = false
-                                    onSelect(model)
-                                },
-                            )
-                        }
+                    models.forEach { model ->
+                        MenuOption(
+                            text = model,
+                            textColor = if (model == selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            onClick = {
+                                open = false
+                                onSelect(model)
+                            },
+                        )
                     }
                 }
             }

@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlin.math.roundToInt
 
 // Port of the RN chat scroll thumb (app/chat/index.tsx): a 48dp draggable pill
@@ -52,6 +54,46 @@ private class ThumbMetrics(
 
 private val HIDDEN = ThumbMetrics(false, 0f, 0f, 0f)
 
+/**
+ * Item heights cached by index, with a running total.
+ *
+ * The total is maintained incrementally so the content-size estimate is O(1).
+ * It previously summed every index and re-averaged the whole map on each read,
+ * i.e. once per frame while scrolling and once per streamed token while
+ * generating.
+ */
+private class ItemSizeCache {
+    private val sizes = HashMap<Int, Int>()
+    private var maxIndexRecorded = -1
+
+    var measuredSum = 0L
+        private set
+
+    val measuredCount: Int get() = sizes.size
+
+    fun record(index: Int, size: Int) {
+        val previous = sizes.put(index, size)
+        measuredSum += size - (previous ?: 0)
+        if (index > maxIndexRecorded) maxIndexRecorded = index
+    }
+
+    fun sizeAt(index: Int): Int? = sizes[index]
+
+    /** Drop entries for indices that no longer exist (e.g. a deleted message). */
+    fun trimTo(count: Int) {
+        if (maxIndexRecorded < count) return
+        val iterator = sizes.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.key >= count) {
+                measuredSum -= entry.value
+                iterator.remove()
+            }
+        }
+        maxIndexRecorded = count - 1
+    }
+}
+
 // Estimate scroll geometry for a variable-height LazyColumn. Item sizes are
 // cached by index as they are measured so the total-content estimate (and thus
 // the thumb position) stays stable while scrolling between messages of
@@ -64,7 +106,7 @@ private fun computeMetrics(
     thumbHeightPx: Float,
     spacingPx: Float,
     trailingSpacerPx: Float,
-    cache: MutableMap<Int, Int>,
+    cache: ItemSizeCache,
 ): ThumbMetrics {
     val info = state.layoutInfo
     val items = info.visibleItemsInfo
@@ -72,17 +114,29 @@ private fun computeMetrics(
     val totalItems = info.totalItemsCount
     if (items.isEmpty() || viewportPx <= 0f || totalItems <= 0) return HIDDEN
 
-    items.forEach { cache[it.index] = it.size }
-    val avg = if (cache.isEmpty()) 0f else cache.values.average().toFloat()
+    cache.trimTo(totalItems)
+    items.forEach { cache.record(it.index, it.size) }
+
+    val measured = cache.measuredCount
+    val avg = if (measured == 0) 0f else cache.measuredSum.toFloat() / measured
     val lastIndex = totalItems - 1
     fun sizeAt(index: Int): Float {
-        cache[index]?.let { return it.toFloat() }
+        cache.sizeAt(index)?.let { return it.toFloat() }
         if (index == lastIndex && trailingSpacerPx > 0f) return trailingSpacerPx
         return avg
     }
 
+    // Measured items contribute their exact total; the rest are estimated at the
+    // running average, with the not-yet-measured trailing spacer seeded at its
+    // known height.
     var contentPx = (info.beforeContentPadding + info.afterContentPadding).toFloat()
-    for (i in 0 until totalItems) contentPx += sizeAt(i)
+    contentPx += cache.measuredSum.toFloat()
+    var unmeasured = totalItems - measured
+    if (unmeasured > 0 && trailingSpacerPx > 0f && cache.sizeAt(lastIndex) == null) {
+        contentPx += trailingSpacerPx
+        unmeasured--
+    }
+    contentPx += unmeasured * avg
     contentPx += spacingPx * (totalItems - 1).coerceAtLeast(0)
 
     val maxScroll = contentPx - viewportPx
@@ -97,56 +151,75 @@ private fun computeMetrics(
     return ThumbMetrics(true, top, travel, maxScroll)
 }
 
+/**
+ * @param resetKey identifies the content being scrolled. The measured-size cache
+ * is keyed by item index, so it must be dropped when those indices start meaning
+ * something else (a conversation switch) — otherwise the thumb inherits the
+ * previous chat's geometry and the map grows for the life of the screen.
+ */
 @Composable
 fun DraggableScrollbar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
     trailingSpacerHeight: Dp = 0.dp,
+    resetKey: Any? = null,
 ) {
     val density = LocalDensity.current
     val thumbHeightPx = with(density) { THUMB_HEIGHT.toPx() }
     val spacingPx = with(density) { ITEM_SPACING.toPx() }
     val trailingSpacerPx = with(density) { trailingSpacerHeight.toPx() }
-    val sizeCache = remember(listState) { mutableMapOf<Int, Int>() }
+    val sizeCache = remember(listState, resetKey) { ItemSizeCache() }
 
-    val metrics by remember(listState) {
+    val metrics = remember(listState, sizeCache, thumbHeightPx, spacingPx, trailingSpacerPx) {
         derivedStateOf {
             computeMetrics(listState, thumbHeightPx, spacingPx, trailingSpacerPx, sizeCache)
         }
     }
+    // Only the visibility flag is read during composition. The thumb offset
+    // changes on every scrolled pixel and is instead read in the layout phase
+    // (`offset {}`) and lazily by the drag handler, so scrolling no longer
+    // recomposes this subtree at all.
+    val visible by remember(metrics) { derivedStateOf { metrics.value.visible } }
 
     val opacity = remember { Animatable(0f) }
-    var revealTick by remember { mutableStateOf(0) }
     var dragging by remember { mutableStateOf(false) }
 
-    // Reveal the thumb whenever the list scrolls.
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { revealTick++ }
+    // A single long-lived collector. The previous version restarted a
+    // `LaunchedEffect` keyed on a scroll-derived counter, which cost a
+    // recomposition plus an effect teardown and relaunch for every scroll
+    // position change during a fling.
+    LaunchedEffect(listState, opacity) {
+        combine(
+            snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset },
+            snapshotFlow { dragging },
+            snapshotFlow { metrics.value.visible },
+        ) { _, isDragging, isVisible -> isDragging to isVisible }
+            .collectLatest { (isDragging, isVisible) ->
+                if (!isVisible) {
+                    opacity.snapTo(0f)
+                    return@collectLatest
+                }
+                opacity.snapTo(1f)
+                if (!isDragging) {
+                    delay(IDLE_TIMEOUT_MS)
+                    opacity.animateTo(0f, tween(FADE_DURATION_MS))
+                }
+            }
     }
 
-    // Fade the thumb in on reveal, then out after an idle timeout (unless dragging).
-    LaunchedEffect(revealTick, dragging, metrics.visible) {
-        if (!metrics.visible) {
-            opacity.snapTo(0f)
-            return@LaunchedEffect
-        }
-        opacity.snapTo(1f)
-        if (!dragging) {
-            delay(IDLE_TIMEOUT_MS)
-            opacity.animateTo(0f, tween(FADE_DURATION_MS))
-        }
+    if (!visible) return
+
+    // Derived so the pointer input is attached/detached only when the boolean
+    // actually flips, instead of recomposing on every frame of the fade.
+    val interactive by remember(opacity) {
+        derivedStateOf { dragging || opacity.value > 0.05f }
     }
-
-    if (!metrics.visible) return
-
-    val interactive = dragging || opacity.value > 0.05f
 
     Box(modifier = modifier.fillMaxHeight().width(HIT_WIDTH)) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset { IntOffset(0, metrics.thumbTopPx.roundToInt()) }
+                .offset { IntOffset(0, metrics.value.thumbTopPx.roundToInt()) }
                 .height(THUMB_HEIGHT)
                 .width(HIT_WIDTH)
                 .graphicsLayer { alpha = opacity.value }
@@ -154,21 +227,12 @@ fun DraggableScrollbar(
                     if (interactive) {
                         Modifier.pointerInput(listState) {
                             detectVerticalDragGestures(
-                                onDragStart = {
-                                    dragging = true
-                                    revealTick++
-                                },
-                                onDragEnd = {
-                                    dragging = false
-                                    revealTick++
-                                },
-                                onDragCancel = {
-                                    dragging = false
-                                    revealTick++
-                                },
+                                onDragStart = { dragging = true },
+                                onDragEnd = { dragging = false },
+                                onDragCancel = { dragging = false },
                             ) { change, dragAmount ->
                                 change.consume()
-                                val m = metrics
+                                val m = metrics.value
                                 if (m.thumbTravelPx > 0f) {
                                     // Map finger travel (thumb space) to content
                                     // pixels and apply synchronously so the thumb

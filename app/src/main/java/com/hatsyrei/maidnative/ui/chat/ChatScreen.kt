@@ -75,10 +75,9 @@ fun ChatScreen(
     onBackupAllChats: (Uri) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    var editTarget by remember { mutableStateOf<EditTarget?>(null) }
-    var renameTarget by remember { mutableStateOf<RenameTarget?>(null) }
-    var deleteMsgTarget by remember { mutableStateOf<String?>(null) }
-    var deleteChatTarget by remember { mutableStateOf<String?>(null) }
+    // One slot rather than four independent flags: the dialogs are mutually
+    // exclusive by nature, and the type now says so.
+    var dialog by remember { mutableStateOf<ChatDialog?>(null) }
     var exportRoot by remember { mutableStateOf<String?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -113,16 +112,23 @@ fun ChatScreen(
         }
     }
 
+    // `getRoots` scans every node of every conversation, and the drawer is
+    // composed even while closed, so an inline call would re-scan (and hand the
+    // drawer a fresh list instance, defeating skipping) on every streamed token.
+    // `mappings` is reference-stable while streaming, so this recomputes only on
+    // real tree changes.
+    val roots = remember(state.mappings) { MessageTree.getRoots(state.mappings) }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             DrawerContent(
-                roots = MessageTree.getRoots(state.mappings),
+                roots = roots,
                 activeRoot = state.root,
                 onSelect = { id -> onSelectChat(id) },
                 onNewChat = { onNewChat() },
-                onRename = { id -> renameTarget = RenameTarget(id, "") },
-                onDeleteChat = { id -> deleteChatTarget = id },
+                onRename = { id -> dialog = ChatDialog.Rename(id) },
+                onDeleteChat = { id -> dialog = ChatDialog.DeleteChat(id) },
                 onExport = { id ->
                     exportRoot = id
                     exportLauncher.launch(exportFileName(id))
@@ -140,56 +146,55 @@ fun ChatScreen(
             onSubmit = onSubmit,
             onStop = onStop,
             onRegenerate = onRegenerate,
-            onDelete = { id -> deleteMsgTarget = id },
+            onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
             onPrevBranch = onPrevBranch,
             onNextBranch = onNextBranch,
             onSelectModel = onSelectModel,
-            onRequestEdit = { id, initial, revise -> editTarget = EditTarget(id, initial, revise) },
+            onRequestEdit = { id, initial, revise ->
+                dialog = ChatDialog.Edit(id, initial, revise)
+            },
         )
     }
 
-    editTarget?.let { target ->
-        EditDialog(
-            initial = target.initial,
-            revise = target.revise,
-            onDismiss = { editTarget = null },
+    val dismiss = { dialog = null }
+    when (val current = dialog) {
+        null -> Unit
+
+        is ChatDialog.Edit -> EditDialog(
+            initial = current.initial,
+            revise = current.revise,
+            onDismiss = dismiss,
             onConfirm = { text ->
-                if (target.revise) onRevise(target.id, text) else onEdit(target.id, text)
-                editTarget = null
+                if (current.revise) onRevise(current.id, text) else onEdit(current.id, text)
+                dismiss()
             },
         )
-    }
 
-    renameTarget?.let { target ->
-        RenameDialog(
-            onDismiss = { renameTarget = null },
+        is ChatDialog.Rename -> RenameDialog(
+            onDismiss = dismiss,
             onConfirm = { title ->
-                onRenameChat(target.id, title)
-                renameTarget = null
+                onRenameChat(current.id, title)
+                dismiss()
             },
         )
-    }
 
-    deleteMsgTarget?.let { id ->
-        ConfirmDialog(
+        is ChatDialog.DeleteMessage -> ConfirmDialog(
             title = "Delete message",
             message = "Delete this message and everything below it? This can't be undone.",
-            onDismiss = { deleteMsgTarget = null },
+            onDismiss = dismiss,
             onConfirm = {
-                onDelete(id)
-                deleteMsgTarget = null
+                onDelete(current.id)
+                dismiss()
             },
         )
-    }
 
-    deleteChatTarget?.let { id ->
-        ConfirmDialog(
+        is ChatDialog.DeleteChat -> ConfirmDialog(
             title = "Delete conversation",
             message = "Delete this conversation permanently? This can't be undone.",
-            onDismiss = { deleteChatTarget = null },
+            onDismiss = dismiss,
             onConfirm = {
-                onDeleteChat(id)
-                deleteChatTarget = null
+                onDeleteChat(current.id)
+                dismiss()
             },
         )
     }
@@ -290,14 +295,18 @@ private fun ChatScaffold(
                 } else {
                     null
                 }
+                // `conversation` is a computed getter that walks the thread and
+                // allocates a fresh list; read it exactly once per recomposition
+                // instead of once per use site.
+                val conversation = state.conversation
+                val latestId = conversation.lastOrNull()?.id
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    val latestId = state.conversation.lastOrNull()?.id
-                    items(state.conversation, key = { it.id }) { node ->
+                    items(conversation, key = { it.id }) { node ->
                         val siblings = node.parent?.let { childrenByParent[it] }
                             ?: emptyList()
                         val index = siblings.indexOfFirst { it.id == node.id }
@@ -317,7 +326,7 @@ private fun ChatScaffold(
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
                         )
                     }
-                    if (state.conversation.isNotEmpty()) {
+                    if (conversation.isNotEmpty()) {
                         item(key = "__bottom_spacer__") {
                             Spacer(Modifier.height(spacerHeight))
                         }
@@ -327,6 +336,7 @@ private fun ChatScaffold(
                     listState = listState,
                     modifier = Modifier.align(Alignment.TopEnd),
                     trailingSpacerHeight = spacerHeight,
+                    resetKey = state.root,
                 )
             }
             state.error?.let { err ->

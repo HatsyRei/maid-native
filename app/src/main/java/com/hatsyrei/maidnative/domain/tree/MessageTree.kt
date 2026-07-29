@@ -80,20 +80,6 @@ object MessageTree {
         return conversation
     }
 
-    fun getAncestry(mappings: Mappings, id: String): List<MessageNode> {
-        val start = getNode(mappings, id) ?: return emptyList()
-        val out = mutableListOf<MessageNode>()
-        val seen = mutableSetOf<String>()
-        var current: MessageNode? = start
-        while (current != null) {
-            if (seen.contains(current.id)) break
-            seen.add(current.id)
-            out.add(current)
-            current = current.parent?.let { getNode(mappings, it) }
-        }
-        return out
-    }
-
     /**
      * Returns a new map containing only [root] and all descendants connected to
      * it via parent -> child links (branch-aware), excluding unrelated roots.
@@ -110,22 +96,25 @@ object MessageTree {
     fun getChildren(mappings: Mappings, id: String): List<MessageNode> =
         mappings.values.filter { it.parent == id }
 
-    fun nextChild(mappings: Mappings, parent: String): Mappings {
-        val parentNode = mappings[parent] ?: return mappings
-        val children = getChildren(mappings, parent)
-        val idx = children.indexOfFirst { it.id == parentNode.child }
-        if (idx == -1) return mappings
-        if (idx + 1 >= children.size) return mappings
-        return setChild(mappings, parent, children[idx + 1].id)
-    }
+    fun nextChild(mappings: Mappings, parent: String): Mappings =
+        shiftChild(mappings, parent, delta = 1)
 
-    fun lastChild(mappings: Mappings, parent: String): Mappings {
+    fun lastChild(mappings: Mappings, parent: String): Mappings =
+        shiftChild(mappings, parent, delta = -1)
+
+    /**
+     * Move [parent]'s active-child pointer [delta] places through its children,
+     * in insertion order. No-op when the pointer is unset, absent, or the move
+     * would run off either end.
+     */
+    private fun shiftChild(mappings: Mappings, parent: String, delta: Int): Mappings {
         val parentNode = mappings[parent] ?: return mappings
         val children = getChildren(mappings, parent)
-        val idx = children.indexOfFirst { it.id == parentNode.child }
-        if (idx == -1) return mappings
-        if (idx - 1 < 0) return mappings
-        return setChild(mappings, parent, children[idx - 1].id)
+        val index = children.indexOfFirst { it.id == parentNode.child }
+        if (index == -1) return mappings
+        val target = index + delta
+        if (target !in children.indices) return mappings
+        return setChild(mappings, parent, children[target].id)
     }
 
     fun setChild(mappings: Mappings, parent: String, child: String?): Mappings {
@@ -180,26 +169,6 @@ object MessageTree {
             }
         }
         draft.remove(id)
-    }
-
-    fun unlinkNode(mappings: Mappings, id: String): Mappings {
-        val node0 = mappings[id] ?: return mappings
-        val already = node0.parent == null && node0.child == null && node0.root == id
-        if (already) return mappings
-        return updateMap(mappings) { draft ->
-            val node = draft[id] ?: return@updateMap
-            node.parent?.let { pId ->
-                draft[pId]?.let { p ->
-                    if (p.child == id) draft[pId] = p.copy(child = null)
-                }
-            }
-            node.child?.let { cId ->
-                draft[cId]?.let { c ->
-                    if (c.parent == id) draft[cId] = c.copy(parent = null)
-                }
-            }
-            draft[id] = node.copy(parent = null, child = null, root = id)
-        }
     }
 
     fun addNode(

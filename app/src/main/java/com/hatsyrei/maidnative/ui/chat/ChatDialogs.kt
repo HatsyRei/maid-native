@@ -13,8 +13,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
-internal data class EditTarget(val id: String, val initial: String, val revise: Boolean)
-internal data class RenameTarget(val id: String, val initial: String)
+/** The (mutually exclusive) modal dialogs [ChatScreen] can show. */
+internal sealed interface ChatDialog {
+    val id: String
+
+    data class Edit(override val id: String, val initial: String, val revise: Boolean) : ChatDialog
+    data class Rename(override val id: String) : ChatDialog
+    data class DeleteMessage(override val id: String) : ChatDialog
+    data class DeleteChat(override val id: String) : ChatDialog
+}
 
 @Composable
 internal fun EditDialog(

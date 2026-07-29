@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.hatsyrei.maidnative.ui.markdown.ProvideChatMarkdownStyle
 
 // The RN app is hardcoded dark (useTheme), so this is dark-only: no light
 // scheme, no dynamic color.
@@ -72,6 +73,10 @@ fun MaidNativeTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = DarkColors,
         typography = Typography,
-        content = content,
-    )
+    ) {
+        // Built here (above every state-reading composable) so the markdown
+        // typography/padding/annotator are allocated once per activity instead
+        // of once per bubble per recomposition.
+        ProvideChatMarkdownStyle(content)
+    }
 }

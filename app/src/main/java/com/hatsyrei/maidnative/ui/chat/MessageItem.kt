@@ -59,7 +59,13 @@ internal fun MessageItem(
     streamingState: StreamingMarkdownState? = null,
 ) {
     val isUser = node.role == "user"
-    val (content, reasoning) = if (isUser) node.content to null else Reasoning.split(node)
+    // `Reasoning.split` scans (and for `<think>` bodies, copies) the entire
+    // message. It ran unmemoized on every recomposition, so scrolling a bubble
+    // into view or toggling `busy` re-scanned it for nothing. Keying on the
+    // content means it now runs only when the text actually changes.
+    val (content, reasoning) = remember(node.content, isUser) {
+        if (isUser) node.content to null else Reasoning.split(node.content)
+    }
     val clipboard = LocalClipboardManager.current
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }

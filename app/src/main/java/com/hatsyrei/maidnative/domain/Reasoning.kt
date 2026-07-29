@@ -1,7 +1,5 @@
 package com.hatsyrei.maidnative.domain
 
-import com.hatsyrei.maidnative.domain.tree.MessageNode
-
 /**
  * Splits an assistant message into (displayContent, reasoning). Ported from
  * utilities/reasoning.ts. Supports `<think>...</think>` and
@@ -9,8 +7,6 @@ import com.hatsyrei.maidnative.domain.tree.MessageNode
  * the closing tag has not arrived yet.
  */
 object Reasoning {
-
-    fun split(node: MessageNode): Pair<String?, String?> = split(node.content)
 
     fun split(raw: String): Pair<String?, String?> = when {
         raw.contains("<think>") -> splitHelper(raw, "<think>", "</think>")

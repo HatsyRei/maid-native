@@ -2,6 +2,7 @@ package com.hatsyrei.maidnative.ui.chat
 
 import android.app.Application
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hatsyrei.maidnative.data.db.MaidDatabase
@@ -19,17 +20,20 @@ import com.hatsyrei.maidnative.domain.tree.validateMappings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
+@Immutable
 data class ChatUiState(
     val mappings: Mappings = LinkedHashMap(),
     val root: String? = null,
@@ -75,6 +79,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private var streamJob: Job? = null
 
+    // Accumulates the in-flight reply. Appending to a StringBuilder is amortised
+    // O(1); the previous `streamingText + chunk` reallocated and copied the whole
+    // reply per token, which is quadratic over a response and was the largest
+    // single source of CPU work and GC churn during generation.
+    private val streamBuffer = StringBuilder()
+
+    // Length of `streamBuffer` at the last UI publish, so an idle tick can skip
+    // emitting an identical state (and the O(n) `toString` behind it).
+    private var publishedLength = 0
+
     // Guards the automatic model fetch so it runs at most once per app launch
     // (plus once per endpoint change). A failed fetch leaves the models list
     // empty; without this flag the settings collector would re-fetch on every
@@ -89,11 +103,26 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // branch navigation) into one incremental write.
     private val saveRequests = Channel<Mappings>(Channel.CONFLATED)
 
+    /**
+     * Apply a pure [MessageTree] operation to the current tree, commit it, and
+     * persist. Every tree edit shares this shape: refuse while a stream is in
+     * flight, then honour the referential-equality no-op that [MessageTree]
+     * returns when the operation changed nothing.
+     */
+    private inline fun mutateTree(op: (Mappings) -> Mappings) {
+        if (_state.value.busy) return
+        val current = _state.value.mappings
+        val next = op(current)
+        if (next === current) return
+        _state.update { it.copy(mappings = next) }
+        persist()
+    }
+
     init {
         viewModelScope.launch {
             val loaded = repo.load(legacyFile)
             val root = MessageTree.getRoots(loaded).firstOrNull()?.id
-            _state.value = _state.value.copy(mappings = loaded, root = root)
+            _state.update { it.copy(mappings = loaded, root = root) }
         }
         viewModelScope.launch {
             saveRequests.consumeAsFlow().collect { snapshot ->
@@ -104,7 +133,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             settingsRepo.settings.collect { s ->
                 val changedEndpoint = s.baseURL != _state.value.settings.baseURL ||
                     s.apiKey != _state.value.settings.apiKey
-                _state.value = _state.value.copy(settings = s)
+                _state.update { it.copy(settings = s) }
                 // Fetch models once on launch, and again only when the endpoint
                 // actually changes. Never auto-retry after a failure: doing so
                 // would re-connect on every settings emission and drain the
@@ -131,7 +160,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // fire N concurrent /models calls. The button is also disabled in the
         // UI while this flag is set; this guard covers the non-UI callers.
         if (_state.value.refreshingModels) return
-        _state.value = _state.value.copy(refreshingModels = true)
+        _state.update { it.copy(refreshingModels = true) }
         viewModelScope.launch {
             try {
                 val s = _state.value.settings
@@ -140,21 +169,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 result.onSuccess { models ->
                     val current = _state.value.settings.model
-                    _state.value = _state.value.copy(models = models, error = null)
+                    _state.update { it.copy(models = models, error = null) }
                     // Auto-select first model if none valid (mirrors open-ai.tsx).
                     if (models.isNotEmpty() && (current.isEmpty() || !models.contains(current))) {
                         setModel(models.first())
                     }
-                }.onFailure {
+                }.onFailure { failure ->
                     // Silent (startup) failures leave the reading surface clean;
                     // user-initiated failures show the error banner.
-                    _state.value = _state.value.copy(
-                        models = emptyList(),
-                        error = if (silent) _state.value.error else it.message,
-                    )
+                    _state.update {
+                        it.copy(
+                            models = emptyList(),
+                            error = if (silent) it.error else failure.message,
+                        )
+                    }
                 }
             } finally {
-                _state.value = _state.value.copy(refreshingModels = false)
+                _state.update { it.copy(refreshingModels = false) }
             }
         }
     }
@@ -165,7 +196,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Clear transient scan state so re-entering Settings shows a fresh scan button. */
     fun resetScan() {
-        _state.value = _state.value.copy(scanning = false, foundURL = null)
+        _state.update { it.copy(scanning = false, foundURL = null) }
     }
 
     /**
@@ -177,7 +208,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun scanEndpoint(candidate: String) {
         if (_state.value.scanning) return
-        _state.value = _state.value.copy(scanning = true, foundURL = null, error = null)
+        _state.update { it.copy(scanning = true, foundURL = null, error = null) }
         viewModelScope.launch {
             val found = withContext(Dispatchers.IO) {
                 runCatching {
@@ -188,17 +219,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
             found.onSuccess { url ->
                 if (url != null) {
-                    _state.value = _state.value.copy(foundURL = url)
+                    _state.update { it.copy(foundURL = url) }
                     settingsRepo.setBaseURL(url) // triggers refreshModels via the settings collector
                 } else {
-                    _state.value = _state.value.copy(
-                        error = "Could not find an OpenAI-compatible endpoint on the local network.",
-                    )
+                    _state.update {
+                        it.copy(
+                            error = "Could not find an OpenAI-compatible endpoint on the local network.",
+                        )
+                    }
                 }
-            }.onFailure {
-                _state.value = _state.value.copy(error = it.message)
+            }.onFailure { failure ->
+                _state.update { it.copy(error = failure.message) }
             }
-            _state.value = _state.value.copy(scanning = false)
+            _state.update { it.copy(scanning = false) }
         }
     }
 
@@ -213,41 +246,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
             null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
         )
-        _state.value = _state.value.copy(mappings = next, root = rootId)
+        _state.update { it.copy(mappings = next, root = rootId) }
         persist()
     }
 
     /** Switch the active conversation to an existing root. */
     fun selectChat(rootId: String) {
         if (rootId == _state.value.root) return
-        _state.value = _state.value.copy(root = rootId)
+        _state.update { it.copy(root = rootId) }
     }
 
     /** Rename a conversation by updating its root node's title metadata. */
     fun renameChat(rootId: String, title: String) {
-        if (_state.value.busy) return
         val t = title.trim().ifEmpty { ConversationDefaults.CHAT_TITLE }
-        val next = MessageTree.updateContent(
-            _state.value.mappings, rootId, { it }, { it + ("title" to t) },
-        )
-        if (next === _state.value.mappings) return
-        _state.value = _state.value.copy(mappings = next)
-        persist()
+        mutateTree { MessageTree.updateContent(it, rootId, { c -> c }, { m -> m + ("title" to t) }) }
     }
 
     /** Delete an entire conversation (root + descendants). */
-    fun deleteChat(rootId: String) {
-        if (_state.value.busy) return
-        val next = MessageTree.deleteNode(_state.value.mappings, rootId)
-        if (next === _state.value.mappings) return
-        val newRoot = if (_state.value.root == rootId) {
-            MessageTree.getRoots(next).firstOrNull()?.id
-        } else {
-            _state.value.root
-        }
-        _state.value = _state.value.copy(mappings = next, root = newRoot)
-        persist()
-    }
+    fun deleteChat(rootId: String) = deleteSubtree(rootId)
 
     /**
      * Suggested export filename for a conversation: its title + `.json`, matching
@@ -267,8 +283,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
                 if (nodes.isEmpty()) error("Conversation is empty.")
                 fileStore.write(uri, MessageStore.encodeExport(nodes))
-            }.onFailure {
-                _state.value = _state.value.copy(error = "Export failed: ${it.message}")
+            }.onFailure { failure ->
+                _state.update { it.copy(error = "Export failed: ${failure.message}") }
             }
         }
     }
@@ -286,8 +302,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     exportFileName(root.id) to MessageStore.encodeExport(nodes)
                 }
                 fileStore.backup(treeUri, files)
-            }.onFailure {
-                _state.value = _state.value.copy(error = "Backup failed: ${it.message}")
+            }.onFailure { failure ->
+                _state.update { it.copy(error = "Backup failed: ${failure.message}") }
             }
         }
     }
@@ -314,7 +330,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 next
             }
             if (merged.size != _state.value.mappings.size || merged != _state.value.mappings) {
-                _state.value = _state.value.copy(mappings = merged)
+                _state.update { it.copy(mappings = merged) }
                 persist()
             }
         }
@@ -349,7 +365,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val responseId = UUID.randomUUID().toString()
         next = MessageTree.addNode(next, responseId, "assistant", "", rootId, userId)
 
-        _state.value = _state.value.copy(mappings = next, root = rootId)
+        _state.update { it.copy(mappings = next, root = rootId) }
         startStream(rootId, responseId)
     }
 
@@ -360,7 +376,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val responseId = UUID.randomUUID().toString()
         val next = MessageTree.branchNode(_state.value.mappings, messageId, responseId, "")
         if (next === _state.value.mappings) return
-        _state.value = _state.value.copy(mappings = next)
+        _state.update { it.copy(mappings = next) }
         startStream(node.root, responseId)
     }
 
@@ -374,95 +390,134 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (next === _state.value.mappings) return
         val responseId = UUID.randomUUID().toString()
         next = MessageTree.addNode(next, responseId, "assistant", "", node.root, userId)
-        _state.value = _state.value.copy(mappings = next)
+        _state.update { it.copy(mappings = next) }
         startStream(node.root, responseId)
     }
 
     /** Edit a message's content in place without regenerating. */
-    fun editMessage(messageId: String, content: String) {
-        val next = MessageTree.setContent(_state.value.mappings, messageId, content.trim())
-        if (next === _state.value.mappings) return
-        _state.value = _state.value.copy(mappings = next)
-        persist()
-    }
+    fun editMessage(messageId: String, content: String) =
+        mutateTree { MessageTree.setContent(it, messageId, content.trim()) }
 
-    fun deleteMessage(messageId: String) {
+    /** Delete a message and everything below it. */
+    fun deleteMessage(messageId: String) = deleteSubtree(messageId)
+
+    /**
+     * Remove [id] and its descendants. When that takes the active conversation
+     * with it — either because [id] *is* the active root, or because the whole
+     * thread went with it — fall back to the first remaining root. Both cases
+     * reduce to "the active root is no longer in the tree", so conversation and
+     * message deletion are the same operation.
+     */
+    private fun deleteSubtree(id: String) {
         if (_state.value.busy) return
-        val next = MessageTree.deleteNode(_state.value.mappings, messageId)
-        if (next === _state.value.mappings) return
-        val currentRoot = _state.value.root
-        val newRoot = if (currentRoot != null && !next.containsKey(currentRoot)) {
+        val current = _state.value.mappings
+        val next = MessageTree.deleteNode(current, id)
+        if (next === current) return
+        val active = _state.value.root
+        val root = if (active != null && active !in next) {
             MessageTree.getRoots(next).firstOrNull()?.id
         } else {
-            currentRoot
+            active
         }
-        _state.value = _state.value.copy(mappings = next, root = newRoot)
+        _state.update { it.copy(mappings = next, root = root) }
         persist()
     }
 
     /** Switch to the previous sibling branch under [parentId]. */
-    fun prevBranch(parentId: String) {
-        if (_state.value.busy) return
-        val next = MessageTree.lastChild(_state.value.mappings, parentId)
-        if (next === _state.value.mappings) return
-        _state.value = _state.value.copy(mappings = next)
-        persist()
-    }
+    fun prevBranch(parentId: String) = mutateTree { MessageTree.lastChild(it, parentId) }
 
     /** Switch to the next sibling branch under [parentId]. */
-    fun nextBranch(parentId: String) {
-        if (_state.value.busy) return
-        val next = MessageTree.nextChild(_state.value.mappings, parentId)
-        if (next === _state.value.mappings) return
-        _state.value = _state.value.copy(mappings = next)
-        persist()
-    }
+    fun nextBranch(parentId: String) = mutateTree { MessageTree.nextChild(it, parentId) }
 
     private fun startStream(rootId: String, responseId: String) {
         val s = _state.value.settings
-        _state.value = _state.value.copy(
-            busy = true, error = null, streamingId = responseId, streamingText = "",
-        )
+        _state.update {
+            it.copy(busy = true, error = null, streamingId = responseId, streamingText = "")
+        }
         persist()
         val conversation = MessageTree.getConversation(_state.value.mappings, rootId)
+        streamBuffer.setLength(0)
+        publishedLength = 0
         streamJob = viewModelScope.launch {
+            // Publishing is demand-driven, never timer-driven: the pump sleeps on
+            // `pending` and is woken only by an arriving token. A free-running
+            // ticker would keep waking the main thread ~30x/second for as long as
+            // the request was open, which on a stalled stream is pure drain. An
+            // idle TCP socket, by contrast, costs essentially nothing.
+            val pending = Channel<Unit>(Channel.CONFLATED)
+
+            val pump = launch {
+                for (signal in pending) {
+                    publishStreamingText(responseId)
+                    // Trailing throttle. Tokens arriving inside this window
+                    // collapse into the single conflated signal that follows it,
+                    // so the UI updates at most once per interval while the first
+                    // token of a burst still lands immediately.
+                    delay(PUBLISH_INTERVAL_MS)
+                }
+            }
+
             client.streamChat(OpenAiClient.Config(s.baseURL, s.apiKey, s.model), conversation)
-                .buffer()
-                .catch { e -> _state.value = _state.value.copy(error = e.message) }
-                .collect { chunk -> appendToResponse(responseId, chunk) }
+                // UNLIMITED rather than the default 64-slot buffer: the SSE
+                // listener publishes with `trySend`, which silently drops a
+                // chunk when the channel is full. Losing a token corrupts the
+                // reply, and the buffer operator fuses with the callbackFlow's
+                // own channel, so this just widens that one channel.
+                .buffer(Channel.UNLIMITED)
+                .catch { e -> _state.update { it.copy(error = e.message) } }
+                .collect { chunk ->
+                    streamBuffer.append(chunk)
+                    pending.trySend(Unit)
+                }
+
+            pump.cancel()
             finishStreaming()
         }
     }
 
     fun stop() {
+        // Cancelling the job unwinds the collector, which trips `awaitClose` in
+        // OpenAiClient.streamChat and cancels the underlying EventSource — so
+        // this releases the socket, not just the UI state.
         streamJob?.cancel()
         finishStreaming()
     }
 
-    private fun appendToResponse(responseId: String, chunk: String) {
-        // Real-time streaming updates a lightweight buffer only; the tree map is
-        // never copied per token. The buffer is committed into the tree once in
-        // finishStreaming(). Guard against a stale chunk from a superseded job.
+    /**
+     * Push the accumulated reply into UI state, skipping the copy entirely when
+     * nothing new has arrived since the last tick. Guards against a stale tick
+     * from a superseded job.
+     */
+    private fun publishStreamingText(responseId: String) {
         if (_state.value.streamingId != responseId) return
-        _state.value = _state.value.copy(streamingText = _state.value.streamingText + chunk)
+        if (streamBuffer.length == publishedLength) return
+        publishedLength = streamBuffer.length
+        _state.update { it.copy(streamingText = streamBuffer.toString()) }
     }
 
     private fun finishStreaming() {
         if (!_state.value.busy) return
         // Commit the accumulated reply into the tree in a single map write, then
         // persist once (per-token writes were intentionally suppressed above).
+        // Read from the buffer, not from `streamingText`: `stop()` cancels the
+        // job mid-cadence, so state can lag the buffer by up to one tick.
         val id = _state.value.streamingId
+        val text = streamBuffer.toString()
         val committed = if (id != null) {
-            MessageTree.setContent(_state.value.mappings, id, _state.value.streamingText)
+            MessageTree.setContent(_state.value.mappings, id, text)
         } else {
             _state.value.mappings
         }
-        _state.value = _state.value.copy(
-            mappings = committed,
-            busy = false,
-            streamingId = null,
-            streamingText = "",
-        )
+        _state.update {
+            it.copy(
+                mappings = committed,
+                busy = false,
+                streamingId = null,
+                streamingText = "",
+            )
+        }
+        streamBuffer.setLength(0)
+        publishedLength = 0
         persist()
     }
 
@@ -471,5 +526,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // loop. The repository writes only the diff, and skips the DB entirely
         // when nothing changed.
         saveRequests.trySend(_state.value.mappings)
+    }
+
+    private companion object {
+        /**
+         * Minimum spacing between UI publishes of a growing reply (~30 Hz).
+         * Text streaming reads as perfectly smooth at this rate while doing far
+         * less recomposition work than the token rate, which on a fast local
+         * endpoint can exceed the display refresh rate.
+         */
+        const val PUBLISH_INTERVAL_MS = 33L
     }
 }

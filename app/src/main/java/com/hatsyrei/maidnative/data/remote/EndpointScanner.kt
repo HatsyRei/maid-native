@@ -1,18 +1,24 @@
 package com.hatsyrei.maidnative.data.remote
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.coroutineContext
+import kotlin.coroutines.resume
 
 /**
  * Local-network endpoint discovery, ported from the RN app's
@@ -29,6 +35,17 @@ object EndpointScanner {
         .connectTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .callTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        // A full scan is up to ~2300 probes. Running them as blocking `execute()`
+        // calls on Dispatchers.IO consumed its entire default 64-thread pool for
+        // the duration of the scan, starving Room writes, DataStore edits and the
+        // models fetch. OkHttp's own dispatcher runs them asynchronously instead,
+        // so no application thread is ever parked on a probe.
+        .dispatcher(
+            Dispatcher().apply {
+                maxRequests = CONCURRENCY
+                maxRequestsPerHost = CONCURRENCY
+            },
+        )
         .build()
 
     /**
@@ -55,60 +72,58 @@ object EndpointScanner {
     suspend fun scanForEndpoint(): String? {
         val ip = localIpv4() ?: throw IllegalStateException("Could not determine local IP")
 
-        scanTargets(IpMath.buildSubnetTargets(ip, 24))?.let { return it }
+        val subnet24 = IpMath.buildSubnetTargets(ip, 24)
+        probeAll(subnet24)?.let { return it }
 
-        val subnet24 = IpMath.buildSubnetTargets(ip, 24).toHashSet()
-        val extended = IpMath.buildSubnetTargets(ip, 21).filter { it !in subnet24 }
-        return scanTargets(extended)
+        val seen = subnet24.toHashSet()
+        return probeAll(IpMath.buildSubnetTargets(ip, 21).filter { it !in seen })
     }
 
-    private suspend fun scanTargets(targets: List<String>): String? {
-        var index = 0
-        while (index < targets.size) {
-            val batch = targets.subList(index, minOf(index + CONCURRENCY, targets.size))
-            firstSuccess(batch)?.let { return it }
-            index += CONCURRENCY
-        }
-        return null
-    }
-
-    /** Race a batch of probes, returning the first success (or null if none). */
-    private suspend fun firstSuccess(batch: List<String>): String? = coroutineScope {
-        val found = CompletableDeferred<String?>()
-        val jobs = batch.map { target ->
-            launch(Dispatchers.IO) {
-                val result = probeTarget(target)
-                if (result != null && !found.isCompleted) found.complete(result)
-            }
-        }
-        launch {
-            jobs.joinAll()
-            if (!found.isCompleted) found.complete(null)
-        }
-        val result = found.await()
-        coroutineContext.cancelChildren() // stop the remaining probes in this batch
-        result
-    }
+    /**
+     * Probe every target, at most [CONCURRENCY] at a time, and return the first
+     * success.
+     *
+     * `flatMapMerge` keeps a *sliding* window of in-flight probes — a new one
+     * starts the moment any finishes — where the previous fixed-batch loop made
+     * every host in a batch wait on the slowest one. `firstOrNull` cancels the
+     * upstream on the first hit, and because each probe suspends on a
+     * cancellable `enqueue`, that cancels the outstanding OkHttp calls too.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun probeAll(targets: List<String>): String? =
+        targets.asFlow()
+            .flatMapMerge(CONCURRENCY) { target -> flow { probeTarget(target)?.let { emit(it) } } }
+            .firstOrNull()
 
     private suspend fun probeTarget(target: String): String? {
         val baseUrl = "http://$target:$DEFAULT_PORT"
         return if (isOpenAiCompatible("$baseUrl/v1/models")) "$baseUrl/v1" else null
     }
 
-    private suspend fun isOpenAiCompatible(modelsUrl: String): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            client.newCall(Request.Builder().url(modelsUrl).get().build()).execute().use { response ->
-                // 401/403 can still indicate a valid OpenAI-compatible endpoint.
-                response.code in 200..499 && response.code != 404
-            }
-        }.getOrDefault(false)
+    private suspend fun isOpenAiCompatible(modelsUrl: String): Boolean {
+        val call = client.newCall(Request.Builder().url(modelsUrl).get().build())
+        return suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resume(false)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    // 401/403 can still indicate a valid OpenAI-compatible endpoint.
+                    val ok = response.use { it.code in 200..499 && it.code != 404 }
+                    if (continuation.isActive) continuation.resume(ok)
+                }
+            })
+        }
     }
 
-    private fun localIpv4(): String? =
+    private suspend fun localIpv4(): String? = withContext(Dispatchers.IO) {
         NetworkInterface.getNetworkInterfaces().toList()
             .filter { it.isUp && !it.isLoopback }
             .flatMap { it.inetAddresses.toList() }
             .filterIsInstance<Inet4Address>()
             .firstOrNull { it.isSiteLocalAddress }
             ?.hostAddress
+    }
 }
