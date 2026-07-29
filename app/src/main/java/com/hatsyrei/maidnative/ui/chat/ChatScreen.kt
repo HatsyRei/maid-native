@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -246,8 +247,16 @@ private fun ChatScaffold(
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            // Reset to the top of the conversation whenever the active chat changes.
+            // Reset to the top of the conversation whenever the active chat
+            // changes. Guarded against re-firing on a fresh composition: this
+            // screen is disposed and rebuilt every time the user visits
+            // Settings, and an unguarded `LaunchedEffect(state.root)` would
+            // then scroll back to the bottom and throw away the scroll
+            // position that `SaveableStateHolder` just restored.
+            var settledRoot by rememberSaveable { mutableStateOf<String?>(null) }
             LaunchedEffect(state.root) {
+                if (state.root == settledRoot) return@LaunchedEffect
+                settledRoot = state.root
                 // Drop the previous chat's cached markdown parses so their ASTs
                 // don't linger on the heap; the new conversation reparses on demand.
                 clearMarkdownParseCache()

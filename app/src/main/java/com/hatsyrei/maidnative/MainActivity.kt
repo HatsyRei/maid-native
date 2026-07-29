@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
@@ -45,6 +46,13 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
     val state by viewModel.state.collectAsState()
     var screen by remember { mutableStateOf(Screen.Chat) }
 
+    // `AnimatedContent` disposes the outgoing screen once the transition ends,
+    // which would otherwise discard everything the screen held in
+    // `rememberSaveable` — most visibly the chat list's scroll position, since
+    // `rememberLazyListState` is saveable-backed. Providing a
+    // `SaveableStateHolder` per screen keeps that state across the swap.
+    val screenState = rememberSaveableStateHolder()
+
     AnimatedContent(
         targetState = screen,
         transitionSpec = {
@@ -60,41 +68,46 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
         },
         label = "screen",
     ) { target ->
-        when (target) {
-            Screen.Chat -> ChatScreen(
-                state = state,
-                onSubmit = viewModel::submit,
-                onStop = viewModel::stop,
-                onNewChat = viewModel::newChat,
-                onOpenSettings = { screen = Screen.Settings },
-                onRegenerate = viewModel::regenerate,
-                onDelete = viewModel::deleteMessage,
-                onEdit = viewModel::editMessage,
-                onRevise = viewModel::revise,
-                onPrevBranch = viewModel::prevBranch,
-                onNextBranch = viewModel::nextBranch,
-                onSelectChat = viewModel::selectChat,
-                onRenameChat = viewModel::renameChat,
-                onDeleteChat = viewModel::deleteChat,
-                onSelectModel = viewModel::setModel,
-                exportFileName = viewModel::exportFileName,
-                onExportConversation = viewModel::exportConversation,
-                onImportConversations = viewModel::importConversations,
-                onBackupAllChats = viewModel::backupAllChats,
-            )
-
-            Screen.Settings -> {
-                BackHandler { screen = Screen.Chat }
-                SettingsScreen(
+        // Keyed by name rather than the enum itself: the holder's saved map is
+        // written into the activity's Bundle, so its keys must be types the
+        // Bundle can store.
+        screenState.SaveableStateProvider(target.name) {
+            when (target) {
+                Screen.Chat -> ChatScreen(
                     state = state,
-                    onBaseURL = viewModel::setBaseURL,
-                    onApiKey = viewModel::setApiKey,
-                    onModel = viewModel::setModel,
-                    onRefreshModels = viewModel::refreshModels,
-                    onScan = viewModel::scanEndpoint,
-                    onResetScan = viewModel::resetScan,
-                    onBack = { screen = Screen.Chat },
+                    onSubmit = viewModel::submit,
+                    onStop = viewModel::stop,
+                    onNewChat = viewModel::newChat,
+                    onOpenSettings = { screen = Screen.Settings },
+                    onRegenerate = viewModel::regenerate,
+                    onDelete = viewModel::deleteMessage,
+                    onEdit = viewModel::editMessage,
+                    onRevise = viewModel::revise,
+                    onPrevBranch = viewModel::prevBranch,
+                    onNextBranch = viewModel::nextBranch,
+                    onSelectChat = viewModel::selectChat,
+                    onRenameChat = viewModel::renameChat,
+                    onDeleteChat = viewModel::deleteChat,
+                    onSelectModel = viewModel::setModel,
+                    exportFileName = viewModel::exportFileName,
+                    onExportConversation = viewModel::exportConversation,
+                    onImportConversations = viewModel::importConversations,
+                    onBackupAllChats = viewModel::backupAllChats,
                 )
+
+                Screen.Settings -> {
+                    BackHandler { screen = Screen.Chat }
+                    SettingsScreen(
+                        state = state,
+                        onBaseURL = viewModel::setBaseURL,
+                        onApiKey = viewModel::setApiKey,
+                        onModel = viewModel::setModel,
+                        onRefreshModels = viewModel::refreshModels,
+                        onScan = viewModel::scanEndpoint,
+                        onResetScan = viewModel::resetScan,
+                        onBack = { screen = Screen.Chat },
+                    )
+                }
             }
         }
     }

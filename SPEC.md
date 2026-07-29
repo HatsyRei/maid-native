@@ -132,13 +132,11 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 6. **M5 — Polish & parity sign-off:** 🟡 **In progress.** Edge-to-edge + keyboard-inset + scroll-hijack fixes, real launcher icon, Android 12 splash ✅. Size verification ✅ (1.7 MB signed arm64 vs ~20 MB RN — §11.2). Battery audit ✅ (§11/§11.1/§11.2: retry loop, per-token map copy, and the quadratic markdown re-parse all fixed; remaining items assessed and accepted). Outstanding: dynamic theming pass, composer font parity, and **on-device A/B against the RN app**, which is the real gate for this milestone.
 
 ### 7.1 Immediate next steps (next session)
-1. **On-device verification of the 2026-07-29 markdown/toolchain rework** (§11.2) — streaming render, the handoff at stream end, and a general UI sweep after the Compose 1.7.6 → 1.10.x jump.
-2. Persist partial replies so a mid-stream force-close does not lose the in-flight response (§4.4).
-3. Fix the chat scroll-position reset after visiting Settings (§10).
-4. Markdown images (Coil), composer font parity, dynamic theming pass.
-5. On-device A/B against the RN app to close M5.
+1. Persist partial replies so a mid-stream force-close does not lose the in-flight response (§4.4).
+2. Markdown images (Coil), composer font parity, dynamic theming pass.
+3. On-device A/B against the RN app to close M5.
 
-*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash. Dropped: custom headers/params editors, retry parity.)*
+*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash, on-device verification of the §11.2 rework, scroll-position-after-Settings fix. Dropped: custom headers/params editors, retry parity.)*
 
 ## 8. Risks
 
@@ -186,7 +184,11 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype on-dev
 - **Endpoint search:** DONE — search/scan button next to the Base URL field validates the current URL, then scans the local subnet (§4.1).
 
 ### Chat list
-- **Scroll position resets after visiting Settings (open 2026-07-29).** Scroll up in a long conversation, open Settings, come back — the list jumps to the bottom (index 0 of the reversed `LazyColumn`). Cause: `MainActivity`'s `AnimatedContent` swaps on a `Screen` enum, so `ChatScreen` is **disposed** on the way to Settings and its `rememberLazyListState()` (`ChatScreen.kt`) is destroyed with it; coming back constructs a fresh state at the default index. The same disposal also discards the `DraggableScrollbar` metrics and any expanded-reasoning toggles. Fix is to hoist the `LazyListState` above `AnimatedContent` (create it in the root composable and pass it into `ChatScreen`), or wrap the content in a `SaveableStateHolder` keyed by screen so per-screen state survives the swap. Hoisting is the smaller change and also makes the state available for future programmatic scrolling.
+- [x] **Scroll position resets after visiting Settings — FIXED 2026-07-29 (verified on-device).** Scroll down into a long conversation, open Settings, come back — the list jumped back to the top (index 0). **Two independent causes, both had to be fixed:**
+  1. `MainActivity`'s `AnimatedContent` swaps on a `Screen` enum and **disposes** `ChatScreen` once the transition ends. `rememberLazyListState` is `rememberSaveable`-backed, but `AnimatedContent` does **not** wrap its content in a `SaveableStateHolder` (verified against `animation-android 1.11.4` bytecode — zero saveable references in `AnimatedContentKt`), so the saved position had nowhere to live. Fixed by adding a `rememberSaveableStateHolder()` in `MaidNativeApp` and wrapping each branch in `SaveableStateProvider(target.name)`. Keyed by `name` rather than the enum itself because the holder's map is written into the activity `Bundle`, whose keys must be Bundle-storable types.
+  2. `ChatScreen`'s `LaunchedEffect(state.root)` — which clears the markdown cache and scrolls to item 0 on conversation switch — re-fired on every recomposition of the recreated screen, so it would have discarded the restored position anyway. Now guarded by a `rememberSaveable` `settledRoot` that records the root the effect last acted on, so it fires only on a genuine chat switch. This also stops the markdown parse cache being needlessly dropped every time the user glances at Settings.
+
+  Not addressed: expanded-reasoning toggles still collapse, because `MessageItem` uses `remember(node.id)` rather than `rememberSaveable`. That state is already lost on scroll-out (`LazyColumn` only preserves *saveable* item state), so it is a separate pre-existing nitpick.
 
 ### Deferred enhancements (post-parity, not RN parity items)
 - **Customizable user / assistant display names — wanted, low priority.** Role labels are currently hardcoded to the node's `role`. Intent is user-settable names (per-app, possibly per-conversation later) rendered in the `titleMedium` role label. Deliberately *not* scheduled: §2 puts feature expansion after behavioural parity, and this touches settings storage, the message header, and export/import format compatibility. Revisit once M5 signs off.
@@ -361,5 +363,5 @@ The three upstream quality issues listed at the end of §11.1 are still present 
 
 Signed release APK (arm64-v8a) grew ≈1.3 MB → **≈1.7 MB**, attributable to the Compose 1.7.6 → 1.10.x and renderer 0.33.0 → 0.43.0 jumps. Accepted: still an order of magnitude under the ~20 MB React Native build and well inside the ~5–8 MB target in §1.
 
-**Not yet verified on-device.** The above is compile- and unit-test coverage only; streaming rendering has not been exercised against a live endpoint since the upgrade.
+**Verified on-device 2026-07-29** on two handsets, **Android 11 (API 30)** and **Android 16**, spanning the pre- and post-`StreamingMarkdownState` platform range that matters to us — API 30 also exercises the non-platform-splash path noted in §4.5. No streaming-render regressions observed, so the upstream caveats above have not bitten in practice.
 
