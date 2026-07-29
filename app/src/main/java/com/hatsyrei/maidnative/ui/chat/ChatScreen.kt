@@ -315,6 +315,7 @@ private fun ChatScaffold(
                             siblingIndex = index,
                             siblingCount = siblings.size,
                             busy = state.busy,
+                            ready = state.ready,
                             isLatest = node.id == latestId,
                             onRegenerate = { onRegenerate(node.id) },
                             onDelete = { onDelete(node.id) },

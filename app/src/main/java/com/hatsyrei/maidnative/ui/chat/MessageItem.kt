@@ -50,6 +50,7 @@ internal fun MessageItem(
     siblingIndex: Int,
     siblingCount: Int,
     busy: Boolean,
+    ready: Boolean,
     isLatest: Boolean,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
@@ -104,10 +105,12 @@ internal fun MessageItem(
                 onDismiss = { menuOpen = false },
             ) {
                 if (node.role == "assistant") {
+                    // Regenerate/Revise both kick off a new completion, so they
+                    // need a usable model on top of an idle stream.
                     MenuOption(
                         text = "Regenerate",
                         trailingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
-                        enabled = !busy,
+                        enabled = !busy && ready,
                         onClick = { menuOpen = false; onRegenerate() },
                     )
                     MenuOption(
@@ -120,7 +123,7 @@ internal fun MessageItem(
                     MenuOption(
                         text = "Revise",
                         trailingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-                        enabled = !busy,
+                        enabled = !busy && ready,
                         onClick = { menuOpen = false; onRequestEdit(true) },
                     )
                     MenuOption(
