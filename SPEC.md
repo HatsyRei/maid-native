@@ -84,7 +84,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [x] Hydrate on load (root restored from stored mappings). *(Mid-stream crash resilience pending — see above.)*
 
 ### 4.5 UI / UX (Material 3 parity)
-- [x] Hardcoded dark theme seeded from `#2196F3` (Compose M3 color scheme). *(Dynamic color optional/later.)*
+- [x] Hardcoded dark theme seeded from `#2196F3` (Compose M3 color scheme). *(Dynamic color optional/later. **AMOLED-tuned**: every `ColorScheme` role is set explicitly in `ui/theme/Theme.kt` — any role left to `darkColorScheme()`'s defaults falls back to Material's baseline dark neutrals, which are purple-tinted (`surfaceContainerLow` #1D1B20, `surfaceContainer` #211F26, `surfaceContainerHigh` #2B2930) and clash with the blue seed. Replaced with a black-anchored blue-neutral ramp: `background`/`surface`/`surfaceDim`/`surfaceContainerLowest` = pure #000000, containers #0C1015 → #1F2630. `surfaceTint` = transparent so tonal elevation can never lift the canvas off black.)*
 - [x] Composer pill (rounded, borderless multiline input, filled send/stop button, enabled/disabled transition).
 - [~] Conversation list on a single tonal container; role labels; Markdown body + code/blockquote styling. *(Markdown via `multiplatform-markdown-renderer-m3`; both user and assistant messages render as Markdown; markdown **image** rule pending — needs Coil.)*
 - [x] Long-press message menu (revise/modify/copy/delete; regenerate for assistant). *(Anchored to the touch point; trailing M3 icons; delete behind a confirm dialog.)*
