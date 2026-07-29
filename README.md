@@ -13,8 +13,17 @@ independently.
 ## Prerequisites
 
 - Android SDK (`ANDROID_HOME` set, or a `local.properties` with `sdk.dir=...`).
-  Requires platform `android-36` and build-tools `36.0.0`.
-- JDK 17+ (JDK 21 is used locally at `~/.local/jdks/jdk-21`).
+  Requires platform `android-37` (compileSdk; targetSdk is 36) and a matching
+  build-tools release.
+- JDK 21 (used locally at `~/.local/jdks/jdk-21`). Note that `JAVA_HOME` must
+  point at a **JDK**, not a JRE — if `./gradlew` is invoked directly with a JRE
+  on `PATH` the build fails; `build.sh` handles this for you.
+
+The toolchain is pinned in `gradle/libs.versions.toml`: Gradle 9.5.0,
+AGP 9.3.1, Kotlin 2.4.10, KSP 2.3.10, Compose BOM 2026.06.01. AGP 9 supplies
+built-in Kotlin support, so the `org.jetbrains.kotlin.android` plugin is not
+applied; the Kotlin and KSP plugin versions are declared on the root
+`buildscript` classpath instead.
 
 ## Build & deploy
 
@@ -51,7 +60,8 @@ sdk.dir=/home/<you>/android-sdk
 ## Status
 
 Working vertical slice on-device: streaming chat against an OpenAI-compatible
-endpoint, conversation-tree logic (with unit tests), settings, a chat UI with
-message controls + branch navigation, a navigation drawer, and Markdown
-rendering. Signed release APK is ~1.3 MB. See [SPEC.md](SPEC.md) for the full
+endpoint, conversation-tree logic (with unit tests), Room persistence, settings,
+a chat UI with message controls + branch navigation, a navigation drawer, and
+Markdown rendering (incremental while streaming). Signed release APK is ~1.7 MB,
+against ~20 MB for the React Native build. See [SPEC.md](SPEC.md) for the full
 milestone status and the remaining parity backlog.

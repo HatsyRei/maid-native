@@ -3,12 +3,24 @@
 build/
 local.properties
 
+# Kotlin compile-daemon session files (recreated on every build)
+.kotlin/
+
 # Android Studio / IntelliJ
 .idea/
 *.iml
 captures/
 
+# Android build outputs
+*.apk
+*.aab
+release/
+
 # Keystores
 *.jks
 *.keystore
 keystore.properties
+
+# OS / editor cruft
+.DS_Store
+*~

@@ -4,7 +4,7 @@ Status: **In progress — working vertical slice on-device (M0–M3 largely done
 Owner: hatsyrei
 Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side with the existing React Native `maid` app during migration.
 
-> **Progress at a glance (2026-07-27):** Buildable/installable Compose app streaming real chat against an OpenAI-compatible endpoint on a physical device. Conversation-tree logic + reasoning ported with passing unit tests; DataStore settings; OkHttp SSE streaming + model listing; full chat UI with message controls (regenerate/revise/modify/copy/delete), branch navigation, a navigation drawer (select/rename/delete conversations), Markdown rendering (library-based, incl. user messages), a model-selector pill, endpoint subnet scan, chat export/import (RN-compatible), a draggable scroll thumb, and a real launcher icon (Maid Ai monogram). Signed release APK ≈ **1.7 MB** (was ≈1.3 MB before the 2026-07-29 Compose/renderer bump — see §11.2). Remaining big rocks: Room persistence (interim JSON store today), custom headers/params editors, Android 12 splash, and the retry/parity/polish backlog in §10.
+> **Progress at a glance (2026-07-29):** Buildable/installable Compose app streaming real chat against an OpenAI-compatible endpoint on a physical device. Conversation-tree logic + reasoning ported with passing unit tests; Room persistence with incremental diff writes; DataStore settings; OkHttp SSE streaming + model listing; full chat UI with message controls (regenerate/revise/modify/copy/delete), branch navigation, a navigation drawer (select/rename/delete conversations), Markdown rendering (library-based, incl. user messages, with an incremental streaming path), a model-selector pill, endpoint subnet scan, chat export/import (RN-compatible), a draggable scroll thumb, and a real launcher icon (Maid Ai monogram). Signed release APK ≈ **1.7 MB** (was ≈1.3 MB before the 2026-07-29 Compose/renderer bump — see §11.2). Remaining big rocks: on-device parity sign-off against the RN app, collapsible-reasoning/markdown-image polish, and the parity backlog in §10.
 
 ---
 
@@ -58,15 +58,15 @@ Derived from the current RN app. Each item is a parity target for the native app
 ### 4.1 Endpoint & model
 - [x] OpenAI-compatible base URL (default `https://api.openai.com/v1`), editable, with a reset-to-default button.
 - [x] API key (required only for the official OpenAI endpoint; `local-openai-compatible` placeholder allowed otherwise).
-- [ ] Custom default headers (key/value map).
-- [ ] Custom request parameters (arbitrary map merged into the completion body; UUID-keyed rows in the editor). *(Client already accepts a parameters map; no editor UI yet.)*
+- [–] ~~Custom default headers (key/value map).~~ **Dropped 2026-07-29** — unused in practice. The RN app exposes an editor for it; neither of us has ever populated it. Not worth the settings-screen surface area.
+- [–] ~~Custom request parameters (arbitrary map merged into the completion body; UUID-keyed rows in the editor).~~ **Dropped 2026-07-29** — same reason. Note that `OpenAiClient` still *accepts* a parameters map, so only the editor UI is cancelled; wiring a caller back up later is cheap if a real need appears.
 - [x] Model list via `GET /models`, refreshed on endpoint change; auto-select first / preserve valid stored selection. *(Refresh-on-focus not wired; refresh is manual + on endpoint change.)*
 - [x] Endpoint auto-discovery: subnet scan for OpenAI-compatible hosts. *(`data/remote/EndpointScanner.kt`, port of RN `scan-endpoint.ts`: probes `http://<ip>:8080/v1/models` across the local /24 then extended /21, 400ms timeout, 64-way concurrency. Scan button next to Base URL field validates the current URL first, then scans; shows spinner while scanning and a check on success.)*
 
 ### 4.2 Chat / streaming
 - [x] Streaming chat completions (SSE), incremental token append.
 - [x] Stop / abort mid-stream.
-- [ ] Retry (maxRetries=3) parity.
+- [–] ~~Retry (maxRetries=3) parity.~~ **Dropped 2026-07-29** — the RN app inherits `maxRetries: 3` from the `openai` SDK default rather than choosing it. Against a local endpoint a failure is almost always "server is down", where silent retries just delay the error and burn radio; against the official API, a hard failure surfacing immediately is the more honest behaviour. Manual resend is one tap.
 - [x] Drop trailing empty assistant placeholder before sending (prevents llama.cpp assistant-prefix corruption).
 - [x] "Reasoning" content: parsed (`domain/Reasoning.kt`) and rendered in a collapsible section (default collapsed, chevron header).
 - [~] Streaming render throttle: using `Flow.buffer()`; conflation/sampling not yet tuned. Fixed a separate bug where org.json returned literal `"null"` for the opening `content:null` delta. **Update 2026-07-29:** a render-path throttle is no longer the priority lever it was. The quadratic markdown re-parse it would have masked is gone — the streaming bubble now parses incrementally (§11.2), and `snapshotFlow` conflation there already collapses token bursts that outrun the parser.
@@ -92,7 +92,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export (per-chat), import (multi-file), and backup-all done via SAF; RN-compatible JSON format.)*
 - [x] Custom scroll thumb. *(`ui/chat/DraggableScrollbar.kt`: draggable scroll thumb for the conversation view.)*
 - [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`. Auto-scroll removed 2026-07-27; instead a bottom spacer (`viewport − 96dp`, a trailing `Spacer` item under `BoxWithConstraints`) lets the user scroll the last message up near the top and scroll ahead to watch streaming text — mirrors RN commit `dd8fb76`.)*
-- [~] App icon + Android 12 splash (reuse existing `assets/images/*`). *(Real adaptive launcher icon done — Maid Ai monogram foreground with padding; Android 12 splash still pending.)*
+- [x] App icon + Android 12 splash. *(Real adaptive launcher icon — Maid Ai monogram foreground with padding. The splash is the **platform-generated** one: API 31+ builds it automatically from the adaptive icon plus the theme's `windowBackground`, which `Theme.MaidNative` sets to `@color/ic_launcher_background` so the two match and the transition reads as deliberate. No `androidx.core:core-splashscreen` and no `windowSplashScreenAnimatedIcon`/`postSplashScreenTheme` — API 24–30 therefore gets a plain coloured window rather than an icon splash, which is accepted.)*
 
 ## 5. Architecture (native)
 
@@ -125,17 +125,20 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 ## 7. Milestones
 
 1. **M0 — Prototype:** ✅ **Done.** Buildable/installable Compose skeleton, dark M3, side-by-side id, signing.
-2. **M1 — Tree core:** 🟡 **Partial.** `message-nodes` Kotlin port + test parity ✅. Room schema + incremental persistence ❌ (interim JSON snapshot store in place).
-3. **M2 — Streaming:** ✅ **Done.** OpenAI client (models + SSE completions + abort) ✅, settings (DataStore) ✅, model selection ✅. *(Retry parity + endpoint scan not yet.)*
-4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`, user + assistant), reasoning (inline), composer, long-press menu, branch navigation, model-selector pill, draggable scroll thumb ✅. Collapsible reasoning, markdown images pending.
-5. **M4 — Drawer & data ops:** 🟡 **Partial.** Drawer conversation list + rename + delete ✅. Export / import / backup-all ✅ (SAF, RN-compatible format + `validateMappings` port). Endpoint scan ✅. Custom headers/params ❌.
-6. **M5 — Polish & parity sign-off:** 🟡 **Started.** Edge-to-edge + keyboard-inset + scroll-hijack fixes, real launcher icon (Maid Ai monogram) ✅. Android 12 splash, dynamic theming pass, on-device A/B vs RN, size/battery verification ❌.
+2. **M1 — Tree core:** ✅ **Done.** `message-nodes` Kotlin port + test parity ✅. Room schema + incremental diff persistence ✅ (`data/db/`, WAL, one-time migration off the legacy JSON snapshot). Remaining gap: partial replies are not persisted mid-stream, so a force-close during generation loses the in-flight reply (§4.4).
+3. **M2 — Streaming:** ✅ **Done.** OpenAI client (models + SSE completions + abort) ✅, settings (DataStore) ✅, model selection ✅, endpoint scan ✅. Retry parity dropped (§4.2).
+4. **M3 — Chat UI:** 🟡 **Mostly done.** Message list, Markdown (`multiplatform-markdown-renderer-m3`, user + assistant, incremental while streaming), reasoning (collapsible), composer, long-press menu, branch navigation, model-selector pill, draggable scroll thumb ✅. Markdown images pending (needs Coil).
+5. **M4 — Drawer & data ops:** ✅ **Done.** Drawer conversation list + rename + delete ✅. Export / import / backup-all ✅ (SAF, RN-compatible format + `validateMappings` port). Endpoint scan ✅. Custom headers/params editors dropped (§4.1).
+6. **M5 — Polish & parity sign-off:** 🟡 **In progress.** Edge-to-edge + keyboard-inset + scroll-hijack fixes, real launcher icon, Android 12 splash ✅. Size verification ✅ (1.7 MB signed arm64 vs ~20 MB RN — §11.2). Battery audit ✅ (§11/§11.1/§11.2: retry loop, per-token map copy, and the quadratic markdown re-parse all fixed; remaining items assessed and accepted). Outstanding: dynamic theming pass, composer font parity, and **on-device A/B against the RN app**, which is the real gate for this milestone.
 
 ### 7.1 Immediate next steps (next session)
-1. ~~Swap the interim Markdown renderer for **`com.mikepenz:multiplatform-markdown-renderer-m3`**~~ **DONE** (v0.32.0, pinned for Compose 1.7.6 compatibility).
-2. Room persistence (schema mirror + incremental diff), replacing `data/store/MessageStore.kt`; persist partial replies so a mid-stream crash survives.
-3. Custom headers/params editors, collapsible reasoning, Android 12 splash. *(Endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon — DONE.)*
-4. Work through the on-device parity backlog in §10 (drawer width, keyboard-on-drawer, menu styling/anchoring, delete-confirm, composer typography).
+1. **On-device verification of the 2026-07-29 markdown/toolchain rework** (§11.2) — streaming render, the handoff at stream end, and a general UI sweep after the Compose 1.7.6 → 1.10.x jump.
+2. Persist partial replies so a mid-stream force-close does not lose the in-flight response (§4.4).
+3. Fix the chat scroll-position reset after visiting Settings (§10).
+4. Markdown images (Coil), composer font parity, dynamic theming pass.
+5. On-device A/B against the RN app to close M5.
+
+*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash. Dropped: custom headers/params editors, retry parity.)*
 
 ## 8. Risks
 
@@ -155,9 +158,9 @@ State: `ViewModel` + `StateFlow`; streaming via `Flow<String>` collected in the 
 ```
 Requires `ANDROID_HOME` (or a `local.properties` with `sdk.dir`) and JDK 17+ (JDK 21 used locally). See `README.md`.
 
-## 10. Known issues & parity backlog (observed on-device, 2026-07-23)
+## 10. Known issues & parity backlog (opened 2026-07-23, maintained since)
 
-Concrete bugs and visual-parity gaps noted while exercising the prototype. To be triaged next session.
+Concrete bugs and visual-parity gaps noted while exercising the prototype on-device. Resolved items are kept with their fix notes rather than deleted, so the reasoning stays discoverable.
 
 ### Composer
 - [x] **Keyboard lift overshoot (FIXED 2026-07-23):** the composer was raised by ~one extra nav-bar height because the content `Column` applied both the Scaffold's bottom inset (`.padding(padding)`, which includes the navigation bar) and `.imePadding()` (whose IME inset also spans the nav-bar region under `adjustResize`) — double-counting the nav bar. Fixed by inserting `.consumeWindowInsets(padding)` between them so `imePadding()` only adds the height beyond the already-consumed nav-bar inset. Verified on-device.
@@ -181,6 +184,12 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype. To be
 ### Settings
 - [x] **Reset-to-default endpoint (FIXED 2026-07-27):** added a "Reset to default" chip next to the Base URL save action.
 - **Endpoint search:** DONE — search/scan button next to the Base URL field validates the current URL, then scans the local subnet (§4.1).
+
+### Chat list
+- **Scroll position resets after visiting Settings (open 2026-07-29).** Scroll up in a long conversation, open Settings, come back — the list jumps to the bottom (index 0 of the reversed `LazyColumn`). Cause: `MainActivity`'s `AnimatedContent` swaps on a `Screen` enum, so `ChatScreen` is **disposed** on the way to Settings and its `rememberLazyListState()` (`ChatScreen.kt`) is destroyed with it; coming back constructs a fresh state at the default index. The same disposal also discards the `DraggableScrollbar` metrics and any expanded-reasoning toggles. Fix is to hoist the `LazyListState` above `AnimatedContent` (create it in the root composable and pass it into `ChatScreen`), or wrap the content in a `SaveableStateHolder` keyed by screen so per-screen state survives the swap. Hoisting is the smaller change and also makes the state available for future programmatic scrolling.
+
+### Deferred enhancements (post-parity, not RN parity items)
+- **Customizable user / assistant display names — wanted, low priority.** Role labels are currently hardcoded to the node's `role`. Intent is user-settable names (per-app, possibly per-conversation later) rendered in the `titleMedium` role label. Deliberately *not* scheduled: §2 puts feature expansion after behavioural parity, and this touches settings storage, the message header, and export/import format compatibility. Revisit once M5 signs off.
 
 ### Dependencies / tech debt
 - [x] **[TECH DEBT — SECURITY] `multiplatform-markdown-renderer` upgraded to the latest release — RESOLVED 2026-07-29 (`0.33.0` → `0.43.0`).** The pin existed because `0.33.0` was the newest version binary-compatible with Kotlin `2.1.0` / Compose BOM `2024.12.01`; releases past it are built with newer Kotlin, and **Kotlin metadata is a hard blocker** (a `2.1.0` compiler cannot read it without `-Xskip-metadata-version-check`, which we will not use). Clearing it required the coordinated bump recorded in §3: Gradle `9.5.0`, AGP `9.3.1` (incl. the built-in-Kotlin migration), Kotlin `2.4.10`, KSP `2.3.10`, Compose BOM `2026.06.01`, Room `2.8.4`, compileSdk `37`. Both payoffs were taken on arrival — `parseMarkdown()` and `StreamingMarkdownState`, see §11.2. The historical analysis of the version floor is preserved in §11.1.
