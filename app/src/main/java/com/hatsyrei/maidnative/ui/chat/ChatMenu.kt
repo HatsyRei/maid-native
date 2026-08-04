@@ -17,8 +17,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -110,6 +114,31 @@ internal fun MenuSurface(
         )
     }
 }
+
+/**
+ * Single-slot ownership for the app's long-press context menus.
+ *
+ * Compose has no cross-node gesture arbitration: two fingers landing on two
+ * long-pressable items are hit-tested and dispatched independently, so each
+ * item's `detectTapGestures` arms its own long-press timer and, with per-item
+ * `menuOpen` flags, both menus would open. Routing every menu through one
+ * `openId` makes the second long-press replace the first instead.
+ */
+@Stable
+internal class MenuController {
+    var openId: String? by mutableStateOf(null)
+        private set
+
+    fun open(id: String) {
+        openId = id
+    }
+
+    fun close(id: String) {
+        if (openId == id) openId = null
+    }
+}
+
+internal val LocalMenuController = staticCompositionLocalOf { MenuController() }
 
 /**
  * A context menu that pops up centered horizontally on the user's touch point

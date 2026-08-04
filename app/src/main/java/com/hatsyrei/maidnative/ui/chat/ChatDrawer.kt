@@ -24,6 +24,8 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.ConversationDefaults
@@ -43,11 +46,31 @@ import com.hatsyrei.maidnative.ui.icons.SaveAltIcon
 internal fun chatTitle(node: MessageNode): String =
     (node.metadata["title"] as? String)?.takeIf { it.isNotBlank() } ?: ConversationDefaults.CHAT_TITLE
 
+/**
+ * Swallows every touch on the Initial pass, before any child (or the drawer's own
+ * `anchoredDraggable` parent) can claim it. Used to make the sheet inert while it
+ * is mid-drag or mid-animation: acting on a surface that is still moving is how
+ * taps land on the wrong chat and how context menus end up riding the sheet.
+ */
+private fun Modifier.blockPointerInput(blocked: Boolean): Modifier =
+    if (!blocked) {
+        this
+    } else {
+        pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            }
+        }
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DrawerContent(
     roots: List<MessageNode>,
     activeRoot: String?,
+    interactive: Boolean,
     onSelect: (String) -> Unit,
     onNewChat: () -> Unit,
     onRename: (String) -> Unit,
@@ -57,7 +80,9 @@ internal fun DrawerContent(
     onBackupAll: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.85f),
+        modifier = Modifier
+            .fillMaxWidth(0.85f)
+            .blockPointerInput(blocked = !interactive),
         drawerContainerColor = Color.Black,
     ) {
         Row(
@@ -96,6 +121,7 @@ internal fun DrawerContent(
             }
             items(roots, key = { it.id }) { root ->
                 DrawerChatItem(
+                    id = root.id,
                     title = chatTitle(root),
                     selected = root.id == activeRoot,
                     onClick = { onSelect(root.id) },
@@ -110,6 +136,7 @@ internal fun DrawerContent(
 
 @Composable
 private fun DrawerChatItem(
+    id: String,
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -117,7 +144,13 @@ private fun DrawerChatItem(
     onDelete: () -> Unit,
     onExport: () -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
+    val menus = LocalMenuController.current
+    val menuId = remember(id) { "chat:$id" }
+    // `derivedStateOf` so this pill recomposes when *its* menu toggles, not every
+    // time any other item's does.
+    val menuOpen by remember(menuId) { derivedStateOf { menus.openId == menuId } }
+    val closeMenu = { menus.close(menuId) }
+    DisposableEffect(menuId) { onDispose { menus.close(menuId) } }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var pressed by remember { mutableStateOf(false) }
     // Fade the pill between focused and unfocused states (RN parity).
@@ -148,7 +181,7 @@ private fun DrawerChatItem(
                                 pressed = false
                             },
                             onTap = { onClick() },
-                            onLongPress = { pressOffset = it; menuOpen = true },
+                            onLongPress = { pressOffset = it; menus.open(menuId) },
                         )
                     }
                     .padding(horizontal = 20.dp, vertical = 14.dp),
@@ -165,17 +198,17 @@ private fun DrawerChatItem(
         TapContextMenu(
             expanded = menuOpen,
             touchOffset = pressOffset,
-            onDismiss = { menuOpen = false },
+            onDismiss = closeMenu,
         ) {
             MenuOption(
                 text = "Rename",
                 trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                onClick = { menuOpen = false; onRename() },
+                onClick = { closeMenu(); onRename() },
             )
             MenuOption(
                 text = "Export",
                 trailingIcon = { Icon(FileDownloadIcon, contentDescription = null) },
-                onClick = { menuOpen = false; onExport() },
+                onClick = { closeMenu(); onExport() },
             )
             MenuOption(
                 text = "Delete",
@@ -187,7 +220,7 @@ private fun DrawerChatItem(
                         tint = MaterialTheme.colorScheme.error,
                     )
                 },
-                onClick = { menuOpen = false; onDelete() },
+                onClick = { closeMenu(); onDelete() },
             )
         }
     }

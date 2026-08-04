@@ -24,6 +24,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,7 +70,14 @@ internal fun MessageItem(
         if (isUser) node.content to null else Reasoning.split(node.content)
     }
     val clipboard = LocalClipboardManager.current
-    var menuOpen by remember { mutableStateOf(false) }
+    val menus = LocalMenuController.current
+    val menuId = remember(node.id) { "message:${node.id}" }
+    // `derivedStateOf` so this bubble recomposes when *its* menu toggles, not
+    // every time any other item's does.
+    val menuOpen by remember(menuId) { derivedStateOf { menus.openId == menuId } }
+    val closeMenu = { menus.close(menuId) }
+    // The list disposes off-screen items; drop the slot so it can't reopen on scroll back.
+    DisposableEffect(menuId) { onDispose { menus.close(menuId) } }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var pressed by remember { mutableStateOf(false) }
     var reasoningExpanded by remember(node.id) { mutableStateOf(false) }
@@ -93,7 +102,7 @@ internal fun MessageItem(
                         tryAwaitRelease()
                         pressed = false
                     },
-                    onLongPress = { pressOffset = it; menuOpen = true },
+                    onLongPress = { pressOffset = it; menus.open(menuId) },
                 )
             }
             .padding(14.dp),
@@ -102,7 +111,7 @@ internal fun MessageItem(
             TapContextMenu(
                 expanded = menuOpen,
                 touchOffset = pressOffset,
-                onDismiss = { menuOpen = false },
+                onDismiss = closeMenu,
             ) {
                 if (node.role == "assistant") {
                     // Regenerate/Revise both kick off a new completion, so they
@@ -111,33 +120,33 @@ internal fun MessageItem(
                         text = "Regenerate",
                         trailingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                         enabled = !busy && ready,
-                        onClick = { menuOpen = false; onRegenerate() },
+                        onClick = { closeMenu(); onRegenerate() },
                     )
                     MenuOption(
                         text = "Modify",
                         trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         enabled = !busy,
-                        onClick = { menuOpen = false; onRequestEdit(false) },
+                        onClick = { closeMenu(); onRequestEdit(false) },
                     )
                 } else {
                     MenuOption(
                         text = "Revise",
                         trailingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
                         enabled = !busy && ready,
-                        onClick = { menuOpen = false; onRequestEdit(true) },
+                        onClick = { closeMenu(); onRequestEdit(true) },
                     )
                     MenuOption(
                         text = "Modify",
                         trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         enabled = !busy,
-                        onClick = { menuOpen = false; onRequestEdit(false) },
+                        onClick = { closeMenu(); onRequestEdit(false) },
                     )
                 }
                 MenuOption(
                     text = "Copy",
                     trailingIcon = { Icon(ContentCopyIcon, contentDescription = null) },
                     onClick = {
-                        menuOpen = false
+                        closeMenu()
                         clipboard.setText(AnnotatedString(node.content))
                     },
                 )
@@ -152,7 +161,7 @@ internal fun MessageItem(
                         )
                     },
                     enabled = !busy,
-                    onClick = { menuOpen = false; onDelete() },
+                    onClick = { closeMenu(); onDelete() },
                 )
             }
         }

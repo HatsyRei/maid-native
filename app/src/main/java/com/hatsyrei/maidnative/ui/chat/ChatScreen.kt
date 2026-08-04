@@ -34,7 +34,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.markdown.rememberChatStreamingMarkdownState
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,41 +122,61 @@ fun ChatScreen(
     // real tree changes.
     val roots = remember(state.mappings) { MessageTree.getRoots(state.mappings) }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            DrawerContent(
-                roots = roots,
-                activeRoot = state.root,
-                onSelect = { id -> onSelectChat(id) },
-                onNewChat = { onNewChat() },
-                onRename = { id -> dialog = ChatDialog.Rename(id) },
-                onDeleteChat = { id -> dialog = ChatDialog.DeleteChat(id) },
-                onExport = { id ->
-                    exportRoot = id
-                    exportLauncher.launch(exportFileName(id))
-                },
-                onImport = { importLauncher.launch(arrayOf("application/json")) },
-                onBackupAll = { backupLauncher.launch(null) },
-            )
-        },
-    ) {
-        ChatScaffold(
-            state = state,
-            listState = listState,
-            onOpenDrawer = { scope.launch { drawerState.open() } },
-            onOpenSettings = onOpenSettings,
-            onSubmit = onSubmit,
-            onStop = onStop,
-            onRegenerate = onRegenerate,
-            onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
-            onPrevBranch = onPrevBranch,
-            onNextBranch = onNextBranch,
-            onSelectModel = onSelectModel,
-            onRequestEdit = { id, initial, revise ->
-                dialog = ChatDialog.Edit(id, initial, revise)
+    // The sheet is hit-testable at every drag offset, so treat it as inert until
+    // it is fully open. The offset is the only exact signal: `currentValue` is the
+    // *settled* value (still `Open` throughout a closing drag) and
+    // `isAnimationRunning` is false while a finger is dragging. `Open` is anchored
+    // at 0f (material3 `ModalNavigationDrawer`); the epsilon is sub-pixel slack so
+    // an animation that lands a hair off zero can't leave the drawer inert.
+    val drawerSettled by remember(drawerState) {
+        derivedStateOf {
+            drawerState.currentValue == DrawerValue.Open && abs(drawerState.currentOffset) < 1f
+        }
+    }
+
+    // One menu at a time across both the message list and the drawer: Compose
+    // gives sibling nodes no gesture arbitration, so two simultaneous
+    // long-presses would otherwise each open their own popup.
+    val menus = remember { MenuController() }
+
+    CompositionLocalProvider(LocalMenuController provides menus) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                DrawerContent(
+                    roots = roots,
+                    activeRoot = state.root,
+                    interactive = drawerSettled,
+                    onSelect = { id -> onSelectChat(id) },
+                    onNewChat = { onNewChat() },
+                    onRename = { id -> dialog = ChatDialog.Rename(id) },
+                    onDeleteChat = { id -> dialog = ChatDialog.DeleteChat(id) },
+                    onExport = { id ->
+                        exportRoot = id
+                        exportLauncher.launch(exportFileName(id))
+                    },
+                    onImport = { importLauncher.launch(arrayOf("application/json")) },
+                    onBackupAll = { backupLauncher.launch(null) },
+                )
             },
-        )
+        ) {
+            ChatScaffold(
+                state = state,
+                listState = listState,
+                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onOpenSettings = onOpenSettings,
+                onSubmit = onSubmit,
+                onStop = onStop,
+                onRegenerate = onRegenerate,
+                onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
+                onPrevBranch = onPrevBranch,
+                onNextBranch = onNextBranch,
+                onSelectModel = onSelectModel,
+                onRequestEdit = { id, initial, revise ->
+                    dialog = ChatDialog.Edit(id, initial, revise)
+                },
+            )
+        }
     }
 
     val dismiss = { dialog = null }
