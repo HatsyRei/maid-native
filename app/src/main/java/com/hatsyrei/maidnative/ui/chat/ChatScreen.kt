@@ -150,7 +150,7 @@ fun ChatScreen(
                     interactive = drawerSettled,
                     onSelect = { id -> onSelectChat(id) },
                     onNewChat = { onNewChat() },
-                    onRename = { id -> dialog = ChatDialog.Rename(id) },
+                    onRename = { id, title -> dialog = ChatDialog.Rename(id, title) },
                     onDeleteChat = { id -> dialog = ChatDialog.DeleteChat(id) },
                     onExport = { id ->
                         exportRoot = id
@@ -202,6 +202,7 @@ fun ChatScreen(
         )
 
         is ChatDialog.Rename -> RenameDialog(
+            initial = current.initial,
             onDismiss = dismiss,
             onConfirm = { title ->
                 onRenameChat(current.id, title)

@@ -112,7 +112,7 @@ internal fun DrawerContent(
     interactive: Boolean,
     onSelect: (String) -> Unit,
     onNewChat: () -> Unit,
-    onRename: (String) -> Unit,
+    onRename: (String, String) -> Unit,
     onDeleteChat: (String) -> Unit,
     onExport: (String) -> Unit,
     onImport: () -> Unit,
@@ -159,12 +159,13 @@ internal fun DrawerContent(
                 }
             }
             items(roots, key = { it.id }) { root ->
+                val title = chatTitle(root)
                 DrawerChatItem(
                     id = root.id,
-                    title = chatTitle(root),
+                    title = title,
                     selected = root.id == activeRoot,
                     onClick = { onSelect(root.id) },
-                    onRename = { onRename(root.id) },
+                    onRename = { onRename(root.id, title) },
                     onDelete = { onDeleteChat(root.id) },
                     onExport = { onExport(root.id) },
                 )

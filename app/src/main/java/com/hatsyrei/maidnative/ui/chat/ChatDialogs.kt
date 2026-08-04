@@ -12,13 +12,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 
 /** The (mutually exclusive) modal dialogs [ChatScreen] can show. */
 internal sealed interface ChatDialog {
     val id: String
 
     data class Edit(override val id: String, val initial: String, val revise: Boolean) : ChatDialog
-    data class Rename(override val id: String) : ChatDialog
+    data class Rename(override val id: String, val initial: String) : ChatDialog
     data class DeleteMessage(override val id: String) : ChatDialog
     data class DeleteChat(override val id: String) : ChatDialog
 }
@@ -57,10 +59,11 @@ internal fun EditDialog(
 
 @Composable
 internal fun RenameDialog(
+    initial: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Rename conversation") },
@@ -74,8 +77,8 @@ internal fun RenameDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(text) },
-                enabled = text.trim().isNotEmpty(),
+                onClick = { onConfirm(text.text) },
+                enabled = text.text.trim().isNotEmpty(),
             ) {
                 Text("Rename")
             }
