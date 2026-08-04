@@ -37,7 +37,6 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -123,18 +122,6 @@ fun ChatScreen(
     // real tree changes.
     val roots = remember(state.mappings) { MessageTree.getRoots(state.mappings) }
 
-    // The sheet is hit-testable at every drag offset, so treat it as inert until
-    // it is fully open. The offset is the only exact signal: `currentValue` is the
-    // *settled* value (still `Open` throughout a closing drag) and
-    // `isAnimationRunning` is false while a finger is dragging. `Open` is anchored
-    // at 0f (material3 `ModalNavigationDrawer`); the epsilon is sub-pixel slack so
-    // an animation that lands a hair off zero can't leave the drawer inert.
-    val drawerSettled by remember(drawerState) {
-        derivedStateOf {
-            drawerState.currentValue == DrawerValue.Open && abs(drawerState.currentOffset) < 1f
-        }
-    }
-
     // One menu at a time across both the message list and the drawer: Compose
     // gives sibling nodes no gesture arbitration, so two simultaneous
     // long-presses would otherwise each open their own popup.
@@ -147,7 +134,17 @@ fun ChatScreen(
                 DrawerContent(
                     roots = roots,
                     activeRoot = state.root,
-                    interactive = drawerSettled,
+                    // The sheet is hit-testable at every drag offset, so treat it as
+                    // inert until it is fully open. The offset is the only exact
+                    // signal: `currentValue` is the *settled* value (still `Open`
+                    // throughout a closing drag) and `isAnimationRunning` is false
+                    // while a finger is dragging. `Open` is anchored at 0f; the
+                    // epsilon is sub-pixel slack so a settle landing a hair off zero
+                    // can't leave the drawer permanently inert.
+                    settled = {
+                        drawerState.currentValue == DrawerValue.Open &&
+                            abs(drawerState.currentOffset) < 1f
+                    },
                     onSelect = { id -> onSelectChat(id) },
                     onNewChat = { onNewChat() },
                     onRename = { id, title -> dialog = ChatDialog.Rename(id, title) },
@@ -165,7 +162,12 @@ fun ChatScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .restrictDrawerOpenDrag(enabled = drawerState.isClosed),
+                    .restrictDrawerOpenDrag(enabled = { drawerState.isClosed })
+                    // The scrim only takes touches once the drawer has *settled* open,
+                    // so the chat stays live behind a sheet that is animating over it.
+                    // `isAnimationRunning` is true exactly when the drawer moves with
+                    // no finger on it, so swallowing the gesture can't fight a drag.
+                    .inertWhile { drawerState.isAnimationRunning },
             ) {
                 ChatScaffold(
                     state = state,

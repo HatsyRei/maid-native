@@ -50,21 +50,29 @@ internal fun chatTitle(node: MessageNode): String =
     (node.metadata["title"] as? String)?.takeIf { it.isNotBlank() } ?: ConversationDefaults.CHAT_TITLE
 
 /**
- * Swallows every touch on the Initial pass, before any child (or the drawer's own
- * `anchoredDraggable` parent) can claim it. Used to make the sheet inert while it
- * is mid-drag or mid-animation: acting on a surface that is still moving is how
- * taps land on the wrong chat and how context menus end up riding the sheet.
+ * Makes a surface inert for any gesture that *begins* while [blocked] holds, by
+ * swallowing it on the Initial pass before any child (or the drawer's own
+ * `anchoredDraggable` parent) can claim it. Acting on a surface that is still
+ * moving is how taps land on the wrong chat and how menus end up riding the sheet.
+ *
+ * The decision is latched at DOWN and the gesture is then held to the lift, which
+ * is the only shape that matches the framework: `PointerInputEventProcessor` hit
+ * tests solely on the down transition, so a node cannot join a gesture already in
+ * flight — and one that stops consuming hands it straight back, since a drag node
+ * parked in `AwaitGesturePickup` re-arms the moment consumption ends. A gate that
+ * is added and removed by recomposition therefore leaks the tail of any gesture
+ * that outlives the block; this one never detaches and never re-evaluates.
  */
-private fun Modifier.blockPointerInput(blocked: Boolean): Modifier =
-    if (!blocked) {
-        this
-    } else {
-        pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-                }
-            }
+internal fun Modifier.inertWhile(blocked: () -> Boolean): Modifier =
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (!blocked()) return@awaitEachGesture
+            down.consume()
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+            } while (event.changes.any { it.pressed })
         }
     }
 
@@ -85,21 +93,17 @@ private fun Modifier.blockPointerInput(blocked: Boolean): Modifier =
  * `DragGestureNode` parks a stolen gesture in `AwaitGesturePickup` and re-arms the
  * moment consumption stops, so letting up would reopen the door.
  */
-internal fun Modifier.restrictDrawerOpenDrag(enabled: Boolean, fraction: Float = 0.5f): Modifier =
-    if (!enabled) {
-        this
-    } else {
-        pointerInput(fraction) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                if (down.position.x < size.width * fraction) return@awaitEachGesture
-                awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
-                    ?: return@awaitEachGesture
-                while (true) {
-                    val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-                    if (!change.pressed) break
-                    change.consume()
-                }
+internal fun Modifier.restrictDrawerOpenDrag(enabled: () -> Boolean, fraction: Float = 0.5f): Modifier =
+    pointerInput(fraction) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (!enabled() || down.position.x < size.width * fraction) return@awaitEachGesture
+            awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                ?: return@awaitEachGesture
+            while (true) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) break
+                change.consume()
             }
         }
     }
@@ -109,7 +113,7 @@ internal fun Modifier.restrictDrawerOpenDrag(enabled: Boolean, fraction: Float =
 internal fun DrawerContent(
     roots: List<MessageNode>,
     activeRoot: String?,
-    interactive: Boolean,
+    settled: () -> Boolean,
     onSelect: (String) -> Unit,
     onNewChat: () -> Unit,
     onRename: (String, String) -> Unit,
@@ -121,7 +125,7 @@ internal fun DrawerContent(
     ModalDrawerSheet(
         modifier = Modifier
             .fillMaxWidth(0.85f)
-            .blockPointerInput(blocked = !interactive),
+            .inertWhile { !settled() },
         drawerContainerColor = Color.Black,
     ) {
         Row(
