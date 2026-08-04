@@ -2,6 +2,9 @@ package com.hatsyrei.maidnative.ui.chat
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,6 +63,42 @@ private fun Modifier.blockPointerInput(blocked: Boolean): Modifier =
             awaitPointerEventScope {
                 while (true) {
                     awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            }
+        }
+    }
+
+/**
+ * Confines the drawer's open-swipe to the left [fraction] of the screen.
+ *
+ * `ModalNavigationDrawer` exposes no way to narrow its drag region — the
+ * `anchoredDraggable` sits on its root and covers everything — so this sits on the
+ * content, between that root and the chat, and simply enters the same touch-slop
+ * race as everyone else, for gestures that begin past the threshold. Depth decides
+ * the ties, because the Main pass runs descendant-to-ancestor: the list is below
+ * this node and claims a vertical (or 45°) drag first, this node is below the
+ * drawer and claims a horizontal one first. So a diagonal swipe from the right
+ * still scrolls exactly as it would have; only the drawer is cut out.
+ *
+ * The slop must match the drawer's own — bidding higher would just hand it the
+ * gesture. Once claimed, every change is consumed for the rest of the gesture:
+ * `DragGestureNode` parks a stolen gesture in `AwaitGesturePickup` and re-arms the
+ * moment consumption stops, so letting up would reopen the door.
+ */
+internal fun Modifier.restrictDrawerOpenDrag(enabled: Boolean, fraction: Float = 0.5f): Modifier =
+    if (!enabled) {
+        this
+    } else {
+        pointerInput(fraction) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                if (down.position.x < size.width * fraction) return@awaitEachGesture
+                awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                    ?: return@awaitEachGesture
+                while (true) {
+                    val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    change.consume()
                 }
             }
         }

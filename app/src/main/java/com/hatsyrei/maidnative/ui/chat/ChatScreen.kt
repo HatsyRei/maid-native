@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -160,22 +161,29 @@ fun ChatScreen(
                 )
             },
         ) {
-            ChatScaffold(
-                state = state,
-                listState = listState,
-                onOpenDrawer = { scope.launch { drawerState.open() } },
-                onOpenSettings = onOpenSettings,
-                onSubmit = onSubmit,
-                onStop = onStop,
-                onRegenerate = onRegenerate,
-                onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
-                onPrevBranch = onPrevBranch,
-                onNextBranch = onNextBranch,
-                onSelectModel = onSelectModel,
-                onRequestEdit = { id, initial, revise ->
-                    dialog = ChatDialog.Edit(id, initial, revise)
-                },
-            )
+            // Swiping the drawer open is a left-edge gesture, not a whole-screen one.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .restrictDrawerOpenDrag(enabled = drawerState.isClosed),
+            ) {
+                ChatScaffold(
+                    state = state,
+                    listState = listState,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenSettings = onOpenSettings,
+                    onSubmit = onSubmit,
+                    onStop = onStop,
+                    onRegenerate = onRegenerate,
+                    onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
+                    onPrevBranch = onPrevBranch,
+                    onNextBranch = onNextBranch,
+                    onSelectModel = onSelectModel,
+                    onRequestEdit = { id, initial, revise ->
+                        dialog = ChatDialog.Edit(id, initial, revise)
+                    },
+                )
+            }
         }
     }
 
