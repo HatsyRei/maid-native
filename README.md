@@ -5,8 +5,8 @@ Jetpack Compose + Material 3. It installs **side-by-side** with the React Native
 Maid app (`com.hatsyrei.maid`) so the two can be compared on one device during
 the port.
 
-See [SPEC.md](SPEC.md) for the full port specification, milestones, and the
-current known-issues / parity backlog (§10). This repo is a self-contained
+See [SPEC.md](SPEC.md) for the full port specification and the record of the
+migration (now closed — milestones M0–M5 complete). This repo is a self-contained
 Gradle project, split out from the RN `maid` repo so the native port can evolve
 independently.
 
@@ -59,9 +59,24 @@ sdk.dir=/home/<you>/android-sdk
 
 ## Status
 
-Working vertical slice on-device: streaming chat against an OpenAI-compatible
+**Port complete.** Behavioural parity with the React Native app has been reached
+and signed off on-device (SPEC §7): streaming chat against an OpenAI-compatible
 endpoint, conversation-tree logic (with unit tests), Room persistence, settings,
 a chat UI with message controls + branch navigation, a navigation drawer, and
 Markdown rendering (incremental while streaming). Signed release APK is ~1.7 MB,
-against ~20 MB for the React Native build. See [SPEC.md](SPEC.md) for the full
-milestone status and the remaining parity backlog.
+against ~20 MB for the React Native build. Remaining items are post-parity
+enhancements, listed in [SPEC.md](SPEC.md) §7.1.
+
+## Credits
+
+Maid Native is a Kotlin/Compose reimplementation of the Maid Android app. All
+credit for the original design and behaviour it mirrors goes to:
+
+- [Mobile-Artificial-Intelligence/maid](https://github.com/Mobile-Artificial-Intelligence/maid)
+  — the original React Native app.
+- [HatsyRei/maid](https://github.com/HatsyRei/maid) — the React Native fork this
+  port was made from, and the parity reference used throughout.
+
+## License
+
+[MIT](LICENSE) © 2026 HatsyRei.
