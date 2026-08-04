@@ -1,9 +1,13 @@
-# Maid Native (experimental)
+# Maid Native
 
-Standalone native Android app (`com.hatsyrei.maidnative`), built with Kotlin +
-Jetpack Compose + Material 3. It installs **side-by-side** with the React Native
-Maid app (`com.hatsyrei.maid`) so the two can be compared on one device during
-the port.
+Maid Native (`com.hatsyrei.maidnative`) is a standalone Kotlin/Compose 
+reimplementation of the Maid Android app. All credit for the original design
+and behaviour it mirrors goes to:
+
+- [Mobile-Artificial-Intelligence/maid](https://github.com/Mobile-Artificial-Intelligence/maid)
+  — the original React Native app.
+- [HatsyRei/maid](https://github.com/HatsyRei/maid) — the React Native fork this
+  port was made from, and the parity reference used throughout.
 
 See [SPEC.md](SPEC.md) for the full port specification and the record of the
 migration (now closed — milestones M0–M5 complete). This repo is a self-contained
@@ -66,16 +70,6 @@ a chat UI with message controls + branch navigation, a navigation drawer, and
 Markdown rendering (incremental while streaming). Signed release APK is ~1.7 MB,
 against ~20 MB for the React Native build. Remaining items are post-parity
 enhancements, listed in [SPEC.md](SPEC.md) §7.1.
-
-## Credits
-
-Maid Native is a Kotlin/Compose reimplementation of the Maid Android app. All
-credit for the original design and behaviour it mirrors goes to:
-
-- [Mobile-Artificial-Intelligence/maid](https://github.com/Mobile-Artificial-Intelligence/maid)
-  — the original React Native app.
-- [HatsyRei/maid](https://github.com/HatsyRei/maid) — the React Native fork this
-  port was made from, and the parity reference used throughout.
 
 ## License
 
