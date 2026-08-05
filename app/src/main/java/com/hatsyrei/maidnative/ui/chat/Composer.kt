@@ -108,12 +108,12 @@ internal fun Composer(
     // custom image finishing its off-thread decode) eases in instead of popping.
     val engagementAlpha by animateFloatAsState(
         targetValue = if (focused || text.isNotEmpty()) 0f else 1f,
-        animationSpec = tween(300),
+        animationSpec = tween(700),
         label = "nameplateAlpha",
     )
     val revealAlpha by animateFloatAsState(
         targetValue = if (nameplate != null) 1f else 0f,
-        animationSpec = tween(300),
+        animationSpec = tween(700),
         label = "nameplateReveal",
     )
     val nameplateAlpha = engagementAlpha * revealAlpha
