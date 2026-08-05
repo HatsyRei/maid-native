@@ -3,7 +3,10 @@ package com.hatsyrei.maidnative.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.markdown.ProvideChatMarkdownStyle
 
 // The RN app is hardcoded dark (useTheme), so this is dark-only: no light
@@ -69,9 +72,15 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun MaidNativeTheme(content: @Composable () -> Unit) {
+fun MaidNativeTheme(
+    theme: ThemeSettings = ThemeSettings(),
+    content: @Composable () -> Unit,
+) {
+    val colors = remember(theme.accentColor) {
+        if (theme.accentColor == 0) DarkColors else DarkColors.withAccent(Color(theme.accentColor))
+    }
     MaterialTheme(
-        colorScheme = DarkColors,
+        colorScheme = colors,
         typography = Typography,
     ) {
         // Built here (above every state-reading composable) so the markdown
@@ -80,3 +89,17 @@ fun MaidNativeTheme(content: @Composable () -> Unit) {
         ProvideChatMarkdownStyle(content)
     }
 }
+
+/** The slice of settings the theme depends on, kept separate so streaming tokens can't recompose it. */
+@Immutable
+data class ThemeSettings(
+    val accentColor: Int = 0,
+    /**
+     * Defaults to none rather than [SettingsRepository.DEFAULT_NAMEPLATE]: this
+     * instance is what the theme sees before DataStore's first read lands, and
+     * painting the built-in default there flashes the wrong art on every launch
+     * for anyone who chose another one.
+     */
+    val nameplate: String = SettingsRepository.NAMEPLATE_NONE,
+    val nameplateStamp: Long = 0L,
+)

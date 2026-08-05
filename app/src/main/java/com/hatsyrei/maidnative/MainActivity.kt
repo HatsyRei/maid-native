@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,7 +25,9 @@ import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.settings.SettingsScreen
+import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 import com.hatsyrei.maidnative.ui.theme.MaidNativeTheme
+import com.hatsyrei.maidnative.ui.theme.rememberNameplate
 
 class MainActivity : ComponentActivity() {
 
@@ -34,8 +37,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaidNativeTheme {
-                MaidNativeApp(viewModel)
+            val theme by viewModel.theme.collectAsState()
+            MaidNativeTheme(theme) {
+                CompositionLocalProvider(LocalNameplate provides rememberNameplate(theme)) {
+                    MaidNativeApp(viewModel)
+                }
             }
         }
     }
@@ -120,6 +126,9 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onRefreshModels = viewModel::refreshModels,
                         onScan = viewModel::scanEndpoint,
                         onResetScan = viewModel::resetScan,
+                        onAccentColor = viewModel::setAccentColor,
+                        onNameplate = viewModel::setNameplate,
+                        onImportNameplate = viewModel::importNameplate,
                         onBack = { screen = Screen.Chat },
                     )
                 }

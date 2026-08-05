@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.ui.settings
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,6 +60,9 @@ fun SettingsScreen(
     onRefreshModels: () -> Unit,
     onScan: (String) -> Unit,
     onResetScan: () -> Unit,
+    onAccentColor: (Int) -> Unit,
+    onNameplate: (String) -> Unit,
+    onImportNameplate: (Uri) -> Unit,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
@@ -167,6 +171,16 @@ fun SettingsScreen(
                         Icon(Icons.Filled.Refresh, contentDescription = null)
                     }
                 },
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            ThemeSection(
+                accentColor = state.settings.accentColor,
+                nameplate = state.settings.nameplate,
+                onAccentColor = onAccentColor,
+                onNameplate = onNameplate,
+                onImportNameplate = onImportNameplate,
             )
         }
     }

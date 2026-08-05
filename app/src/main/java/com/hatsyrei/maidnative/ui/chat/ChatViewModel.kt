@@ -12,21 +12,27 @@ import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
+import com.hatsyrei.maidnative.data.store.NameplateStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.domain.tree.validateMappings
+import com.hatsyrei.maidnative.ui.theme.ThemeSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,10 +78,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val client = OpenAiClient()
     private val repo = MessageRepository(MaidDatabase.get(app).messageDao())
     private val fileStore = ConversationFileStore(app.contentResolver)
+    private val nameplateStore = NameplateStore(app)
     private val legacyFile = File(app.filesDir, "messages.json")
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
+
+    // Kept apart from [state] so the theme (which sits above the whole app) is
+    // not recomposed by every streamed token.
+    val theme: StateFlow<ThemeSettings> = settingsRepo.settings
+        .map { ThemeSettings(it.accentColor, it.nameplate, it.nameplateStamp) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeSettings())
 
     private var streamJob: Job? = null
 
@@ -193,6 +207,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setBaseURL(value: String) = viewModelScope.launch { settingsRepo.setBaseURL(value) }
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
+    fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
+    fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }
+
+    /** Copies the picked image into app storage, then selects it. */
+    fun importNameplate(uri: Uri) = viewModelScope.launch {
+        val imported = withContext(Dispatchers.IO) {
+            runCatching { nameplateStore.import(uri) }.getOrDefault(false)
+        }
+        if (imported) {
+            settingsRepo.setCustomNameplate(System.currentTimeMillis())
+        } else {
+            _state.update { it.copy(error = "That image could not be loaded.") }
+        }
+    }
 
     /** Clear transient scan state so re-entering Settings shows a fresh scan button. */
     fun resetScan() {
