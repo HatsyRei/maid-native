@@ -250,6 +250,12 @@ private fun ChatScaffold(
     onSelectModel: (String) -> Unit,
     onRequestEdit: (id: String, initial: String, revise: Boolean) -> Unit,
 ) {
+    // A dismissed keyboard leaves the pill focused (blinking cursor); the next
+    // touch on the conversation is what drops it. Kept out of the composer so a
+    // list touch can reach it, and out of composition reads so an IME
+    // transition doesn't invalidate the scaffold.
+    val composerFocus = remember { ComposerFocus() }
+    val focusManager = LocalFocusManager.current
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -304,7 +310,11 @@ private fun ChatScaffold(
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .clearFocusOnTouch(
+                        active = { composerFocus.stale },
+                        onClear = { focusManager.clearFocus() },
+                    ),
             ) {
                 // Bottom spacer (viewport height - 96dp) so the last message can be
                 // scrolled up near the top and streaming text scrolled into view
@@ -385,6 +395,7 @@ private fun ChatScaffold(
             Composer(
                 enabled = state.ready,
                 busy = state.busy,
+                focus = composerFocus,
                 onSubmit = onSubmit,
                 onStop = onStop,
             )
