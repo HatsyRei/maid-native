@@ -36,10 +36,11 @@ local toolchain (falls back to `~/.local/jdks/jdk-21` and `~/android-sdk` if
 `JAVA_HOME` / `ANDROID_HOME` are not already exported):
 
 ```bash
-./build.sh            # clean + debug APK  -> app/build/outputs/apk/debug/
+./build.sh            # clean + release APK (same as `./build.sh release`)
+./build.sh debug      # clean + debug APK -> app/build/outputs/apk/debug/
 ./build.sh release    # clean + signed release APK (arm64-v8a, minified)
 ./build.sh test       # clean + unit tests
-./build.sh install    # clean + debug APK + adb install to a connected device
+./build.sh install    # clean + release APK + adb install to a connected device
 ```
 
 Or drive Gradle directly:
@@ -56,10 +57,17 @@ If `ANDROID_HOME` is not exported, create `local.properties`:
 sdk.dir=/home/<you>/android-sdk
 ```
 
-> **Signing note:** the release build uses the git-ignored dev keystore
-> `maidnative-dev.keystore` (self-signed, prototype credentials). The release
-> key differs from the debug key, so run `adb uninstall com.hatsyrei.maidnative`
-> before switching between debug and release builds on the same device.
+> **Signing note:** the release build is signed with the SDK's auto-generated
+> debug key (`~/.android/debug.keystore`, alias `androiddebugkey`) — see
+> `signingConfig = signingConfigs.getByName("debug")` in `app/build.gradle.kts`.
+> No keystore or credential lives in this repo. Debug and release therefore
+> share one certificate, so you can install one over the other without
+> uninstalling first.
+>
+> That key is per-machine, so release APKs built from different clones are not
+> upgrade-compatible, and a debug-signed APK cannot be published to Play. A real
+> release key (path + credentials loaded from a git-ignored `keystore.properties`)
+> would be a prerequisite for distribution.
 
 ## Status
 
