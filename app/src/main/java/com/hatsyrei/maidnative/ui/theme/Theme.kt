@@ -95,10 +95,10 @@ fun MaidNativeTheme(
 data class ThemeSettings(
     val accentColor: Int = 0,
     /**
-     * Defaults to none rather than [SettingsRepository.DEFAULT_NAMEPLATE]: this
-     * instance is what the theme sees before DataStore's first read lands, and
-     * painting the built-in default there flashes the wrong art on every launch
-     * for anyone who chose another one.
+     * Pinned to none independently of [SettingsRepository.DEFAULT_NAMEPLATE]:
+     * this instance is what the theme sees before DataStore's first read lands,
+     * and painting any art there would flash it on every launch for anyone who
+     * chose something else.
      */
     val nameplate: String = SettingsRepository.NAMEPLATE_NONE,
     val nameplateStamp: Long = 0L,

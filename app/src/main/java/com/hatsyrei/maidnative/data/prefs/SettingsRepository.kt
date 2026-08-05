@@ -71,7 +71,7 @@ class SettingsRepository(private val context: Context) {
         const val NAMEPLATE_BLOSSOM = "blossom"
         const val NAMEPLATE_TWILIGHT = "twilight"
         const val NAMEPLATE_CUSTOM = "custom"
-        const val DEFAULT_NAMEPLATE = NAMEPLATE_BLOSSOM
+        const val DEFAULT_NAMEPLATE = NAMEPLATE_NONE
 
         private val KEY_BASE_URL = stringPreferencesKey("open-ai-base-url")
         private val KEY_API_KEY = stringPreferencesKey("open-ai-api-key")
