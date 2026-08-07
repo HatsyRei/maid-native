@@ -60,6 +60,7 @@ internal fun SystemPromptCard(
     onEdit: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var pressed by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -67,8 +68,21 @@ internal fun SystemPromptCard(
                 MaterialTheme.colorScheme.surfaceContainerLow,
                 RoundedCornerShape(16.dp),
             )
-            .clickable { expanded = !expanded }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .background(
+                if (pressed) Color.Black.copy(alpha = 0.18f) else Color.Transparent,
+                RoundedCornerShape(16.dp),
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                    },
+                    onTap = { expanded = !expanded },
+                )
+            }
+            .padding(14.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -76,8 +90,8 @@ internal fun SystemPromptCard(
         ) {
             Text(
                 text = "System",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
             IconButton(
@@ -91,15 +105,6 @@ internal fun SystemPromptCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Icon(
-                imageVector = if (expanded) {
-                    Icons.Filled.KeyboardArrowUp
-                } else {
-                    Icons.Filled.KeyboardArrowDown
-                },
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
         Text(
             text = prompt,
@@ -107,7 +112,7 @@ internal fun SystemPromptCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = if (expanded) Int.MAX_VALUE else 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }
