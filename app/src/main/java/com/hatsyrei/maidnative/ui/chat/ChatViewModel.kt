@@ -73,6 +73,15 @@ data class ChatUiState(
             return thread.map { if (it.id == id) it.copy(content = streamingText) else it }
         }
 
+    /**
+     * The system prompt in force for the active chat: the root node *is* the
+     * system message. Until a conversation exists there is no node to read, so
+     * fall back to the default every new chat would be seeded with.
+     */
+    val systemPrompt: String
+        get() = root?.let { mappings[it]?.content }
+            ?: settings.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT }
+
     val ready: Boolean
         get() = settings.model.isNotEmpty() && models.contains(settings.model)
 }
@@ -293,6 +302,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun selectChat(rootId: String) {
         if (rootId == _state.value.root) return
         _state.update { it.copy(root = rootId) }
+    }
+
+    /**
+     * Edit the active conversation's system prompt, i.e. its root node's content.
+     * With no conversation yet the root is materialised here, so a persona can be
+     * set before the first message (`submit` then attaches to this root).
+     */
+    fun setSystemPrompt(text: String) {
+        val prompt = text.trim().ifEmpty { ConversationDefaults.SYSTEM_PROMPT }
+        val rootId = _state.value.root
+        if (rootId != null) {
+            mutateTree { MessageTree.setContent(it, rootId, prompt) }
+            return
+        }
+        val id = UUID.randomUUID().toString()
+        val next = MessageTree.addNode(
+            _state.value.mappings, id, "system", prompt,
+            null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
+        )
+        _state.update { it.copy(mappings = next, root = id) }
+        persist()
     }
 
     /** Rename a conversation by updating its root node's title metadata. */

@@ -109,6 +109,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                     onSelectChat = viewModel::selectChat,
                     onRenameChat = viewModel::renameChat,
                     onDeleteChat = viewModel::deleteChat,
+                    onSystemPrompt = viewModel::setSystemPrompt,
                     onSelectModel = viewModel::setModel,
                     exportFileName = viewModel::exportFileName,
                     onExportConversation = viewModel::exportConversation,

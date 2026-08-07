@@ -71,6 +71,7 @@ fun ChatScreen(
     onSelectChat: (String) -> Unit,
     onRenameChat: (String, String) -> Unit,
     onDeleteChat: (String) -> Unit,
+    onSystemPrompt: (String) -> Unit,
     onSelectModel: (String) -> Unit,
     exportFileName: (String) -> String,
     onExportConversation: (String, Uri) -> Unit,
@@ -184,6 +185,9 @@ fun ChatScreen(
                     onRequestEdit = { id, initial, revise ->
                         dialog = ChatDialog.Edit(id, initial, revise)
                     },
+                    onRequestSystemPrompt = {
+                        dialog = ChatDialog.SystemPrompt(state.systemPrompt)
+                    },
                 )
             }
         }
@@ -208,6 +212,15 @@ fun ChatScreen(
             onDismiss = dismiss,
             onConfirm = { title ->
                 onRenameChat(current.id, title)
+                dismiss()
+            },
+        )
+
+        is ChatDialog.SystemPrompt -> SystemPromptDialog(
+            initial = current.initial,
+            onDismiss = dismiss,
+            onConfirm = { text ->
+                onSystemPrompt(text)
                 dismiss()
             },
         )
@@ -249,6 +262,7 @@ private fun ChatScaffold(
     onNextBranch: (String) -> Unit,
     onSelectModel: (String) -> Unit,
     onRequestEdit: (id: String, initial: String, revise: Boolean) -> Unit,
+    onRequestSystemPrompt: () -> Unit,
 ) {
     // A dismissed keyboard leaves the pill focused (blinking cursor); the next
     // touch on the conversation is what drops it. Kept out of the composer so a
@@ -353,6 +367,13 @@ private fun ChatScaffold(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    item(key = "__system_prompt__") {
+                        SystemPromptCard(
+                            prompt = state.systemPrompt,
+                            enabled = !state.busy,
+                            onEdit = onRequestSystemPrompt,
+                        )
+                    }
                     items(conversation, key = { it.id }) { node ->
                         val siblings = node.parent?.let { childrenByParent[it] }
                             ?: emptyList()
