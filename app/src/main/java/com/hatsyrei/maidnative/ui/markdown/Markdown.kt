@@ -6,9 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -202,28 +205,49 @@ fun MarkdownText(
  * Hoist this above the message list. It must outlive the individual bubble's
  * composition, which `LazyColumn` disposes when scrolled out of view.
  *
+ * [content] is normally append-only, but it is derived from the raw stream by
+ * `Reasoning.split`, which can retroactively reclassify already-shown text as
+ * reasoning (a chat template that omits the opening `<think>` reveals itself
+ * only when `</think>` arrives). An append-only parser cannot be patched
+ * backwards, so when [content] stops extending what was already fed, the state
+ * is discarded and rebuilt from scratch. That costs one full re-parse, and only
+ * on the token that rewrites history.
+ *
  * @param sessionKey identifies the stream; a new value discards the old state.
  */
 @Composable
 fun rememberChatStreamingMarkdownState(
     sessionKey: String,
     content: String,
-): StreamingMarkdownState = key(sessionKey) {
-    val state = rememberStreamingMarkdownState()
-    val latestContent = rememberUpdatedState(content)
-    LaunchedEffect(state) {
-        var appended = 0
-        // snapshotFlow conflates, so a burst of tokens arriving faster than the
-        // parser collapses into one larger append instead of queueing.
-        snapshotFlow { latestContent.value }.collect { text ->
-            if (text.length > appended) {
-                val delta = text.substring(appended)
-                appended = text.length
-                state.append(delta)
+): StreamingMarkdownState {
+    var generation by remember(sessionKey) { mutableIntStateOf(0) }
+    return key(sessionKey, generation) {
+        val state = rememberStreamingMarkdownState()
+        val latestContent = rememberUpdatedState(content)
+        LaunchedEffect(state) {
+            // Holds the exact text handed to the parser so far (a reference to
+            // the last accumulated string, not a copy).
+            var appended = ""
+            // snapshotFlow conflates, so a burst of tokens arriving faster than
+            // the parser collapses into one larger append instead of queueing.
+            snapshotFlow { latestContent.value }.collect { text ->
+                when {
+                    // Cheap: identity check first, then a length mismatch exits.
+                    text == appended -> Unit
+                    text.startsWith(appended) -> {
+                        val delta = text.substring(appended.length)
+                        appended = text
+                        state.append(delta)
+                    }
+                    // Diverged: bump the key to rebuild. `appended` restarts
+                    // empty, which is a prefix of anything, so this can fire at
+                    // most once per divergence.
+                    else -> generation++
+                }
             }
         }
+        state
     }
-    state
 }
 
 /**

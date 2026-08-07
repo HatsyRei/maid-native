@@ -14,6 +14,7 @@ import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.data.store.NameplateStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
+import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -52,6 +53,7 @@ data class ChatUiState(
     val error: String? = null,
     val streamingId: String? = null,
     val streamingText: String = "",
+    val streamingReasoning: String = "",
 ) {
     /**
      * Visible conversation = active thread from root, skipping the system node.
@@ -59,6 +61,9 @@ data class ChatUiState(
      * (not the tree), so overlay it onto the streaming node here. The tree map
      * itself is left untouched per token and rewritten exactly once when the
      * stream ends or is stopped.
+     *
+     * [streamingText] is the reply only — the trace is carried separately in
+     * [streamingReasoning] — so nothing downstream has to re-split it per token.
      */
     val conversation: List<MessageNode>
         get() {
@@ -97,11 +102,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // O(1); the previous `streamingText + chunk` reallocated and copied the whole
     // reply per token, which is quadratic over a response and was the largest
     // single source of CPU work and GC churn during generation.
-    private val streamBuffer = StringBuilder()
+    //
+    // The trace is kept in its own buffer for the same reason: classifying it
+    // once, as it arrives, avoids re-scanning the accumulated text every tick.
+    private val contentBuffer = StringBuilder()
+    private val reasoningBuffer = StringBuilder()
 
-    // Length of `streamBuffer` at the last UI publish, so an idle tick can skip
-    // emitting an identical state (and the O(n) `toString` behind it).
-    private var publishedLength = 0
+    // Lengths at the last UI publish, so an idle tick can skip emitting an
+    // identical state (and the O(n) `toString` behind it), and so a tick that
+    // only grew one of the two does not copy the other.
+    private var publishedContentLength = 0
+    private var publishedReasoningLength = 0
 
     // Guards the automatic model fetch so it runs at most once per app launch
     // (plus once per endpoint change). A failed fetch leaves the models list
@@ -460,12 +471,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun startStream(rootId: String, responseId: String) {
         val s = _state.value.settings
         _state.update {
-            it.copy(busy = true, error = null, streamingId = responseId, streamingText = "")
+            it.copy(
+                busy = true,
+                error = null,
+                streamingId = responseId,
+                streamingText = "",
+                streamingReasoning = "",
+            )
         }
         persist()
         val conversation = MessageTree.getConversation(_state.value.mappings, rootId)
-        streamBuffer.setLength(0)
-        publishedLength = 0
+        contentBuffer.setLength(0)
+        reasoningBuffer.setLength(0)
+        publishedContentLength = 0
+        publishedReasoningLength = 0
         streamJob = viewModelScope.launch {
             // Publishing is demand-driven, never timer-driven: the pump sleeps on
             // `pending` and is woken only by an arriving token. A free-running
@@ -494,7 +513,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 .buffer(Channel.UNLIMITED)
                 .catch { e -> _state.update { it.copy(error = e.message) } }
                 .collect { chunk ->
-                    streamBuffer.append(chunk)
+                    when (chunk) {
+                        is Reasoning.Chunk.Reply -> contentBuffer.append(chunk.text)
+                        is Reasoning.Chunk.Thought -> reasoningBuffer.append(chunk.text)
+                        // A chat template supplied the opening tag, so the reply
+                        // so far was really the trace. Both buffers live here, so
+                        // the correction is a move rather than a re-parse.
+                        Reasoning.Chunk.Reclassify -> {
+                            reasoningBuffer.append(contentBuffer)
+                            contentBuffer.setLength(0)
+                        }
+                    }
                     pending.trySend(Unit)
                 }
 
@@ -518,19 +547,29 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun publishStreamingText(responseId: String) {
         if (_state.value.streamingId != responseId) return
-        if (streamBuffer.length == publishedLength) return
-        publishedLength = streamBuffer.length
-        _state.update { it.copy(streamingText = streamBuffer.toString()) }
+        // Not `>`: a reclassification shrinks the reply and grows the trace.
+        val contentChanged = contentBuffer.length != publishedContentLength
+        val reasoningChanged = reasoningBuffer.length != publishedReasoningLength
+        if (!contentChanged && !reasoningChanged) return
+        publishedContentLength = contentBuffer.length
+        publishedReasoningLength = reasoningBuffer.length
+        _state.update {
+            it.copy(
+                streamingText = if (contentChanged) contentBuffer.toString() else it.streamingText,
+                streamingReasoning =
+                    if (reasoningChanged) reasoningBuffer.toString() else it.streamingReasoning,
+            )
+        }
     }
 
     private fun finishStreaming() {
         if (!_state.value.busy) return
         // Commit the accumulated reply into the tree in a single map write, then
         // persist once (per-token writes were intentionally suppressed above).
-        // Read from the buffer, not from `streamingText`: `stop()` cancels the
-        // job mid-cadence, so state can lag the buffer by up to one tick.
+        // Read from the buffers, not from state: `stop()` cancels the job
+        // mid-cadence, so state can lag them by up to one tick.
         val id = _state.value.streamingId
-        val text = streamBuffer.toString()
+        val text = committedText()
         val committed = if (id != null) {
             MessageTree.setContent(_state.value.mappings, id, text)
         } else {
@@ -542,11 +581,28 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 busy = false,
                 streamingId = null,
                 streamingText = "",
+                streamingReasoning = "",
             )
         }
-        streamBuffer.setLength(0)
-        publishedLength = 0
+        contentBuffer.setLength(0)
+        reasoningBuffer.setLength(0)
+        publishedContentLength = 0
+        publishedReasoningLength = 0
         persist()
+    }
+
+    /**
+     * Rejoins the two buffers into the single string the tree and the database
+     * store. Keeping one content column means no schema migration and no second
+     * write path; `Reasoning.split` takes it apart again once, on render.
+     */
+    private fun committedText(): String {
+        val reply = contentBuffer.toString().trim()
+        val thought = reasoningBuffer.toString().trim()
+        if (thought.isEmpty()) return reply
+        return buildString(thought.length + reply.length + THINK_WRAPPER_LENGTH) {
+            append("<think>\n").append(thought).append("\n</think>\n\n").append(reply)
+        }
     }
 
     private fun persist() {
@@ -564,5 +620,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
          * endpoint can exceed the display refresh rate.
          */
         const val PUBLISH_INTERVAL_MS = 33L
+
+        /** `<think>\n` + `\n</think>\n\n`, pre-sized so the join never regrows. */
+        const val THINK_WRAPPER_LENGTH = 21
     }
 }

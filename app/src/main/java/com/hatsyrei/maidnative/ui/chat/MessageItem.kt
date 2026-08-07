@@ -60,14 +60,21 @@ internal fun MessageItem(
     onPrevBranch: () -> Unit,
     onNextBranch: () -> Unit,
     streamingState: StreamingMarkdownState? = null,
+    streamingReasoning: String? = null,
 ) {
     val isUser = node.role == "user"
     // `Reasoning.split` scans (and for `<think>` bodies, copies) the entire
     // message. It ran unmemoized on every recomposition, so scrolling a bubble
     // into view or toggling `busy` re-scanned it for nothing. Keying on the
-    // content means it now runs only when the text actually changes.
-    val (content, reasoning) = remember(node.content, isUser) {
-        if (isUser) node.content to null else Reasoning.split(node.content)
+    // content means it now runs only when the text actually changes — and while
+    // this bubble is streaming it does not run at all, because the reply and the
+    // trace arrive already separated.
+    val (content, reasoning) = remember(node.content, isUser, streamingReasoning) {
+        when {
+            isUser -> node.content to null
+            streamingReasoning != null -> node.content to streamingReasoning.ifEmpty { null }
+            else -> Reasoning.split(node.content)
+        }
     }
     val clipboard = LocalClipboardManager.current
     val menus = LocalMenuController.current

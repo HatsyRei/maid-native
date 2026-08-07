@@ -333,6 +333,9 @@ private fun ChatScaffold(
                 // Hoisted above the list on purpose: `LazyColumn` disposes items
                 // that scroll out of view, and the incremental parser is
                 // append-only, so it cannot be rebuilt from scratch mid-stream.
+                // `streamingText` is already the reply alone — the trace never
+                // reaches the markdown parser, where a raw `<think>` would be
+                // read as an HTML block and swallow the text after it.
                 val streamingId = state.streamingId
                 val streamingMarkdown = if (streamingId != null) {
                     rememberChatStreamingMarkdownState(streamingId, state.streamingText)
@@ -369,6 +372,9 @@ private fun ChatScaffold(
                             onPrevBranch = { node.parent?.let(onPrevBranch) },
                             onNextBranch = { node.parent?.let(onNextBranch) },
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
+                            streamingReasoning = state.streamingReasoning.takeIf {
+                                node.id == streamingId
+                            },
                         )
                     }
                     if (conversation.isNotEmpty()) {

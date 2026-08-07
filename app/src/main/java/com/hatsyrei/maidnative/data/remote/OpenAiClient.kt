@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.data.remote
 
+import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -63,15 +64,18 @@ class OpenAiClient {
     }
 
     /**
-     * Streams assistant content deltas for a chat completion. The flow emits
-     * each content chunk; it completes on `[DONE]` and cancels the underlying
+     * Streams an assistant reply as classified [Reasoning.Chunk]s. Reasoning is
+     * separated here, at the transport boundary, rather than by re-splitting the
+     * accumulated text downstream: backends disagree about how they deliver it
+     * (a dedicated delta field, or inline tags) and only this layer sees the
+     * difference. The flow completes on `[DONE]` and cancels the underlying
      * request when the collector is cancelled (mirrors AbortController).
      */
     fun streamChat(
         config: Config,
         messages: List<MessageNode>,
         parameters: Map<String, Any?> = emptyMap(),
-    ): Flow<String> = callbackFlow {
+    ): Flow<Reasoning.Chunk> = callbackFlow {
         val payload = buildPayload(config.model, messages, parameters)
         val request = Request.Builder()
             .url(normalize(config.baseURL) + "/chat/completions")
@@ -80,26 +84,36 @@ class OpenAiClient {
             .build()
 
         val listener = object : EventSourceListener() {
+            // Only the inline-tag path needs scanning; a backend that fills the
+            // dedicated field has already done this work for us.
+            private val scanner = Reasoning.Scanner()
+
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 if (data == "[DONE]") {
+                    scanner.finish { trySend(it) }
                     close()
                     return
                 }
-                val delta = runCatching {
-                    val deltaObj = JSONObject(data)
+                val deltaObj = runCatching {
+                    JSONObject(data)
                         .optJSONArray("choices")
                         ?.optJSONObject(0)
                         ?.optJSONObject("delta")
-                    // optString returns the literal "null" for a JSON null value
-                    // (e.g. the opening {"role":"assistant","content":null} chunk),
-                    // so guard on isNull before reading.
-                    if (deltaObj == null || deltaObj.isNull("content")) null
-                    else deltaObj.optString("content").ifEmpty { null }
-                }.getOrNull()
-                if (delta != null) trySend(delta)
+                }.getOrNull() ?: return
+
+                // `reasoning_content` is the DeepSeek / vLLM / llama.cpp
+                // spelling, `reasoning` is OpenRouter's. Without this, models
+                // that stream their trace out-of-band showed no reasoning at all.
+                val reasoning = deltaObj.stringOrNull("reasoning_content")
+                    ?: deltaObj.stringOrNull("reasoning")
+                if (reasoning != null) trySend(Reasoning.Chunk.Thought(reasoning))
+
+                val content = deltaObj.stringOrNull("content")
+                if (content != null) scanner.feed(content) { trySend(it) }
             }
 
             override fun onClosed(eventSource: EventSource) {
+                scanner.finish { trySend(it) }
                 close()
             }
 
@@ -118,22 +132,32 @@ class OpenAiClient {
         messages: List<MessageNode>,
         parameters: Map<String, Any?>,
     ): JSONObject {
-        // Drop trailing empty assistant placeholder(s): sending {"role":"assistant","content":""}
-        // makes llama.cpp-style backends treat it as an assistant prefix to continue.
-        val trimmed = messages.toMutableList()
-        while (trimmed.isNotEmpty() &&
-            trimmed.last().role == "assistant" &&
-            trimmed.last().content.trim().isEmpty()
+        // Strip the reasoning trace from assistant turns. It is stored inline in
+        // the message so a single content field still round-trips through the
+        // tree and the database, but replaying it as assistant *content* burns
+        // context and invites the model to continue its own old thought.
+        val history = messages.map { m ->
+            if (m.role == "assistant") m.role to Reasoning.split(m.content).first.orEmpty()
+            else m.role to m.content
+        }.toMutableList()
+
+        // Drop trailing empty assistant placeholder(s): sending
+        // {"role":"assistant","content":""} makes llama.cpp-style backends treat
+        // it as an assistant prefix to continue. A turn that was stopped while
+        // still thinking is empty only after the strip above, so this runs after.
+        while (history.isNotEmpty() &&
+            history.last().first == "assistant" &&
+            history.last().second.isBlank()
         ) {
-            trimmed.removeAt(trimmed.size - 1)
+            history.removeAt(history.size - 1)
         }
 
         val msgArray = JSONArray()
-        for (m in trimmed) {
+        for ((role, content) in history) {
             msgArray.put(
                 JSONObject()
-                    .put("role", m.role)
-                    .put("content", m.content),
+                    .put("role", role)
+                    .put("content", content),
             )
         }
 
@@ -151,6 +175,13 @@ class OpenAiClient {
         val key = apiKey.ifEmpty { "local-openai-compatible" }
         return header("Authorization", "Bearer $key")
     }
+
+    /**
+     * `optString` returns the literal "null" for a JSON null value (e.g. the
+     * opening `{"role":"assistant","content":null}` chunk), so guard on `isNull`.
+     */
+    private fun JSONObject.stringOrNull(key: String): String? =
+        if (isNull(key)) null else optString(key).ifEmpty { null }
 
     private fun normalize(baseURL: String): String = baseURL.trimEnd('/')
 
