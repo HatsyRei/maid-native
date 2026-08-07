@@ -227,6 +227,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setBaseURL(value: String) = viewModelScope.launch { settingsRepo.setBaseURL(value) }
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
+    fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
     fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }
 
@@ -534,7 +535,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
 
-            client.streamChat(OpenAiClient.Config(s.baseURL, s.apiKey, s.model), conversation)
+            client.streamChat(OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning), conversation)
                 // UNLIMITED rather than the default 64-slot buffer: the SSE
                 // listener publishes with `trySend`, which silently drops a
                 // chunk when the channel is full. Losing a token corrupts the

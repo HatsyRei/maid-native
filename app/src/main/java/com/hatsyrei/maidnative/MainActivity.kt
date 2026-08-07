@@ -125,6 +125,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onApiKey = viewModel::setApiKey,
                         onModel = viewModel::setModel,
                         onRefreshModels = viewModel::refreshModels,
+                        onReasoning = viewModel::setReasoning,
                         onScan = viewModel::scanEndpoint,
                         onResetScan = viewModel::resetScan,
                         onAccentColor = viewModel::setAccentColor,

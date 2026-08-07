@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -58,6 +59,7 @@ fun SettingsScreen(
     onApiKey: (String) -> Unit,
     onModel: (String) -> Unit,
     onRefreshModels: () -> Unit,
+    onReasoning: (Boolean) -> Unit,
     onScan: (String) -> Unit,
     onResetScan: () -> Unit,
     onAccentColor: (Int) -> Unit,
@@ -172,6 +174,26 @@ fun SettingsScreen(
                     }
                 },
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Thinking", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Asks the endpoint to enable or disable the model's reasoning " +
+                            "trace. Endpoints that don't support the request ignore it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.settings.reasoning,
+                    onCheckedChange = onReasoning,
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
 

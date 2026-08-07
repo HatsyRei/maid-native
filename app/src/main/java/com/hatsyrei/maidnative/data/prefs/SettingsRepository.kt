@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.data.prefs
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -22,6 +23,13 @@ class SettingsRepository(private val context: Context) {
         val apiKey: String = "",
         val model: String = "",
         val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
+        /**
+         * Whether the model may think. Sent as
+         * `chat_template_kwargs.enable_thinking` so a server whose default is
+         * "off" (a `--reasoning off` flag, or a models.ini entry) still honours
+         * the choice; endpoints that reject the argument fall back silently.
+         */
+        val reasoning: Boolean = true,
         /** ARGB accent, or 0 for the built-in blue. */
         val accentColor: Int = 0,
         val nameplate: String = DEFAULT_NAMEPLATE,
@@ -35,6 +43,7 @@ class SettingsRepository(private val context: Context) {
             apiKey = prefs[KEY_API_KEY] ?: "",
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
+            reasoning = prefs[KEY_REASONING] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
             nameplate = prefs[KEY_NAMEPLATE] ?: DEFAULT_NAMEPLATE,
             nameplateStamp = prefs[KEY_NAMEPLATE_STAMP] ?: 0L,
@@ -46,6 +55,10 @@ class SettingsRepository(private val context: Context) {
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
     suspend fun setSystemPrompt(value: String) = edit(KEY_SYSTEM_PROMPT, value)
     suspend fun setNameplate(value: String) = edit(KEY_NAMEPLATE, value)
+
+    suspend fun setReasoning(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_REASONING] = enabled }
+    }
 
     suspend fun setAccentColor(argb: Int) {
         context.dataStore.edit { it[KEY_ACCENT] = argb }
@@ -77,6 +90,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_API_KEY = stringPreferencesKey("open-ai-api-key")
         private val KEY_MODEL = stringPreferencesKey("open-ai-model")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
+        private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_NAMEPLATE = stringPreferencesKey("composer-nameplate")
         private val KEY_NAMEPLATE_STAMP = longPreferencesKey("composer-nameplate-stamp")

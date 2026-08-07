@@ -15,6 +15,7 @@ import okhttp3.sse.EventSources
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,12 +43,23 @@ class OpenAiClient {
         .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
-    data class Config(val baseURL: String, val apiKey: String, val model: String)
+    // Base URLs whose models list identified a server that honours
+    // `chat_template_kwargs`. Filled in by [listModels].
+    private val thinkingControl: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    data class Config(
+        val baseURL: String,
+        val apiKey: String,
+        val model: String,
+        /** Requested thinking mode, forced on the server rather than left to the chat template. */
+        val reasoning: Boolean = true,
+    )
 
     /** GET {base}/models -> list of model ids. Throws on failure. */
     fun listModels(config: Config): List<String> {
+        val base = normalize(config.baseURL)
         val request = Request.Builder()
-            .url(normalize(config.baseURL) + "/models")
+            .url("$base/models")
             .applyAuth(config.apiKey)
             .get()
             .build()
@@ -57,9 +69,19 @@ class OpenAiClient {
             }
             val body = response.body?.string().orEmpty()
             val data = JSONObject(body).optJSONArray("data") ?: JSONArray()
-            return (0 until data.length()).mapNotNull { i ->
-                data.optJSONObject(i)?.optString("id")?.ifEmpty { null }
+            val entries = (0 until data.length()).mapNotNull { data.optJSONObject(it) }
+            // This call doubles as capability detection. `owned_by` names the
+            // server implementation, and only some accept the thinking
+            // extension; deciding here rather than from a rejected completion
+            // means the first turn is already correct. The ordering holds
+            // because ChatUiState.ready requires this call to have succeeded for
+            // the active endpoint before anything can be sent.
+            if (entries.any { it.optString("owned_by") in THINKING_CONTROL_VENDORS }) {
+                thinkingControl.add(base)
+            } else {
+                thinkingControl.remove(base)
             }
+            return entries.mapNotNull { it.optString("id").ifEmpty { null } }
         }
     }
 
@@ -76,9 +98,10 @@ class OpenAiClient {
         messages: List<MessageNode>,
         parameters: Map<String, Any?> = emptyMap(),
     ): Flow<Reasoning.Chunk> = callbackFlow {
-        val payload = buildPayload(config.model, messages, parameters)
+        val base = normalize(config.baseURL)
+        val payload = buildPayload(config, messages, parameters, base in thinkingControl)
         val request = Request.Builder()
-            .url(normalize(config.baseURL) + "/chat/completions")
+            .url("$base/chat/completions")
             .applyAuth(config.apiKey)
             .post(payload.toString().toRequestBody(JSON))
             .build()
@@ -128,9 +151,10 @@ class OpenAiClient {
     }
 
     private fun buildPayload(
-        model: String,
+        config: Config,
         messages: List<MessageNode>,
         parameters: Map<String, Any?>,
+        thinkingControl: Boolean,
     ): JSONObject {
         // Strip the reasoning trace from assistant turns. It is stored inline in
         // the message so a single content field still round-trips through the
@@ -162,9 +186,21 @@ class OpenAiClient {
         }
 
         val payload = JSONObject()
-            .put("model", model)
+            .put("model", config.model)
             .put("messages", msgArray)
             .put("stream", true)
+        // `chat_template_kwargs` is the llama.cpp / vLLM spelling, and is sent
+        // in both directions on purpose: a server started with reasoning off (or
+        // a models.ini entry that disables it) only turns thinking back on if
+        // the request says so. It is omitted entirely for endpoints that did not
+        // identify themselves as supporting it, since a strict OpenAI-compatible
+        // server rejects the whole request over one unknown argument.
+        if (thinkingControl) {
+            payload.put(
+                "chat_template_kwargs",
+                JSONObject().put("enable_thinking", config.reasoning),
+            )
+        }
         for ((key, value) in parameters) {
             payload.put(key, value ?: JSONObject.NULL)
         }
@@ -187,5 +223,10 @@ class OpenAiClient {
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        // `owned_by` values of servers that honour
+        // `chat_template_kwargs.enable_thinking`. Anything else is treated as a
+        // strict OpenAI-compatible endpoint, where the argument would 400.
+        private val THINKING_CONTROL_VENDORS = setOf("llamacpp", "vllm")
     }
 }
