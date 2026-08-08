@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The "Ai" monogram from app/src/main/res/drawable/ic_launcher_foreground.xml,
+  cropped to the adaptive icon's 72x72 safe zone so it frames the way a launcher
+  renders it. Keep the two in sync if either changes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="128" height="128">
+  <rect x="18" y="18" width="72" height="72" rx="16" fill="#000000"/>
+  <g transform="translate(-3.636019,-31.560061) scale(0.68248274,0.63624695)">
+    <path
+      d="m 59.758151,156.06472 15.732008,-43.17831 13.666685,43.17831 M 109.1424,124.91619 v 31.14853"
+      fill="none" stroke="#18A0FF" stroke-width="8.16302"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <path
+      d="M 89.156844,156.06472 109.1424,124.91619 m 1e-5,-12.02918 v 0"
+      fill="none" stroke="#FFFFFF" stroke-width="8.16302"
+      stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

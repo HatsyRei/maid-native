@@ -1,4 +1,20 @@
+<div align="center">
+
+<img src="Logo.svg" width="128" height="128" alt="Maid Native Logo" />
+
 # Maid Native
+
+Maid Native is a native Android client for OpenAI-compatible endpoints — streaming chat, branching conversation trees, and Markdown rendering in a ~1.7 MB APK.
+
+[![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[![Kotlin](https://img.shields.io/badge/kotlin-%237F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/HatsyRei/maid-native?style=for-the-badge&color=orange)](https://github.com/HatsyRei/maid-native/releases)
+
+</div>
+
+---
 
 Maid Native (`com.hatsyrei.maidnative`) is a standalone Kotlin/Compose 
 reimplementation of the Maid Android app. All credit for the original design
