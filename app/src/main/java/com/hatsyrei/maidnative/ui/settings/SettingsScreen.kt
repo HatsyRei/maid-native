@@ -47,14 +47,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.hatsyrei.maidnative.data.prefs.SettingsRepository
+import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
+import com.hatsyrei.maidnative.ui.chat.ConfirmDialog
 import com.hatsyrei.maidnative.ui.chat.ModelSelector
+import com.hatsyrei.maidnative.ui.icons.BookmarksIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     state: ChatUiState,
+    presets: List<EndpointPreset>,
     onBaseURL: (String) -> Unit,
     onApiKey: (String) -> Unit,
     onModel: (String) -> Unit,
@@ -62,6 +65,10 @@ fun SettingsScreen(
     onReasoning: (Boolean) -> Unit,
     onScan: (String) -> Unit,
     onResetScan: () -> Unit,
+    onSavePreset: (String, String, String) -> Unit,
+    onApplyPreset: (EndpointPreset) -> Unit,
+    onRenamePreset: (String, String) -> Unit,
+    onDeletePreset: (String) -> Unit,
     onAccentColor: (Int) -> Unit,
     onNameplate: (String) -> Unit,
     onImportNameplate: (Uri) -> Unit,
@@ -69,6 +76,10 @@ fun SettingsScreen(
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
     var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
+    var showPresets by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf<EndpointPreset?>(null) }
+    var savingNew by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<EndpointPreset?>(null) }
 
     // Reset the scan button to its idle state each time Settings is opened.
     LaunchedEffect(Unit) { onResetScan() }
@@ -93,6 +104,17 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Endpoint", style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = { showPresets = true }) {
+                    Icon(BookmarksIcon, contentDescription = "Saved endpoints")
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -205,6 +227,71 @@ fun SettingsScreen(
                 onImportNameplate = onImportNameplate,
             )
         }
+    }
+
+    if (showPresets) {
+        EndpointPresetSheet(
+            presets = presets,
+            activeBaseURL = state.settings.baseURL,
+            activeApiKey = state.settings.apiKey,
+            onSaveCurrent = {
+                showPresets = false
+                savingNew = true
+            },
+            onApply = {
+                showPresets = false
+                onApplyPreset(it)
+            },
+            onRename = {
+                showPresets = false
+                naming = it
+            },
+            onDelete = {
+                showPresets = false
+                deleting = it
+            },
+            onDismiss = { showPresets = false },
+        )
+    }
+
+    if (savingNew) {
+        PresetNameDialog(
+            title = "Save endpoint",
+            confirmLabel = "Save",
+            initial = defaultPresetName(baseURL),
+            takenNames = presets.map { it.name },
+            onDismiss = { savingNew = false },
+            onConfirm = {
+                savingNew = false
+                onSavePreset(it, baseURL, apiKey)
+            },
+        )
+    }
+
+    naming?.let { preset ->
+        PresetNameDialog(
+            title = "Rename preset",
+            confirmLabel = "Rename",
+            initial = preset.name,
+            takenNames = presets.filter { it.id != preset.id }.map { it.name },
+            onDismiss = { naming = null },
+            onConfirm = {
+                naming = null
+                onRenamePreset(preset.id, it)
+            },
+        )
+    }
+
+    deleting?.let { preset ->
+        ConfirmDialog(
+            title = "Delete preset",
+            message = "\"${preset.name}\" and its stored API key will be removed from this device.",
+            onDismiss = { deleting = null },
+            onConfirm = {
+                deleting = null
+                onDeletePreset(preset.id)
+            },
+        )
     }
 }
 

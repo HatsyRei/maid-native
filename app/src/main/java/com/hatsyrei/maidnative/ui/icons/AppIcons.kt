@@ -97,6 +97,15 @@ val SaveAltIcon: ImageVector by lazy {
     )
 }
 
+/** Material `bookmarks` (Settings endpoint-preset button). */
+val BookmarksIcon: ImageVector by lazy {
+    materialIcon(
+        "Bookmarks",
+        "M19,18l2,1V3c0,-1.1 -0.9,-2 -2,-2H8.99C7.89,1 7,1.9 7,3h10c1.1,0 2,0.9 2,2v13z" +
+            "M15,5H5C3.9,5 3,5.9 3,7v16l7,-3 7,3V7c0,-1.1 -0.9,-2 -2,-2z",
+    )
+}
+
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
         name = name,

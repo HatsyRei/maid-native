@@ -119,8 +119,10 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
 
                 Screen.Settings -> {
                     BackHandler { screen = Screen.Chat }
+                    val presets by viewModel.presets.collectAsState()
                     SettingsScreen(
                         state = state,
+                        presets = presets,
                         onBaseURL = viewModel::setBaseURL,
                         onApiKey = viewModel::setApiKey,
                         onModel = viewModel::setModel,
@@ -128,6 +130,10 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onReasoning = viewModel::setReasoning,
                         onScan = viewModel::scanEndpoint,
                         onResetScan = viewModel::resetScan,
+                        onSavePreset = viewModel::savePreset,
+                        onApplyPreset = viewModel::applyPreset,
+                        onRenamePreset = viewModel::renamePreset,
+                        onDeletePreset = viewModel::deletePreset,
                         onAccentColor = viewModel::setAccentColor,
                         onNameplate = viewModel::setNameplate,
                         onImportNameplate = viewModel::importNameplate,

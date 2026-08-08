@@ -12,6 +12,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -37,10 +40,22 @@ class SettingsRepository(private val context: Context) {
         val nameplateStamp: Long = 0L,
     )
 
+    /**
+     * A saved Base URL + API key pair. API keys aren't memorable the way
+     * passwords are, so the app holds them for the endpoints the user switches
+     * between; [apiKey] is encrypted at rest by [SecretCipher].
+     */
+    data class EndpointPreset(
+        val id: String,
+        val name: String,
+        val baseURL: String,
+        val apiKey: String,
+    )
+
     val settings: Flow<Settings> = context.dataStore.data.map { prefs ->
         Settings(
             baseURL = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL,
-            apiKey = prefs[KEY_API_KEY] ?: "",
+            apiKey = SecretCipher.decode(prefs[KEY_API_KEY] ?: ""),
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
@@ -50,8 +65,12 @@ class SettingsRepository(private val context: Context) {
         )
     }
 
+    val presets: Flow<List<EndpointPreset>> = context.dataStore.data.map { prefs ->
+        decodePresets(prefs[KEY_PRESETS])
+    }
+
     suspend fun setBaseURL(value: String) = edit(KEY_BASE_URL, value)
-    suspend fun setApiKey(value: String) = edit(KEY_API_KEY, value)
+    suspend fun setApiKey(value: String) = edit(KEY_API_KEY, SecretCipher.encode(value))
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
     suspend fun setSystemPrompt(value: String) = edit(KEY_SYSTEM_PROMPT, value)
     suspend fun setNameplate(value: String) = edit(KEY_NAMEPLATE, value)
@@ -76,6 +95,73 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[key] = value }
     }
 
+    /** Adds a preset, or overwrites whichever one already carries [name]. */
+    suspend fun savePreset(name: String, baseURL: String, apiKey: String) = editPresets { presets ->
+        val trimmed = name.trim()
+        val existing = presets.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }
+        if (existing == null) {
+            presets + EndpointPreset(UUID.randomUUID().toString(), trimmed, baseURL, apiKey)
+        } else {
+            presets.map {
+                if (it.id == existing.id) it.copy(name = trimmed, baseURL = baseURL, apiKey = apiKey) else it
+            }
+        }
+    }
+
+    suspend fun renamePreset(id: String, name: String) = editPresets { presets ->
+        presets.map { if (it.id == id) it.copy(name = name.trim()) else it }
+    }
+
+    suspend fun deletePreset(id: String) = editPresets { presets -> presets.filterNot { it.id == id } }
+
+    /**
+     * Switches the live endpoint in a single write, so the settings collector
+     * sees one emission and fires one model fetch rather than two.
+     */
+    suspend fun applyPreset(preset: EndpointPreset) {
+        context.dataStore.edit {
+            it[KEY_BASE_URL] = preset.baseURL
+            it[KEY_API_KEY] = SecretCipher.encode(preset.apiKey)
+        }
+    }
+
+    private suspend fun editPresets(transform: (List<EndpointPreset>) -> List<EndpointPreset>) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_PRESETS] = encodePresets(transform(decodePresets(prefs[KEY_PRESETS])))
+        }
+    }
+
+    private fun decodePresets(raw: String?): List<EndpointPreset> {
+        if (raw.isNullOrEmpty()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { i ->
+                val entry = array.optJSONObject(i) ?: return@mapNotNull null
+                val id = entry.optString(FIELD_ID).ifEmpty { return@mapNotNull null }
+                EndpointPreset(
+                    id = id,
+                    name = entry.optString(FIELD_NAME),
+                    baseURL = entry.optString(FIELD_BASE_URL),
+                    apiKey = SecretCipher.decode(entry.optString(FIELD_API_KEY)),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun encodePresets(presets: List<EndpointPreset>): String {
+        val array = JSONArray()
+        presets.forEach {
+            array.put(
+                JSONObject()
+                    .put(FIELD_ID, it.id)
+                    .put(FIELD_NAME, it.name)
+                    .put(FIELD_BASE_URL, it.baseURL)
+                    .put(FIELD_API_KEY, SecretCipher.encode(it.apiKey)),
+            )
+        }
+        return array.toString()
+    }
+
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         const val DEFAULT_SYSTEM_PROMPT = ConversationDefaults.SYSTEM_PROMPT
@@ -94,5 +180,11 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_NAMEPLATE = stringPreferencesKey("composer-nameplate")
         private val KEY_NAMEPLATE_STAMP = longPreferencesKey("composer-nameplate-stamp")
+        private val KEY_PRESETS = stringPreferencesKey("endpoint-presets")
+
+        private const val FIELD_ID = "id"
+        private const val FIELD_NAME = "name"
+        private const val FIELD_BASE_URL = "baseURL"
+        private const val FIELD_API_KEY = "apiKey"
     }
 }

@@ -105,6 +105,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeSettings())
 
+    /** Saved endpoints, kept out of [state] since only Settings reads them. */
+    val presets: StateFlow<List<SettingsRepository.EndpointPreset>> = settingsRepo.presets
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private var streamJob: Job? = null
 
     // Accumulates the in-flight reply. Appending to a StringBuilder is amortised
@@ -230,6 +235,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
     fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }
+
+    fun savePreset(name: String, baseURL: String, apiKey: String) =
+        viewModelScope.launch { settingsRepo.savePreset(name, baseURL, apiKey) }
+
+    fun applyPreset(preset: SettingsRepository.EndpointPreset) =
+        viewModelScope.launch { settingsRepo.applyPreset(preset) }
+
+    fun renamePreset(id: String, name: String) =
+        viewModelScope.launch { settingsRepo.renamePreset(id, name) }
+
+    fun deletePreset(id: String) = viewModelScope.launch { settingsRepo.deletePreset(id) }
 
     /** Copies the picked image into app storage, then selects it. */
     fun importNameplate(uri: Uri) = viewModelScope.launch {
