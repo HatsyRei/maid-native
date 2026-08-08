@@ -108,8 +108,12 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /** Takes over [name] the way [savePreset] does, dropping whichever preset held it before. */
     suspend fun renamePreset(id: String, name: String) = editPresets { presets ->
-        presets.map { if (it.id == id) it.copy(name = name.trim()) else it }
+        val trimmed = name.trim()
+        presets
+            .filterNot { it.id != id && it.name.equals(trimmed, ignoreCase = true) }
+            .map { if (it.id == id) it.copy(name = trimmed) else it }
     }
 
     suspend fun deletePreset(id: String) = editPresets { presets -> presets.filterNot { it.id == id } }

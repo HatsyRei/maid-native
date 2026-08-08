@@ -110,13 +110,12 @@ private fun PresetRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     ListItem(
-        headlineContent = { Text(preset.name) },
+        headlineContent = { Text(preset.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            Text(
-                text = "${preset.baseURL} · ${maskKey(preset.apiKey)}",
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column {
+                Text(preset.baseURL, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(maskKey(preset.apiKey), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         },
         leadingContent = {
             if (active) {
@@ -175,10 +174,12 @@ internal fun PresetNameDialog(
                 onValueChange = { text = it },
                 label = { Text("Preset name") },
                 singleLine = true,
-                supportingText = if (replaces) {
-                    { Text("Replaces the preset already using this name.") }
-                } else {
-                    null
+                // Always occupied, so showing the warning doesn't resize the dialog.
+                supportingText = {
+                    Text(
+                        text = if (replaces) "Replaces an existing preset" else "",
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 },
                 modifier = Modifier.fillMaxWidth(),
             )

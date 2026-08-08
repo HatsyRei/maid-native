@@ -110,7 +110,8 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Endpoint", style = MaterialTheme.typography.titleMedium)
-                IconButton(onClick = { showPresets = true }) {
+                // Matches the scan button's width so the two icons share a centre line.
+                IconButton(onClick = { showPresets = true }, modifier = Modifier.size(56.dp)) {
                     Icon(BookmarksIcon, contentDescription = "Saved endpoints")
                 }
             }
