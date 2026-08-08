@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative.ui.settings
 
 import android.net.Uri
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -80,6 +82,7 @@ fun SettingsScreen(
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
     var savingNew by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EndpointPreset?>(null) }
+    val focusManager = LocalFocusManager.current
 
     // Reset the scan button to its idle state each time Settings is opened.
     LaunchedEffect(Unit) { onResetScan() }
@@ -100,6 +103,9 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // A tap on empty space drops focus, which is what commits a
+                // half-typed field. Runs after any child handles the tap.
+                .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -111,7 +117,15 @@ fun SettingsScreen(
             ) {
                 Text("Endpoint", style = MaterialTheme.typography.titleMedium)
                 // Matches the scan button's width so the two icons share a centre line.
-                IconButton(onClick = { showPresets = true }, modifier = Modifier.size(56.dp)) {
+                IconButton(
+                    onClick = {
+                        // Buttons don't take focus on touch, so commit by hand or
+                        // the sheet would save the last committed value.
+                        focusManager.clearFocus()
+                        showPresets = true
+                    },
+                    modifier = Modifier.size(56.dp),
+                ) {
                     Icon(BookmarksIcon, contentDescription = "Saved endpoints")
                 }
             }
