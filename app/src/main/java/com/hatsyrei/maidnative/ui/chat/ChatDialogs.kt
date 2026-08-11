@@ -89,6 +89,8 @@ internal fun EditDialog(
                     OutlinedTextField(
                         value = text,
                         onValueChange = { text = it },
+                        // `AlertDialog` used to supply this through its text slot.
+                        textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f, fill = false)
