@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +47,11 @@ internal sealed interface ChatDialog {
  * and every tap into the text pans back to the top of the (screen-tall) field.
  * A full-window dialog instead shrinks against `safeDrawing`, which bounds the
  * field's height so it scrolls internally and follows the cursor.
+ *
+ * The field is the `TextFieldState` overload for the same reason: the legacy
+ * `value`/`onValueChange` one brings *the selection it captured at focus time*
+ * into view (`CoreTextField`, b/216790855), which for a `String` value is index
+ * 0 — so tapping into the text jumped straight back to the top.
  */
 @Composable
 internal fun EditDialog(
@@ -54,7 +60,7 @@ internal fun EditDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var text by remember { mutableStateOf(initial) }
+    val text = rememberTextFieldState(initial)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -87,8 +93,7 @@ internal fun EditDialog(
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it },
+                        state = text,
                         // `AlertDialog` used to supply this through its text slot.
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier
@@ -104,8 +109,8 @@ internal fun EditDialog(
                     ) {
                         TextButton(onClick = onDismiss) { Text("Cancel") }
                         TextButton(
-                            onClick = { onConfirm(text) },
-                            enabled = text.trim().isNotEmpty(),
+                            onClick = { onConfirm(text.text.toString()) },
+                            enabled = text.text.isNotBlank(),
                         ) {
                             Text(if (revise) "Send" else "Save")
                         }
