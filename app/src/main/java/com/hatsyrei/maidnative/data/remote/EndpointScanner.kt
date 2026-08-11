@@ -56,26 +56,6 @@ object EndpointScanner {
         .build()
 
     /**
-     * Parses a user-entered base URL and returns the canonical
-     * `http://<ip>:<port>/v1` form, or `null` when the input is not a valid
-     * `http://<ip>`, `http://<ip>:<port>`, or `http://<ip>:<port>/v1` address.
-     * When no port is supplied, [defaultPort] is assumed.
-     */
-    fun normalizeBaseUrl(input: String, defaultPort: Int = DEFAULT_PORT): String? {
-        val trimmed = input.trim().trimEnd('/')
-        val match = Regex("^http://([^/:]+)(?::(\\d+))?(?:/v1)?$", RegexOption.IGNORE_CASE)
-            .matchEntire(trimmed) ?: return null
-        val ip = match.groupValues[1]
-        val port = match.groupValues[2].ifEmpty { defaultPort.toString() }
-        if (!IpMath.isValidIpv4(ip) || !IpMath.isValidPort(port)) return null
-        return "http://$ip:$port/v1"
-    }
-
-    /** Probe `{baseUrl}/models`; true when it looks OpenAI-compatible. */
-    suspend fun validateEndpoint(baseUrl: String): Boolean =
-        isOpenAiCompatible("${baseUrl.trimEnd('/')}/models")
-
-    /**
      * Scan the local /[prefixLength] subnet on [port], returning the first
      * OpenAI-compatible base URL. Anything wider than a /24 sweeps the device's
      * own /24 first, since that is where a hit is most likely.

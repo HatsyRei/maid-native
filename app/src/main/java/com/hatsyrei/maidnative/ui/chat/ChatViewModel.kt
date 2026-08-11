@@ -274,29 +274,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(scanning = false, foundURL = null) }
     }
 
-    fun setScanOptions(port: Int, prefixLength: Int) =
-        viewModelScope.launch { settingsRepo.setScanOptions(port, prefixLength) }
-
     /**
-     * Discover a local OpenAI-compatible endpoint (mirrors base-url-field.tsx).
-     * If [candidate] (the Base URL currently in the field) normalizes and
-     * validates, adopt it instead of scanning the whole subnet; otherwise sweep
-     * the configured port/subnet and adopt the first match. On success the
-     * endpoint is saved automatically, which triggers model loading via the
-     * settings collector.
+     * Sweep the local subnet for an OpenAI-compatible endpoint on [port] and
+     * adopt the first match. The options are persisted first so the scan dialog
+     * reopens with the same choice. On success the endpoint is saved
+     * automatically, which triggers model loading via the settings collector.
      */
-    fun scanEndpoint(candidate: String) {
+    fun scanEndpoint(port: Int, prefixLength: Int) {
         if (_state.value.scanning) return
-        val port = _state.value.settings.scanPort
-        val prefixLength = _state.value.settings.scanPrefixLength
         _state.update { it.copy(scanning = true, foundURL = null, error = null) }
         viewModelScope.launch {
+            settingsRepo.setScanOptions(port, prefixLength)
             val found = withContext(Dispatchers.IO) {
-                runCatching {
-                    val normalized = EndpointScanner.normalizeBaseUrl(candidate, port)
-                    if (normalized != null && EndpointScanner.validateEndpoint(normalized)) normalized
-                    else EndpointScanner.scanForEndpoint(port, prefixLength)
-                }
+                runCatching { EndpointScanner.scanForEndpoint(port, prefixLength) }
             }
             found.onSuccess { url ->
                 if (url != null) {

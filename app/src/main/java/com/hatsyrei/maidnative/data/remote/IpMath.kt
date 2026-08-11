@@ -6,15 +6,6 @@ package com.hatsyrei.maidnative.data.remote
  */
 internal object IpMath {
 
-    fun isValidIpv4(ip: String): Boolean {
-        val octets = ip.split(".")
-        if (octets.size != 4) return false
-        return octets.all { it.matches(Regex("\\d{1,3}")) && it.toInt() in 0..255 }
-    }
-
-    fun isValidPort(port: String): Boolean =
-        port.matches(Regex("\\d{1,5}")) && port.toInt() in 1..65535
-
     fun ipToInt(ip: String): Long {
         val octets = ip.split(".").map { it.toInt() }
         require(octets.size == 4 && octets.all { it in 0..255 }) { "Invalid IPv4 address" }

@@ -49,7 +49,6 @@ import com.hatsyrei.maidnative.ui.chat.ChatUiState
 import com.hatsyrei.maidnative.ui.chat.ConfirmDialog
 import com.hatsyrei.maidnative.ui.chat.ModelSelector
 import com.hatsyrei.maidnative.ui.icons.BookmarksIcon
-import com.hatsyrei.maidnative.ui.icons.TuneIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,9 +60,8 @@ fun SettingsScreen(
     onModel: (String) -> Unit,
     onRefreshModels: () -> Unit,
     onReasoning: (Boolean) -> Unit,
-    onScan: (String) -> Unit,
+    onScan: (Int, Int) -> Unit,
     onResetScan: () -> Unit,
-    onScanOptions: (Int, Int) -> Unit,
     onSavePreset: (String, String, String) -> Unit,
     onApplyPreset: (EndpointPreset) -> Unit,
     onRenamePreset: (String, String) -> Unit,
@@ -145,7 +143,10 @@ fun SettingsScreen(
                 ScanButton(
                     scanning = state.scanning,
                     succeeded = scanSucceeded,
-                    onScan = { onScan(baseURL) },
+                    onScan = {
+                        focusManager.clearFocus()
+                        showScanOptions = true
+                    },
                 )
             }
 
@@ -157,15 +158,6 @@ fun SettingsScreen(
                 onCommit = onApiKey,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
-            )
-
-            AssistChip(
-                onClick = {
-                    focusManager.clearFocus()
-                    showScanOptions = true
-                },
-                label = { Text("Configure scan") },
-                leadingIcon = { Icon(TuneIcon, contentDescription = null) },
             )
 
             Spacer(Modifier.height(8.dp))
@@ -267,7 +259,7 @@ fun SettingsScreen(
             onDismiss = { showScanOptions = false },
             onConfirm = { port, prefixLength ->
                 showScanOptions = false
-                onScanOptions(port, prefixLength)
+                onScan(port, prefixLength)
             },
         )
     }

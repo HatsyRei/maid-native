@@ -42,7 +42,7 @@ import com.hatsyrei.maidnative.data.remote.EndpointScanner
 /** Ports that OpenAI-compatible servers ship with, offered as one-tap fills. */
 private val COMMON_PORTS = listOf(8080, 9931, 1234, 11434, 8000)
 
-/** The Base URL field's scan action; options live behind the Configure scan chip. */
+/** The Base URL field's scan action; tapping it opens the scan options dialog. */
 @Composable
 internal fun ScanButton(
     scanning: Boolean,
@@ -73,7 +73,7 @@ internal fun ScanButton(
     }
 }
 
-/** Port + subnet size used by the next scan; the choice is persisted. */
+/** Port + subnet size for the scan the dialog starts; the choice is persisted. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun ScanOptionsDialog(
@@ -94,7 +94,8 @@ internal fun ScanOptionsDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Used the next time you tap the scan button.",
+                    "The local subnet is probed on this port for an " +
+                        "OpenAI-compatible endpoint.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -160,7 +161,7 @@ internal fun ScanOptionsDialog(
                 onClick = { onConfirm(parsedPort ?: EndpointScanner.DEFAULT_PORT, prefix) },
                 enabled = portValid,
             ) {
-                Text("Save")
+                Text("Scan")
             }
         },
         dismissButton = {
