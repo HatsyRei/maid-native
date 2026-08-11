@@ -4,7 +4,7 @@
 
 # Maid Native
 
-Maid Native is a native Android client for OpenAI-compatible endpoints — streaming chat, branching conversation trees, and Markdown rendering in a ~1.7 MB APK.
+Maid Native is a native Android client for OpenAI-compatible endpoints — streaming chat, branching conversation trees, and Markdown rendering in a ~2.0 MB APK.
 
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/kotlin-%237F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -91,7 +91,7 @@ sdk.dir=/home/<you>/android-sdk
 and signed off on-device (SPEC §7): streaming chat against an OpenAI-compatible
 endpoint, conversation-tree logic (with unit tests), Room persistence, settings,
 a chat UI with message controls + branch navigation, a navigation drawer, and
-Markdown rendering (incremental while streaming). Signed release APK is ~1.7 MB,
+Markdown rendering (incremental while streaming). Signed release APK is ~2.0 MB,
 against ~20 MB for the React Native build. Remaining items are post-parity
 enhancements, listed in [SPEC.md](SPEC.md) §7.1.
 
