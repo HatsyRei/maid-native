@@ -36,6 +36,9 @@ class SettingsRepository(private val context: Context) {
         val reasoning: Boolean = true,
         /** ARGB accent, or 0 for the built-in blue. */
         val accentColor: Int = 0,
+        /** Role labels shown on message cards. */
+        val userName: String = DEFAULT_USER_NAME,
+        val assistantName: String = DEFAULT_ASSISTANT_NAME,
         val nameplate: String = DEFAULT_NAMEPLATE,
         /** Import time of the custom nameplate; only used to invalidate its decoded cache. */
         val nameplateStamp: Long = 0L,
@@ -65,6 +68,10 @@ class SettingsRepository(private val context: Context) {
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
+            // A cleared field falls back to the default rather than a blank label.
+            userName = prefs[KEY_USER_NAME]?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_NAME,
+            assistantName = prefs[KEY_ASSISTANT_NAME]?.takeIf { it.isNotBlank() }
+                ?: DEFAULT_ASSISTANT_NAME,
             nameplate = prefs[KEY_NAMEPLATE] ?: DEFAULT_NAMEPLATE,
             nameplateStamp = prefs[KEY_NAMEPLATE_STAMP] ?: 0L,
             scanPort = (prefs[KEY_SCAN_PORT] ?: EndpointScanner.DEFAULT_PORT).coerceIn(MIN_PORT, MAX_PORT),
@@ -88,6 +95,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setApiKey(value: String) = edit(KEY_API_KEY, SecretCipher.encode(value))
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
     suspend fun setSystemPrompt(value: String) = edit(KEY_SYSTEM_PROMPT, value)
+    suspend fun setUserName(value: String) = edit(KEY_USER_NAME, value.trim())
+    suspend fun setAssistantName(value: String) = edit(KEY_ASSISTANT_NAME, value.trim())
     suspend fun setNameplate(value: String) = edit(KEY_NAMEPLATE, value)
 
     suspend fun setReasoning(enabled: Boolean) {
@@ -199,6 +208,9 @@ class SettingsRepository(private val context: Context) {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         const val DEFAULT_SYSTEM_PROMPT = ConversationDefaults.SYSTEM_PROMPT
 
+        const val DEFAULT_USER_NAME = "User"
+        const val DEFAULT_ASSISTANT_NAME = "Assistant"
+
         const val NAMEPLATE_NONE = "none"
         const val NAMEPLATE_BLOSSOM = "blossom"
         const val NAMEPLATE_TWILIGHT = "twilight"
@@ -214,6 +226,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
         private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
+        private val KEY_USER_NAME = stringPreferencesKey("user-name")
+        private val KEY_ASSISTANT_NAME = stringPreferencesKey("assistant-name")
         private val KEY_NAMEPLATE = stringPreferencesKey("composer-nameplate")
         private val KEY_NAMEPLATE_STAMP = longPreferencesKey("composer-nameplate-stamp")
         private val KEY_PRESETS = stringPreferencesKey("endpoint-presets")

@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -125,6 +127,8 @@ internal fun MessageItem(
     busy: Boolean,
     ready: Boolean,
     isLatest: Boolean,
+    userName: String,
+    assistantName: String,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onRequestEdit: (revise: Boolean) -> Unit,
@@ -243,47 +247,41 @@ internal fun MessageItem(
                 )
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = if (isUser) "You" else "Assistant",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f),
-            )
-            if (siblingCount > 1) {
-                IconButton(
-                    onClick = onPrevBranch,
-                    enabled = siblingIndex > 0 && !busy,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous branch",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        MessageHeader(
+            name = if (isUser) userName else assistantName,
+            controls = {
+                if (siblingCount > 1) {
+                    IconButton(
+                        onClick = onPrevBranch,
+                        enabled = siblingIndex > 0 && !busy,
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowLeft,
+                            contentDescription = "Previous branch",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        text = "${siblingIndex + 1} / $siblingCount",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
                     )
+                    IconButton(
+                        onClick = onNextBranch,
+                        enabled = siblingIndex < siblingCount - 1 && !busy,
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowRight,
+                            contentDescription = "Next branch",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                Text(
-                    text = "${siblingIndex + 1} / $siblingCount",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-                IconButton(
-                    onClick = onNextBranch,
-                    enabled = siblingIndex < siblingCount - 1 && !busy,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowRight,
-                        contentDescription = "Next branch",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+            },
+        )
         if (!reasoning.isNullOrEmpty()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -339,6 +337,49 @@ internal fun MessageItem(
                 markdown = body,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        }
+    }
+}
+
+/**
+ * Role label + branch controls. A `weight(1f)` row would squeeze a long custom
+ * name against the chevrons, so the name is measured against the full width
+ * first and the controls drop to a line of their own when the two don't fit.
+ */
+@Composable
+private fun MessageHeader(
+    name: String,
+    controls: @Composable RowScope.() -> Unit,
+) {
+    Layout(
+        content = {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, content = controls)
+        },
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val label = measurables[0].measure(loose)
+        // Empty when there is a single sibling, which collapses this to the label alone.
+        val branch = measurables[1].measure(loose)
+        val sameLine = label.width + branch.width <= width
+        val height = if (sameLine) {
+            maxOf(label.height, branch.height)
+        } else {
+            label.height + branch.height
+        }
+        layout(width, height) {
+            if (sameLine) {
+                label.place(0, (height - label.height) / 2)
+                branch.place(width - branch.width, (height - branch.height) / 2)
+            } else {
+                label.place(0, 0)
+                branch.place(width - branch.width, label.height)
+            }
         }
     }
 }

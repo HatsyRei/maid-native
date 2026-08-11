@@ -385,6 +385,8 @@ private fun ChatScaffold(
                             busy = state.busy,
                             ready = state.ready,
                             isLatest = node.id == latestId,
+                            userName = state.settings.userName,
+                            assistantName = state.settings.assistantName,
                             onRegenerate = { onRegenerate(node.id) },
                             onDelete = { onDelete(node.id) },
                             onRequestEdit = { revise ->

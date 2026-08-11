@@ -137,6 +137,8 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onAccentColor = viewModel::setAccentColor,
                         onNameplate = viewModel::setNameplate,
                         onImportNameplate = viewModel::importNameplate,
+                        onUserName = viewModel::setUserName,
+                        onAssistantName = viewModel::setAssistantName,
                         onBack = { screen = Screen.Chat },
                     )
                 }

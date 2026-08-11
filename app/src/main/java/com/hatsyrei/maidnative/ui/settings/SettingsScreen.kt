@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -69,6 +71,8 @@ fun SettingsScreen(
     onAccentColor: (Int) -> Unit,
     onNameplate: (String) -> Unit,
     onImportNameplate: (Uri) -> Unit,
+    onUserName: (String) -> Unit,
+    onAssistantName: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
@@ -99,6 +103,12 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Shrinks the scroll viewport by the keyboard, so a focused
+                // field near the bottom can be scrolled (and is auto-brought)
+                // into view instead of sitting under the IME. `consume` stops
+                // the nav-bar inset already in `padding` being counted twice.
+                .consumeWindowInsets(padding)
+                .imePadding()
                 // A tap on empty space drops focus, which is what commits a
                 // half-typed field. Runs after any child handles the tap.
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
@@ -224,6 +234,15 @@ fun SettingsScreen(
                 onNameplate = onNameplate,
                 onImportNameplate = onImportNameplate,
             )
+
+            Spacer(Modifier.height(8.dp))
+
+            ChatSection(
+                userName = state.settings.userName,
+                assistantName = state.settings.assistantName,
+                onUserName = onUserName,
+                onAssistantName = onAssistantName,
+            )
         }
     }
 
@@ -310,7 +329,7 @@ fun SettingsScreen(
  * focus (only when the text actually differs from the last [committed] value).
  */
 @Composable
-private fun AutoSaveTextField(
+internal fun AutoSaveTextField(
     text: String,
     onTextChange: (String) -> Unit,
     committed: String,

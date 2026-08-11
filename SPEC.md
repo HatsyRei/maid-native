@@ -139,9 +139,8 @@ None of these block the sign-off above; each is either an enhancement beyond RN 
 1. Persist partial replies so a mid-stream force-close does not lose the in-flight response (§4.4). Matches RN behaviour today — the RN app loses it too — so it is an improvement, not a regression.
 2. Markdown images (Coil) — the one RN markdown rule not ported; no assistant reply we exercise emits images against a local endpoint.
 3. Composer font parity and a dynamic-theming pass (§4.5, §10 Composer).
-4. Customizable user / assistant display names (§10 Deferred enhancements).
 
-*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash, on-device verification of the §11.2 rework, scroll-position-after-Settings fix, menu/drawer gesture arbitration. Dropped: custom headers/params editors, retry parity.)*
+*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash, on-device verification of the §11.2 rework, scroll-position-after-Settings fix, menu/drawer gesture arbitration, customizable display names. Dropped: custom headers/params editors, retry parity.)*
 
 ## 8. Risks
 
@@ -215,7 +214,7 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype on-dev
   Not addressed: expanded-reasoning toggles still collapse, because `MessageItem` uses `remember(node.id)` rather than `rememberSaveable`. That state is already lost on scroll-out (`LazyColumn` only preserves *saveable* item state), so it is a separate pre-existing nitpick.
 
 ### Deferred enhancements (post-parity, not RN parity items)
-- **Customizable user / assistant display names — wanted, low priority.** Role labels are currently hardcoded to the node's `role`. Intent is user-settable names (per-app, possibly per-conversation later) rendered in the `titleMedium` role label. Deliberately *not* scheduled: §2 puts feature expansion after behavioural parity, and this touches settings storage, the message header, and export/import format compatibility. Revisit once M5 signs off.
+- **Customizable user / assistant display names — done 2026-08-11.** Role labels were hardcoded (`You` / `Assistant`); they now render `settings.userName` / `settings.assistantName` in the same `titleMedium` label, edited in a **Chat** section under Theme in Settings and stored in DataStore (`user-name` / `assistant-name`, defaults `User` / `Assistant`, a blank entry falling back to the default). Kept per-app rather than per-conversation, and deliberately *not* written into the message tree or sent to the model, so the RN-compatible export/import format is untouched.
 
 ### Dependencies / tech debt
 - [x] **[TECH DEBT — SECURITY] `multiplatform-markdown-renderer` upgraded to the latest release — RESOLVED 2026-07-29 (`0.33.0` → `0.43.0`).** The pin existed because `0.33.0` was the newest version binary-compatible with Kotlin `2.1.0` / Compose BOM `2024.12.01`; releases past it are built with newer Kotlin, and **Kotlin metadata is a hard blocker** (a `2.1.0` compiler cannot read it without `-Xskip-metadata-version-check`, which we will not use). Clearing it required the coordinated bump recorded in §3: Gradle `9.5.0`, AGP `9.3.1` (incl. the built-in-Kotlin migration), Kotlin `2.4.10`, KSP `2.3.10`, Compose BOM `2026.06.01`, Room `2.8.4`, compileSdk `37`. Both payoffs were taken on arrival — `parseMarkdown()` and `StreamingMarkdownState`, see §11.2. The historical analysis of the version floor is preserved in §11.1.

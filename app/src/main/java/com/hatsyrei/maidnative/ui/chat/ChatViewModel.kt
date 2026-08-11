@@ -244,6 +244,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
+    fun setUserName(value: String) = viewModelScope.launch { settingsRepo.setUserName(value) }
+    fun setAssistantName(value: String) = viewModelScope.launch { settingsRepo.setAssistantName(value) }
     fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }
 
     fun savePreset(name: String, baseURL: String, apiKey: String) =
