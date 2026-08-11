@@ -77,6 +77,13 @@ class SettingsRepository(private val context: Context) {
         decodePresets(prefs[KEY_PRESETS])
     }
 
+    /**
+     * Root id of the conversation the app was last in, so a relaunch reopens it.
+     * Kept out of [Settings] because it changes on every chat switch and nothing
+     * in the UI reads it after startup.
+     */
+    val activeChat: Flow<String?> = context.dataStore.data.map { it[KEY_ACTIVE_CHAT] }
+
     suspend fun setBaseURL(value: String) = edit(KEY_BASE_URL, value)
     suspend fun setApiKey(value: String) = edit(KEY_API_KEY, SecretCipher.encode(value))
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
@@ -89,6 +96,12 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAccentColor(argb: Int) {
         context.dataStore.edit { it[KEY_ACCENT] = argb }
+    }
+
+    suspend fun setActiveChat(rootId: String?) {
+        context.dataStore.edit {
+            if (rootId == null) it.remove(KEY_ACTIVE_CHAT) else it[KEY_ACTIVE_CHAT] = rootId
+        }
     }
 
     /** Written together so a scan reads one consistent pair. */
@@ -206,6 +219,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_PRESETS = stringPreferencesKey("endpoint-presets")
         private val KEY_SCAN_PORT = intPreferencesKey("scan-port")
         private val KEY_SCAN_PREFIX = intPreferencesKey("scan-prefix-length")
+        private val KEY_ACTIVE_CHAT = stringPreferencesKey("active-chat")
 
         private const val FIELD_ID = "id"
         private const val FIELD_NAME = "name"

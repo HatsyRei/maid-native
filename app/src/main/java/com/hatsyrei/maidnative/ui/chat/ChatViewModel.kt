@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -160,8 +161,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             val loaded = repo.load(legacyFile)
-            val root = MessageTree.getRoots(loaded).firstOrNull()?.id
+            val roots = MessageTree.getRoots(loaded)
+            // Reopen whatever chat the last session ended on; fall back to the
+            // first conversation if it has since been deleted.
+            val remembered = settingsRepo.activeChat.first()
+            val root = roots.firstOrNull { it.id == remembered }?.id ?: roots.firstOrNull()?.id
             _state.update { it.copy(mappings = loaded, root = root) }
+            // Recorded here rather than at each call site that moves the active
+            // root (new/select/delete/first submit).
+            _state.map { it.root }
+                .distinctUntilChanged()
+                .collect { settingsRepo.setActiveChat(it) }
         }
         viewModelScope.launch {
             saveRequests.consumeAsFlow().collect { snapshot ->
