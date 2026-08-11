@@ -17,16 +17,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -42,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -54,6 +49,7 @@ import com.hatsyrei.maidnative.ui.chat.ChatUiState
 import com.hatsyrei.maidnative.ui.chat.ConfirmDialog
 import com.hatsyrei.maidnative.ui.chat.ModelSelector
 import com.hatsyrei.maidnative.ui.icons.BookmarksIcon
+import com.hatsyrei.maidnative.ui.icons.TuneIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +63,7 @@ fun SettingsScreen(
     onReasoning: (Boolean) -> Unit,
     onScan: (String) -> Unit,
     onResetScan: () -> Unit,
+    onScanOptions: (Int, Int) -> Unit,
     onSavePreset: (String, String, String) -> Unit,
     onApplyPreset: (EndpointPreset) -> Unit,
     onRenamePreset: (String, String) -> Unit,
@@ -79,6 +76,7 @@ fun SettingsScreen(
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
     var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
     var showPresets by remember { mutableStateOf(false) }
+    var showScanOptions by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
     var savingNew by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EndpointPreset?>(null) }
@@ -144,27 +142,11 @@ fun SettingsScreen(
                     modifier = Modifier.weight(1f),
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
-                FilledIconButton(
-                    onClick = { onScan(baseURL) },
-                    enabled = !state.scanning && !scanSucceeded,
-                    modifier = Modifier.size(56.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = Color.White,
-                        contentColor = Color.Black,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                ) {
-                    when {
-                        state.scanning -> CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        scanSucceeded -> Icon(Icons.Filled.Check, contentDescription = "Endpoint found")
-                        else -> Icon(Icons.Filled.Search, contentDescription = "Scan for endpoint")
-                    }
-                }
+                ScanButton(
+                    scanning = state.scanning,
+                    succeeded = scanSucceeded,
+                    onScan = { onScan(baseURL) },
+                )
             }
 
             AutoSaveTextField(
@@ -175,6 +157,15 @@ fun SettingsScreen(
                 onCommit = onApiKey,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
+            )
+
+            AssistChip(
+                onClick = {
+                    focusManager.clearFocus()
+                    showScanOptions = true
+                },
+                label = { Text("Configure scan") },
+                leadingIcon = { Icon(TuneIcon, contentDescription = null) },
             )
 
             Spacer(Modifier.height(8.dp))
@@ -266,6 +257,18 @@ fun SettingsScreen(
                 deleting = it
             },
             onDismiss = { showPresets = false },
+        )
+    }
+
+    if (showScanOptions) {
+        ScanOptionsDialog(
+            port = state.settings.scanPort,
+            prefixLength = state.settings.scanPrefixLength,
+            onDismiss = { showScanOptions = false },
+            onConfirm = { port, prefixLength ->
+                showScanOptions = false
+                onScanOptions(port, prefixLength)
+            },
         )
     }
 

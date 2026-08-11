@@ -22,12 +22,19 @@ import kotlin.coroutines.resume
 
 /**
  * Local-network endpoint discovery, ported from the RN app's
- * `utilities/scan-endpoint.ts`. Probes `http://<host>:8080/v1/models` across the
- * device's /24 (then /21) subnet and returns the first OpenAI-compatible base URL.
+ * `utilities/scan-endpoint.ts`. Probes `http://<host>:<port>/v1/models` across
+ * the device's subnet and returns the first OpenAI-compatible base URL. The port
+ * and subnet size are user-configurable (Settings → scan button long-press),
+ * because OpenAI-compatible servers are spread over a lot of default ports.
  */
 object EndpointScanner {
 
-    private const val DEFAULT_PORT = 8080
+    const val DEFAULT_PORT = 8080
+
+    /** Subnet sizes offered to the user, widest last. */
+    val PREFIX_CHOICES = listOf(24, 23, 22, 21)
+    const val DEFAULT_PREFIX_LENGTH = 24
+
     private const val REQUEST_TIMEOUT_MS = 400L
     private const val CONCURRENCY = 64
 
@@ -52,14 +59,14 @@ object EndpointScanner {
      * Parses a user-entered base URL and returns the canonical
      * `http://<ip>:<port>/v1` form, or `null` when the input is not a valid
      * `http://<ip>`, `http://<ip>:<port>`, or `http://<ip>:<port>/v1` address.
-     * When no port is supplied, the default port is assumed.
+     * When no port is supplied, [defaultPort] is assumed.
      */
-    fun normalizeBaseUrl(input: String): String? {
+    fun normalizeBaseUrl(input: String, defaultPort: Int = DEFAULT_PORT): String? {
         val trimmed = input.trim().trimEnd('/')
         val match = Regex("^http://([^/:]+)(?::(\\d+))?(?:/v1)?$", RegexOption.IGNORE_CASE)
             .matchEntire(trimmed) ?: return null
         val ip = match.groupValues[1]
-        val port = match.groupValues[2].ifEmpty { DEFAULT_PORT.toString() }
+        val port = match.groupValues[2].ifEmpty { defaultPort.toString() }
         if (!IpMath.isValidIpv4(ip) || !IpMath.isValidPort(port)) return null
         return "http://$ip:$port/v1"
     }
@@ -68,15 +75,24 @@ object EndpointScanner {
     suspend fun validateEndpoint(baseUrl: String): Boolean =
         isOpenAiCompatible("${baseUrl.trimEnd('/')}/models")
 
-    /** Scan the local subnet, returning the first OpenAI-compatible base URL. */
-    suspend fun scanForEndpoint(): String? {
+    /**
+     * Scan the local /[prefixLength] subnet on [port], returning the first
+     * OpenAI-compatible base URL. Anything wider than a /24 sweeps the device's
+     * own /24 first, since that is where a hit is most likely.
+     */
+    suspend fun scanForEndpoint(
+        port: Int = DEFAULT_PORT,
+        prefixLength: Int = DEFAULT_PREFIX_LENGTH,
+    ): String? {
         val ip = localIpv4() ?: throw IllegalStateException("Could not determine local IP")
 
+        if (prefixLength >= 24) return probeAll(IpMath.buildSubnetTargets(ip, prefixLength), port)
+
         val subnet24 = IpMath.buildSubnetTargets(ip, 24)
-        probeAll(subnet24)?.let { return it }
+        probeAll(subnet24, port)?.let { return it }
 
         val seen = subnet24.toHashSet()
-        return probeAll(IpMath.buildSubnetTargets(ip, 21).filter { it !in seen })
+        return probeAll(IpMath.buildSubnetTargets(ip, prefixLength).filter { it !in seen }, port)
     }
 
     /**
@@ -90,13 +106,13 @@ object EndpointScanner {
      * cancellable `enqueue`, that cancels the outstanding OkHttp calls too.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun probeAll(targets: List<String>): String? =
+    private suspend fun probeAll(targets: List<String>, port: Int): String? =
         targets.asFlow()
-            .flatMapMerge(CONCURRENCY) { target -> flow { probeTarget(target)?.let { emit(it) } } }
+            .flatMapMerge(CONCURRENCY) { target -> flow { probeTarget(target, port)?.let { emit(it) } } }
             .firstOrNull()
 
-    private suspend fun probeTarget(target: String): String? {
-        val baseUrl = "http://$target:$DEFAULT_PORT"
+    private suspend fun probeTarget(target: String, port: Int): String? {
+        val baseUrl = "http://$target:$port"
         return if (isOpenAiCompatible("$baseUrl/v1/models")) "$baseUrl/v1" else null
     }
 

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -38,6 +39,10 @@ class SettingsRepository(private val context: Context) {
         val nameplate: String = DEFAULT_NAMEPLATE,
         /** Import time of the custom nameplate; only used to invalidate its decoded cache. */
         val nameplateStamp: Long = 0L,
+        /** Port probed by the endpoint scan. */
+        val scanPort: Int = EndpointScanner.DEFAULT_PORT,
+        /** Subnet size swept by the endpoint scan, as a CIDR prefix length. */
+        val scanPrefixLength: Int = EndpointScanner.DEFAULT_PREFIX_LENGTH,
     )
 
     /**
@@ -62,6 +67,9 @@ class SettingsRepository(private val context: Context) {
             accentColor = prefs[KEY_ACCENT] ?: 0,
             nameplate = prefs[KEY_NAMEPLATE] ?: DEFAULT_NAMEPLATE,
             nameplateStamp = prefs[KEY_NAMEPLATE_STAMP] ?: 0L,
+            scanPort = (prefs[KEY_SCAN_PORT] ?: EndpointScanner.DEFAULT_PORT).coerceIn(MIN_PORT, MAX_PORT),
+            scanPrefixLength = (prefs[KEY_SCAN_PREFIX] ?: EndpointScanner.DEFAULT_PREFIX_LENGTH)
+                .takeIf { it in EndpointScanner.PREFIX_CHOICES } ?: EndpointScanner.DEFAULT_PREFIX_LENGTH,
         )
     }
 
@@ -81,6 +89,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAccentColor(argb: Int) {
         context.dataStore.edit { it[KEY_ACCENT] = argb }
+    }
+
+    /** Written together so a scan reads one consistent pair. */
+    suspend fun setScanOptions(port: Int, prefixLength: Int) {
+        context.dataStore.edit {
+            it[KEY_SCAN_PORT] = port.coerceIn(MIN_PORT, MAX_PORT)
+            it[KEY_SCAN_PREFIX] = prefixLength
+        }
     }
 
     /** Selects the freshly imported custom image; the stamp busts its decoded cache. */
@@ -176,6 +192,9 @@ class SettingsRepository(private val context: Context) {
         const val NAMEPLATE_CUSTOM = "custom"
         const val DEFAULT_NAMEPLATE = NAMEPLATE_NONE
 
+        const val MIN_PORT = 1
+        const val MAX_PORT = 65535
+
         private val KEY_BASE_URL = stringPreferencesKey("open-ai-base-url")
         private val KEY_API_KEY = stringPreferencesKey("open-ai-api-key")
         private val KEY_MODEL = stringPreferencesKey("open-ai-model")
@@ -185,6 +204,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_NAMEPLATE = stringPreferencesKey("composer-nameplate")
         private val KEY_NAMEPLATE_STAMP = longPreferencesKey("composer-nameplate-stamp")
         private val KEY_PRESETS = stringPreferencesKey("endpoint-presets")
+        private val KEY_SCAN_PORT = intPreferencesKey("scan-port")
+        private val KEY_SCAN_PREFIX = intPreferencesKey("scan-prefix-length")
 
         private const val FIELD_ID = "id"
         private const val FIELD_NAME = "name"

@@ -130,6 +130,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onReasoning = viewModel::setReasoning,
                         onScan = viewModel::scanEndpoint,
                         onResetScan = viewModel::resetScan,
+                        onScanOptions = viewModel::setScanOptions,
                         onSavePreset = viewModel::savePreset,
                         onApplyPreset = viewModel::applyPreset,
                         onRenamePreset = viewModel::renamePreset,
