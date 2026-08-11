@@ -47,6 +47,9 @@ import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 
 private val MenuItemPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
 
+/** On top of the 12dp the menu item already puts between label and trailing icon. */
+private val MenuIconGap = 8.dp
+
 /**
  * The saved Base URL + API key pairs, as a bottom sheet: saving and loading share
  * one affordance, and the extra height over a dialog leaves room for each row's
@@ -153,7 +156,13 @@ private fun PresetRow(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text("Rename") },
-                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = MenuIconGap),
+                            )
+                        },
                         contentPadding = MenuItemPadding,
                         onClick = {
                             menuOpen = false
@@ -167,6 +176,7 @@ private fun PresetRow(
                                 Icons.Filled.Delete,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(start = MenuIconGap),
                             )
                         },
                         contentPadding = MenuItemPadding,
