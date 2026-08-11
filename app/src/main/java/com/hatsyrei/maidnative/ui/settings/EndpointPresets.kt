@@ -153,7 +153,7 @@ private fun PresetRow(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text("Rename") },
-                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         contentPadding = MenuItemPadding,
                         onClick = {
                             menuOpen = false
@@ -162,7 +162,7 @@ private fun PresetRow(
                     )
                     DropdownMenuItem(
                         text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = {
+                        trailingIcon = {
                             Icon(
                                 Icons.Filled.Delete,
                                 contentDescription = null,
@@ -202,6 +202,7 @@ internal fun PresetNameDialog(
     val replaces = takenNames.any { it.equals(trimmed, ignoreCase = true) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text(title) },
         text = {
             OutlinedTextField(

@@ -37,6 +37,7 @@ internal fun EditDialog(
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text(if (revise) "Revise message" else "Edit message") },
         text = {
             OutlinedTextField(
@@ -68,6 +69,7 @@ internal fun RenameDialog(
     var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("Rename conversation") },
         text = {
             OutlinedTextField(
@@ -100,6 +102,7 @@ internal fun SystemPromptDialog(
     var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("System prompt") },
         text = {
             Column {
@@ -142,6 +145,7 @@ internal fun ConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {

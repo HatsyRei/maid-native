@@ -159,6 +159,7 @@ private fun ColorPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("Accent colour") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {

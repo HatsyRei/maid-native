@@ -21,8 +21,8 @@ val DarkSurfaceBright = Color(0xFF232B36)
 
 val DarkSurfaceContainerLowest = Color(0xFF000000)
 val DarkSurfaceContainerLow = Color(0xFF0C1015) // message cards
-val DarkSurfaceContainer = Color(0xFF11161D) // pop-up menus
-val DarkSurfaceContainerHigh = Color(0xFF171D26) // composer pill, dialogs
+val DarkSurfaceContainer = Color(0xFF11161D) // pop-up menus, dialogs
+val DarkSurfaceContainerHigh = Color(0xFF171D26) // composer pill
 val DarkSurfaceContainerHighest = Color(0xFF1F2630)
 
 val DarkSurfaceVariant = Color(0xFF2A333F) // model pill, selected chat pill

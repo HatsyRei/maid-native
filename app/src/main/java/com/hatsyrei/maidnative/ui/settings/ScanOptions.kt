@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -90,41 +91,59 @@ internal fun ScanOptionsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("Scan options") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "The local subnet is probed on this port for an " +
                         "OpenAI-compatible endpoint.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                OutlinedTextField(
-                    value = portText,
-                    // Digits only, so the field can never hold something the
-                    // keyboard type would otherwise let through (paste, hardware).
-                    onValueChange = { input -> portText = input.filter { it.isDigit() }.take(5) },
-                    label = { Text("Port") },
-                    singleLine = true,
-                    isError = !portValid,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done,
-                    ),
-                    supportingText = {
-                        Text(if (portValid) "" else "Enter a port between 1 and 65535")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // Field and its one-tap fills read as one control, so they sit
+                // tighter together than the dialog's section spacing.
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = portText,
+                        // Digits only, so the field can never hold something the
+                        // keyboard type would otherwise let through (paste, hardware).
+                        onValueChange = { input ->
+                            portText = input.filter { it.isDigit() }.take(5)
+                        },
+                        label = { Text("Port") },
+                        singleLine = true,
+                        isError = !portValid,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done,
+                        ),
+                        supportingText = {
+                            Text(if (portValid) "" else "Enter a port between 1 and 65535")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    COMMON_PORTS.forEach { common ->
-                        FilterChip(
-                            selected = parsedPort == common,
-                            onClick = { portText = common.toString() },
-                            label = { Text(common.toString()) },
-                        )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        COMMON_PORTS.forEach { common ->
+                            FilterChip(
+                                selected = parsedPort == common,
+                                onClick = { portText = common.toString() },
+                                label = { Text(common.toString()) },
+                                // The same fill as the model pill and the
+                                // selected chat entry, so accents agree.
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor =
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                    selectedLabelColor =
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                            )
+                        }
                     }
                 }
 
@@ -141,6 +160,10 @@ internal fun ScanOptionsDialog(
                             shape = SegmentedButtonDefaults.itemShape(
                                 index = index,
                                 count = EndpointScanner.PREFIX_CHOICES.size,
+                            ),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             ),
                             // Dropping the check mark keeps five segments legible
                             // at dialog width.
