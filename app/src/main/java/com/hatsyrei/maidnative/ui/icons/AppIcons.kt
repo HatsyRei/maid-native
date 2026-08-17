@@ -106,6 +106,45 @@ val BookmarksIcon: ImageVector by lazy {
     )
 }
 
+/** Material `add` (composer attachment button). */
+val AddIcon: ImageVector by lazy {
+    materialIcon("Add", "M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
+}
+
+/** Material `close` (removes a pending attachment chip). */
+val CloseIcon: ImageVector by lazy {
+    materialIcon(
+        "Close",
+        "M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z",
+    )
+}
+
+/** Material `image` (attachment menu). */
+val ImageIcon: ImageVector by lazy {
+    materialIcon(
+        "Image",
+        "M21,19V5c0,-1.1 -0.9,-2 -2,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2z" +
+            "M8.5,13.5l2.5,3.01L14.5,12l4.5,6H5l3.5,-4.5z",
+    )
+}
+
+/** Material `audiotrack` (attachment menu). */
+val AudiotrackIcon: ImageVector by lazy {
+    materialIcon(
+        "Audiotrack",
+        "M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55 -2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4V7h4V3h-6z",
+    )
+}
+
+/** Material `description` (attachment menu). */
+val DescriptionIcon: ImageVector by lazy {
+    materialIcon(
+        "Description",
+        "M14,2H6c-1.1,0 -1.99,0.9 -1.99,2L4,20c0,1.1 0.89,2 1.99,2H18c1.1,0 2,-0.9 2,-2V8l-6,-6z" +
+            "M16,18H8v-2h8v2zM16,14H8v-2h8v2zM13,9V3.5L18.5,9H13z",
+    )
+}
+
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
         name = name,

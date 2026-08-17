@@ -10,10 +10,15 @@ import com.hatsyrei.maidnative.data.db.MessageRepository
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
+import com.hatsyrei.maidnative.data.store.AttachmentStore
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.data.store.NameplateStore
+import com.hatsyrei.maidnative.data.store.attachments
+import com.hatsyrei.maidnative.data.store.withAttachments
+import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
+import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
@@ -33,6 +38,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -46,6 +52,8 @@ data class ChatUiState(
     val mappings: Mappings = LinkedHashMap(),
     val root: String? = null,
     val models: List<String> = emptyList(),
+    val modalities: Map<String, Modalities> = emptyMap(),
+    val pendingAttachments: List<Attachment> = emptyList(),
     val settings: SettingsRepository.Settings = SettingsRepository.Settings(),
     val busy: Boolean = false,
     val scanning: Boolean = false,
@@ -85,6 +93,14 @@ data class ChatUiState(
 
     val ready: Boolean
         get() = settings.model.isNotEmpty() && models.contains(settings.model)
+
+    /**
+     * Capabilities of the model that would receive the next message. Absent
+     * from the map means the endpoint never described it, which stays UNKNOWN
+     * rather than becoming a denial.
+     */
+    val activeModalities: Modalities
+        get() = modalities[settings.model] ?: Modalities.UNKNOWN
 }
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -94,6 +110,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = MessageRepository(MaidDatabase.get(app).messageDao())
     private val fileStore = ConversationFileStore(app.contentResolver)
     private val nameplateStore = NameplateStore(app)
+    private val attachmentStore = AttachmentStore(app)
     private val legacyFile = File(app.filesDir, "messages.json")
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -167,6 +184,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val remembered = settingsRepo.activeChat.first()
             val root = roots.firstOrNull { it.id == remembered }?.id ?: roots.firstOrNull()?.id
             _state.update { it.copy(mappings = loaded, root = root) }
+            withContext(Dispatchers.IO) {
+                // Pending files are read back from state, not `loaded`: a pick
+                // that beat the load home would otherwise be swept out of it.
+                val referenced = loaded.values
+                    .flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
+                _state.value.pendingAttachments.mapTo(referenced) { it.path }
+                attachmentStore.sweep(referenced)
+            }
             // Recorded here rather than at each call site that moves the active
             // root (new/select/delete/first submit).
             _state.map { it.root }
@@ -216,12 +241,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val result = withContext(Dispatchers.IO) {
                     runCatching { client.listModels(OpenAiClient.Config(s.baseURL, s.apiKey, s.model)) }
                 }
-                result.onSuccess { models ->
+                result.onSuccess { fetched ->
+                    val ids = fetched.map { it.id }
                     val current = _state.value.settings.model
-                    _state.update { it.copy(models = models, error = null) }
+                    _state.update { state ->
+                        state.copy(
+                            models = ids,
+                            modalities = fetched.associate { it.id to it.modalities },
+                            error = null,
+                        )
+                    }
                     // Auto-select first model if none valid (mirrors open-ai.tsx).
-                    if (models.isNotEmpty() && (current.isEmpty() || !models.contains(current))) {
-                        setModel(models.first())
+                    if (ids.isNotEmpty() && (current.isEmpty() || !ids.contains(current))) {
+                        setModel(ids.first())
                     }
                 }.onFailure { failure ->
                     // Silent (startup) failures leave the reading surface clean;
@@ -229,6 +261,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update {
                         it.copy(
                             models = emptyList(),
+                            modalities = emptyMap(),
                             error = if (silent) it.error else failure.message,
                         )
                     }
@@ -377,7 +410,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
                 if (nodes.isEmpty()) error("Conversation is empty.")
-                fileStore.write(uri, MessageStore.encodeExport(nodes))
+                fileStore.write(uri, MessageStore.encodeExport(nodes.map(attachmentStore::embed)))
             }.onFailure { failure ->
                 _state.update { it.copy(error = "Export failed: ${failure.message}") }
             }
@@ -394,7 +427,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val snapshot = _state.value.mappings
                 val files = MessageTree.getRoots(snapshot).map { root ->
                     val nodes = snapshot.values.filter { it.root == root.id }
-                    exportFileName(root.id) to MessageStore.encodeExport(nodes)
+                    exportFileName(root.id) to MessageStore.encodeExport(nodes.map(attachmentStore::embed))
                 }
                 fileStore.backup(treeUri, files)
             }.onFailure { failure ->
@@ -412,21 +445,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun importConversations(uris: List<Uri>) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
+            val before = _state.value.mappings
             val merged = withContext(Dispatchers.IO) {
-                val next = LinkedHashMap(_state.value.mappings)
+                val next = LinkedHashMap(before)
                 for (uri in uris) {
                     runCatching {
                         val text = fileStore.read(uri)
                         val parsed = LinkedHashMap<String, MessageNode>()
-                        for (node in MessageStore.decodeExport(text)) parsed[node.id] = node
+                        for (node in MessageStore.decodeExport(text)) {
+                            parsed[node.id] = attachmentStore.materialize(node)
+                        }
                         next.putAll(validateMappings(parsed))
                     }
                 }
                 next
             }
-            if (merged.size != _state.value.mappings.size || merged != _state.value.mappings) {
+            if (merged.size != before.size || merged != before) {
                 _state.update { it.copy(mappings = merged) }
                 persist()
+                // Re-importing an export replaces its nodes, stranding the
+                // files the previous import had unpacked for them.
+                pruneOrphans(before, merged)
             }
         }
     }
@@ -434,7 +473,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Mirrors prompt-button.tsx: build system/user/assistant nodes, then stream. */
     fun submit(text: String) {
         val prompt = text.trim()
-        if (prompt.isEmpty() || _state.value.busy) return
+        val pending = _state.value.pendingAttachments
+        if ((prompt.isEmpty() && pending.isEmpty()) || _state.value.busy) return
 
         val s = _state.value.settings
         var next = _state.value.mappings
@@ -455,13 +495,50 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val rootId = existingRoot ?: parent
 
         val userId = UUID.randomUUID().toString()
-        next = MessageTree.addNode(next, userId, "user", prompt, rootId, parent)
+        next = MessageTree.addNode(
+            next, userId, "user", prompt, rootId, parent, null,
+            withAttachments(emptyMap(), pending),
+        )
 
         val responseId = UUID.randomUUID().toString()
         next = MessageTree.addNode(next, responseId, "assistant", "", rootId, userId)
 
-        _state.update { it.copy(mappings = next, root = rootId) }
+        // The attachments now belong to the message, so the composer lets go of
+        // them without deleting the files.
+        _state.update { it.copy(mappings = next, root = rootId, pendingAttachments = emptyList()) }
         startStream(rootId, responseId)
+    }
+
+    /** Copy a picked file into app storage and stage it on the next message. */
+    fun attach(uri: Uri, kind: Attachment.Kind) {
+        viewModelScope.launch {
+            when (val result = withContext(Dispatchers.IO) { attachmentStore.import(uri, kind) }) {
+                is AttachmentStore.ImportResult.Failure ->
+                    _state.update { it.copy(error = result.reason) }
+                is AttachmentStore.ImportResult.Success ->
+                    _state.update {
+                        it.copy(pendingAttachments = it.pendingAttachments + result.attachment, error = null)
+                    }
+            }
+        }
+    }
+
+    fun removeAttachment(attachment: Attachment) {
+        _state.update { it.copy(pendingAttachments = it.pendingAttachments - attachment) }
+        viewModelScope.launch(Dispatchers.IO) { attachmentStore.delete(listOf(attachment)) }
+    }
+
+    /** Copy a stored attachment out to a user-picked [uri]. */
+    fun saveAttachment(attachment: Attachment, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val source = File(attachment.path)
+                if (!source.isFile) error("File is no longer available.")
+                fileStore.write(uri, source)
+            }.onFailure { failure ->
+                _state.update { it.copy(error = "Save failed: ${failure.message}") }
+            }
+        }
     }
 
     /** Regenerate an assistant reply as a new sibling branch (mirrors message-menu.tsx). */
@@ -476,12 +553,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Revise a user message: branch a new version and regenerate the reply. */
-    fun revise(messageId: String, content: String) {
+    fun revise(messageId: String, content: String, attachments: List<Attachment>) {
         val text = content.trim()
-        if (_state.value.busy || text.isEmpty()) return
+        if (_state.value.busy || (text.isEmpty() && attachments.isEmpty())) return
         val node = _state.value.mappings[messageId] ?: return
         val userId = UUID.randomUUID().toString()
-        var next = MessageTree.branchNode(_state.value.mappings, messageId, userId, text)
+        // The branch carries whatever survived the dialog; files it still shares
+        // with the original are left alone, since the original still names them.
+        var next = MessageTree.branchNode(
+            _state.value.mappings, messageId, userId, text,
+            withAttachments(emptyMap(), attachments),
+        )
         if (next === _state.value.mappings) return
         val responseId = UUID.randomUUID().toString()
         next = MessageTree.addNode(next, responseId, "assistant", "", node.root, userId)
@@ -489,9 +571,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         startStream(node.root, responseId)
     }
 
-    /** Edit a message's content in place without regenerating. */
-    fun editMessage(messageId: String, content: String) =
-        mutateTree { MessageTree.setContent(it, messageId, content.trim()) }
+    /** Edit a message's content and attachments in place without regenerating. */
+    fun editMessage(messageId: String, content: String, attachments: List<Attachment>) {
+        val before = _state.value.mappings
+        mutateTree {
+            MessageTree.updateContent(it, messageId, { content.trim() }) { metadata ->
+                withAttachments(metadata, attachments)
+            }
+        }
+        pruneOrphans(before, _state.value.mappings)
+    }
 
     /** Delete a message and everything below it. */
     fun deleteMessage(messageId: String) = deleteSubtree(messageId)
@@ -508,6 +597,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val current = _state.value.mappings
         val next = MessageTree.deleteNode(current, id)
         if (next === current) return
+        pruneOrphans(current, next)
         val active = _state.value.root
         val root = if (active != null && active !in next) {
             MessageTree.getRoots(next).firstOrNull()?.id
@@ -516,6 +606,22 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(mappings = next, root = root) }
         persist()
+    }
+
+    /**
+     * Delete attachment files that [before] named and [after] no longer does.
+     * Nothing else owns them, so they would otherwise sit in filesDir forever.
+     * Branches share their original's files, hence the comparison by path
+     * against everything that survives rather than per node.
+     */
+    private fun pruneOrphans(before: Mappings, after: Mappings) {
+        val kept = after.values.flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
+        val removable = before.values
+            .flatMap { it.attachments() }
+            .filterNot { it.path in kept }
+            .distinctBy { it.path }
+        if (removable.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) { attachmentStore.delete(removable) }
     }
 
     /** Switch to the previous sibling branch under [parentId]. */
@@ -567,6 +673,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 // reply, and the buffer operator fuses with the callbackFlow's
                 // own channel, so this just widens that one channel.
                 .buffer(Channel.UNLIMITED)
+                // Building the request reads every attachment off disk and
+                // base64-encodes it, which must not happen on the main thread.
+                // Fuses with the buffer above, so it stays one channel.
+                .flowOn(Dispatchers.IO)
                 .catch { e -> _state.update { it.copy(error = e.message) } }
                 .collect { chunk ->
                     when (chunk) {

@@ -31,10 +31,17 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.hatsyrei.maidnative.domain.Attachment
 
 /** The (mutually exclusive) modal dialogs [ChatScreen] can show. */
 internal sealed interface ChatDialog {
-    data class Edit(val id: String, val initial: String, val revise: Boolean) : ChatDialog
+    data class Edit(
+        val id: String,
+        val initial: String,
+        val revise: Boolean,
+        val attachments: List<Attachment>,
+    ) : ChatDialog
+
     data class Rename(val id: String, val initial: String) : ChatDialog
     data class SystemPrompt(val initial: String) : ChatDialog
     data class DeleteMessage(val id: String) : ChatDialog
@@ -57,10 +64,12 @@ internal sealed interface ChatDialog {
 internal fun EditDialog(
     initial: String,
     revise: Boolean,
+    initialAttachments: List<Attachment>,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, List<Attachment>) -> Unit,
 ) {
     val text = rememberTextFieldState(initial)
+    var attachments by remember { mutableStateOf(initialAttachments) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -101,6 +110,13 @@ internal fun EditDialog(
                             .weight(1f, fill = false)
                             .padding(top = 16.dp),
                     )
+                    if (attachments.isNotEmpty()) {
+                        AttachmentChips(
+                            attachments = attachments,
+                            onRemove = { attachments = attachments - it },
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -109,8 +125,8 @@ internal fun EditDialog(
                     ) {
                         TextButton(onClick = onDismiss) { Text("Cancel") }
                         TextButton(
-                            onClick = { onConfirm(text.text.toString()) },
-                            enabled = text.text.isNotBlank(),
+                            onClick = { onConfirm(text.text.toString(), attachments) },
+                            enabled = text.text.isNotBlank() || attachments.isNotEmpty(),
                         ) {
                             Text(if (revise) "Send" else "Save")
                         }

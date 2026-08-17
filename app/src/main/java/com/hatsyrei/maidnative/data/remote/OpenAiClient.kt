@@ -1,6 +1,11 @@
 package com.hatsyrei.maidnative.data.remote
 
+import android.util.Base64
+import com.hatsyrei.maidnative.data.store.attachments
+import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Reasoning
+import com.hatsyrei.maidnative.domain.Support
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +19,7 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -55,35 +61,97 @@ class OpenAiClient {
         val reasoning: Boolean = true,
     )
 
-    /** GET {base}/models -> list of model ids. Throws on failure. */
-    fun listModels(config: Config): List<String> {
+    data class ModelInfo(val id: String, val modalities: Modalities)
+
+    /** GET {base}/models -> the models the endpoint offers. Throws on failure. */
+    fun listModels(config: Config): List<ModelInfo> {
         val base = normalize(config.baseURL)
         val request = Request.Builder()
             .url("$base/models")
             .applyAuth(config.apiKey)
             .get()
             .build()
-        client.newCall(request).execute().use { response ->
+        val entries = client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("models request failed: HTTP ${response.code}")
             }
             val body = response.body?.string().orEmpty()
             val data = JSONObject(body).optJSONArray("data") ?: JSONArray()
-            val entries = (0 until data.length()).mapNotNull { data.optJSONObject(it) }
-            // This call doubles as capability detection. `owned_by` names the
-            // server implementation, and only some accept the thinking
-            // extension; deciding here rather than from a rejected completion
-            // means the first turn is already correct. The ordering holds
-            // because ChatUiState.ready requires this call to have succeeded for
-            // the active endpoint before anything can be sent.
-            if (entries.any { it.optString("owned_by") in THINKING_CONTROL_VENDORS }) {
-                thinkingControl.add(base)
-            } else {
-                thinkingControl.remove(base)
-            }
-            return entries.mapNotNull { it.optString("id").ifEmpty { null } }
+            (0 until data.length()).mapNotNull { data.optJSONObject(it) }
         }
+
+        // This call doubles as capability detection. `owned_by` names the
+        // server implementation, and only some accept the thinking
+        // extension; deciding here rather than from a rejected completion
+        // means the first turn is already correct. The ordering holds
+        // because ChatUiState.ready requires this call to have succeeded for
+        // the active endpoint before anything can be sent.
+        if (entries.any { it.optString("owned_by") in THINKING_CONTROL_VENDORS }) {
+            thinkingControl.add(base)
+        } else {
+            thinkingControl.remove(base)
+        }
+
+        val models = entries.mapNotNull { entry ->
+            val id = entry.optString("id").ifEmpty { return@mapNotNull null }
+            ModelInfo(id, entry.architectureModalities())
+        }
+        // A llama.cpp router describes every model it knows here, loaded or
+        // not. Anything else leaves `architecture` out entirely, so fall back
+        // to the server-wide /props — the only place a single-model llama.cpp
+        // states its modalities.
+        if (models.isNotEmpty() && models.all { it.modalities == Modalities.UNKNOWN }) {
+            val props = fetchProps(base, config.apiKey)
+            if (props != null) return models.map { it.copy(modalities = props) }
+        }
+        return models
     }
+
+    /**
+     * `architecture.input_modalities` is the router's per-model answer, and it
+     * is authoritative in both directions: a model listed without "image" is
+     * text-only, not merely unreported.
+     */
+    private fun JSONObject.architectureModalities(): Modalities {
+        val list = optJSONObject("architecture")?.optJSONArray("input_modalities")
+            ?: return Modalities.UNKNOWN
+        val names = (0 until list.length()).map { list.optString(it) }
+        return Modalities(
+            vision = names.supportFor("image"),
+            audio = names.supportFor("audio"),
+        )
+    }
+
+    /**
+     * `/props` hangs off the server root, not `/v1`, and a router answers it
+     * with no `modalities` key at all (it has no one model to describe).
+     * Failure is silent by design: this is optional enrichment, a strict
+     * OpenAI endpoint simply 404s, and modalities then stay UNKNOWN.
+     */
+    private fun fetchProps(base: String, apiKey: String): Modalities? {
+        val request = Request.Builder()
+            .url("${base.removeSuffix("/v1")}/props")
+            .applyAuth(apiKey)
+            .get()
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val modalities = JSONObject(response.body?.string().orEmpty())
+                    .optJSONObject("modalities") ?: return@use null
+                Modalities(
+                    vision = modalities.supportFor("vision"),
+                    audio = modalities.supportFor("audio"),
+                )
+            }
+        }.getOrNull()
+    }
+
+    private fun List<String>.supportFor(name: String): Support =
+        if (contains(name)) Support.YES else Support.NO
+
+    private fun JSONObject.supportFor(key: String): Support =
+        if (optBoolean(key)) Support.YES else Support.NO
 
     /**
      * Streams an assistant reply as classified [Reasoning.Chunk]s. Reasoning is
@@ -161,8 +229,11 @@ class OpenAiClient {
         // tree and the database, but replaying it as assistant *content* burns
         // context and invites the model to continue its own old thought.
         val history = messages.map { m ->
-            if (m.role == "assistant") m.role to Reasoning.split(m.content).first.orEmpty()
-            else m.role to m.content
+            Turn(
+                role = m.role,
+                text = if (m.role == "assistant") Reasoning.split(m.content).first.orEmpty() else m.content,
+                attachments = if (m.role == "user") m.attachments() else emptyList(),
+            )
         }.toMutableList()
 
         // Drop trailing empty assistant placeholder(s): sending
@@ -170,18 +241,18 @@ class OpenAiClient {
         // it as an assistant prefix to continue. A turn that was stopped while
         // still thinking is empty only after the strip above, so this runs after.
         while (history.isNotEmpty() &&
-            history.last().first == "assistant" &&
-            history.last().second.isBlank()
+            history.last().role == "assistant" &&
+            history.last().text.isBlank()
         ) {
             history.removeAt(history.size - 1)
         }
 
         val msgArray = JSONArray()
-        for ((role, content) in history) {
+        for (turn in history) {
             msgArray.put(
                 JSONObject()
-                    .put("role", role)
-                    .put("content", content),
+                    .put("role", turn.role)
+                    .put("content", contentFor(turn)),
             )
         }
 
@@ -211,6 +282,65 @@ class OpenAiClient {
         val key = apiKey.ifEmpty { "local-openai-compatible" }
         return header("Authorization", "Bearer $key")
     }
+
+    private class Turn(val role: String, val text: String, val attachments: List<Attachment>)
+
+    /**
+     * Plain string content unless the turn carries attachments, in which case
+     * it becomes an OpenAI content-part array. Attachments lead and the typed
+     * text follows, matching the ordering every vision chat template expects.
+     *
+     * Bytes are read and base64-encoded here, at request time, so the encoded
+     * copy lives only for the length of the call instead of sitting in the
+     * message tree. An attachment whose file has gone missing is skipped rather
+     * than failing the send.
+     */
+    private fun contentFor(turn: Turn): Any {
+        if (turn.attachments.isEmpty()) return turn.text
+        val parts = JSONArray()
+        for (attachment in turn.attachments) {
+            val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
+            when (attachment.kind) {
+                Attachment.Kind.IMAGE -> parts.put(
+                    JSONObject()
+                        .put("type", "image_url")
+                        .put(
+                            "image_url",
+                            JSONObject().put("url", "data:${attachment.mime};base64,${base64(bytes)}"),
+                        ),
+                )
+
+                Attachment.Kind.AUDIO -> parts.put(
+                    JSONObject()
+                        .put("type", "input_audio")
+                        .put(
+                            "input_audio",
+                            JSONObject()
+                                .put("data", base64(bytes))
+                                .put("format", audioFormat(attachment.mime)),
+                        ),
+                )
+
+                // No modality is involved: a text file is just prompt text, so
+                // it is inlined with a header naming it.
+                Attachment.Kind.TEXT -> parts.put(
+                    textPart("File: ${attachment.name}\n\n${bytes.toString(Charsets.UTF_8)}"),
+                )
+            }
+        }
+        if (parts.length() == 0) return turn.text
+        if (turn.text.isNotBlank()) parts.put(textPart(turn.text))
+        return parts
+    }
+
+    private fun textPart(text: String): JSONObject =
+        JSONObject().put("type", "text").put("text", text)
+
+    private fun base64(bytes: ByteArray): String = Base64.encodeToString(bytes, Base64.NO_WRAP)
+
+    /** llama.cpp accepts only these two spellings; anything else is sent as wav. */
+    private fun audioFormat(mime: String): String =
+        if (mime == "audio/mpeg" || mime == "audio/mp3") "mp3" else "wav"
 
     /**
      * `optString` returns the literal "null" for a JSON null value (e.g. the

@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.data.store.attachments
+import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.markdown.rememberChatStreamingMarkdownState
@@ -60,12 +62,15 @@ fun ChatScreen(
     state: ChatUiState,
     onSubmit: (String) -> Unit,
     onStop: () -> Unit,
+    onAttach: (Uri, Attachment.Kind) -> Unit,
+    onRemoveAttachment: (Attachment) -> Unit,
+    onSaveAttachment: (Attachment, Uri) -> Unit,
     onNewChat: () -> Unit,
     onOpenSettings: () -> Unit,
     onRegenerate: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onEdit: (String, String) -> Unit,
-    onRevise: (String, String) -> Unit,
+    onEdit: (String, String, List<Attachment>) -> Unit,
+    onRevise: (String, String, List<Attachment>) -> Unit,
     onPrevBranch: (String) -> Unit,
     onNextBranch: (String) -> Unit,
     onSelectChat: (String) -> Unit,
@@ -83,6 +88,7 @@ fun ChatScreen(
     // exclusive by nature, and the type now says so.
     var dialog by remember { mutableStateOf<ChatDialog?>(null) }
     var exportRoot by remember { mutableStateOf<String?>(null) }
+    var viewing by remember { mutableStateOf<Attachment?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -177,13 +183,16 @@ fun ChatScreen(
                     onOpenSettings = onOpenSettings,
                     onSubmit = onSubmit,
                     onStop = onStop,
+                    onAttach = onAttach,
+                    onRemoveAttachment = onRemoveAttachment,
+                    onOpenAttachment = { viewing = it },
                     onRegenerate = onRegenerate,
                     onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
                     onPrevBranch = onPrevBranch,
                     onNextBranch = onNextBranch,
                     onSelectModel = onSelectModel,
-                    onRequestEdit = { id, initial, revise ->
-                        dialog = ChatDialog.Edit(id, initial, revise)
+                    onRequestEdit = { id, initial, revise, attachments ->
+                        dialog = ChatDialog.Edit(id, initial, revise, attachments)
                     },
                     onRequestSystemPrompt = {
                         dialog = ChatDialog.SystemPrompt(state.systemPrompt)
@@ -194,15 +203,27 @@ fun ChatScreen(
     }
 
     val dismiss = { dialog = null }
+    viewing?.let { attachment ->
+        AttachmentViewer(
+            attachment = attachment,
+            onSave = { uri -> onSaveAttachment(attachment, uri) },
+            onDismiss = { viewing = null },
+        )
+    }
     when (val current = dialog) {
         null -> Unit
 
         is ChatDialog.Edit -> EditDialog(
             initial = current.initial,
             revise = current.revise,
+            initialAttachments = current.attachments,
             onDismiss = dismiss,
-            onConfirm = { text ->
-                if (current.revise) onRevise(current.id, text) else onEdit(current.id, text)
+            onConfirm = { text, attachments ->
+                if (current.revise) {
+                    onRevise(current.id, text, attachments)
+                } else {
+                    onEdit(current.id, text, attachments)
+                }
                 dismiss()
             },
         )
@@ -256,12 +277,15 @@ private fun ChatScaffold(
     onOpenSettings: () -> Unit,
     onSubmit: (String) -> Unit,
     onStop: () -> Unit,
+    onAttach: (Uri, Attachment.Kind) -> Unit,
+    onRemoveAttachment: (Attachment) -> Unit,
+    onOpenAttachment: (Attachment) -> Unit,
     onRegenerate: (String) -> Unit,
     onDelete: (String) -> Unit,
     onPrevBranch: (String) -> Unit,
     onNextBranch: (String) -> Unit,
     onSelectModel: (String) -> Unit,
-    onRequestEdit: (id: String, initial: String, revise: Boolean) -> Unit,
+    onRequestEdit: (id: String, initial: String, revise: Boolean, attachments: List<Attachment>) -> Unit,
     onRequestSystemPrompt: () -> Unit,
 ) {
     // A dismissed keyboard leaves the pill focused (blinking cursor); the next
@@ -390,8 +414,9 @@ private fun ChatScaffold(
                             onRegenerate = { onRegenerate(node.id) },
                             onDelete = { onDelete(node.id) },
                             onRequestEdit = { revise ->
-                                onRequestEdit(node.id, node.content, revise)
+                                onRequestEdit(node.id, node.content, revise, node.attachments())
                             },
+                            onOpenAttachment = onOpenAttachment,
                             onPrevBranch = { node.parent?.let(onPrevBranch) },
                             onNextBranch = { node.parent?.let(onNextBranch) },
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
@@ -425,6 +450,11 @@ private fun ChatScaffold(
                 enabled = state.ready,
                 busy = state.busy,
                 focus = composerFocus,
+                attachments = state.pendingAttachments,
+                modalities = state.activeModalities,
+                onAttach = onAttach,
+                onRemoveAttachment = onRemoveAttachment,
+                onOpenAttachment = onOpenAttachment,
                 onSubmit = onSubmit,
                 onStop = onStop,
             )

@@ -1,9 +1,13 @@
 package com.hatsyrei.maidnative.ui.chat
 
 import android.content.ClipData
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +15,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -24,33 +30,43 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.data.store.attachments
+import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import com.hatsyrei.maidnative.ui.markdown.StreamingMarkdownText
 import com.mikepenz.markdown.model.StreamingMarkdownState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The conversation's system node, shown as the first card in the thread — the
@@ -137,6 +153,7 @@ internal fun MessageItem(
     onRequestEdit: (revise: Boolean) -> Unit,
     onPrevBranch: () -> Unit,
     onNextBranch: () -> Unit,
+    onOpenAttachment: (Attachment) -> Unit,
     streamingState: StreamingMarkdownState? = null,
     streamingReasoning: String? = null,
 ) {
@@ -290,14 +307,21 @@ internal fun MessageItem(
                 }
             },
         )
+        val attachments = remember(node.metadata) { node.attachments() }
+        if (attachments.isNotEmpty()) {
+            AttachmentStrip(
+                attachments = attachments,
+                onOpen = onOpenAttachment,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
         if (!reasoning.isNullOrEmpty()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .padding(top = 10.dp)
                     .clickable { reasoningExpanded = !reasoningExpanded },
-            ) {
-                Icon(
+            ) {                Icon(
                     imageVector = if (reasoningExpanded) {
                         Icons.Filled.KeyboardArrowUp
                     } else {
@@ -350,11 +374,91 @@ internal fun MessageItem(
 }
 
 /**
+ * What the user attached to this turn: images as thumbnails, everything else as
+ * a named chip.
+ */
+@Composable
+private fun AttachmentStrip(
+    attachments: List<Attachment>,
+    onOpen: (Attachment) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (attachment in attachments) {
+            if (attachment.kind == Attachment.Kind.IMAGE) {
+                AttachmentThumbnail(attachment, onOpen = { onOpen(attachment) })
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    onClick = { onOpen(attachment) },
+                ) {
+                    Text(
+                        text = attachment.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .widthIn(max = 180.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Decodes off the main thread and only to thumbnail resolution — the stored
+ * image is capped at 2 MP, which is still ~8 MB decoded and far more than a
+ * 96dp box can show. A missing file (deleted attachment) simply renders nothing.
+ */
+@Composable
+private fun AttachmentThumbnail(attachment: Attachment, onOpen: () -> Unit) {
+    val thumbnail by produceState<ImageBitmap?>(null, attachment.path) {
+        value = withContext(Dispatchers.IO) { decodeThumbnail(attachment.path) }
+    }
+    val image = thumbnail
+    Box(
+        modifier = Modifier
+            .size(96.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onOpen),
+    ) {
+        if (image != null) {
+            Image(
+                bitmap = image,
+                contentDescription = attachment.name,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+private fun decodeThumbnail(path: String): ImageBitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= THUMBNAIL_PX) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+}.getOrNull()
+
+private const val THUMBNAIL_PX = 288
+
+/**
  * Role label + branch controls. A `weight(1f)` row would squeeze a long custom
  * name against the chevrons, so the name is measured against the full width
  * first and the controls drop to a line of their own when the two don't fit.
- */
-@Composable
+ */@Composable
 private fun MessageHeader(
     name: String,
     controls: @Composable RowScope.() -> Unit,

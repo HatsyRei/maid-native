@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.data.store
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
+import java.io.File
 
 /**
  * Thin wrapper over the Storage Access Framework for reading/writing exported
@@ -21,6 +22,13 @@ class ConversationFileStore(private val resolver: ContentResolver) {
     fun read(uri: Uri): String =
         resolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
             ?: error("Could not read file.")
+
+    /** Stream [source] into the document at [uri], for attachments too big to hold. */
+    fun write(uri: Uri, source: File) {
+        resolver.openOutputStream(uri, "wt")?.use { output ->
+            source.inputStream().use { it.copyTo(output) }
+        } ?: error("Could not open file for writing.")
+    }
 
     /**
      * Create one JSON document per ([fileName], json) entry inside the tree
