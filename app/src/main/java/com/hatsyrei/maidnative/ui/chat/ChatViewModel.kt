@@ -276,6 +276,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
+
+    fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
     fun setUserName(value: String) = viewModelScope.launch { settingsRepo.setUserName(value) }
     fun setAssistantName(value: String) = viewModelScope.launch { settingsRepo.setAssistantName(value) }
@@ -410,7 +412,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
                 if (nodes.isEmpty()) error("Conversation is empty.")
-                fileStore.write(uri, MessageStore.encodeExport(nodes.map(attachmentStore::embed)))
+                val media = _state.value.settings.exportMedia
+                fileStore.write(uri, MessageStore.encodeExport(nodes.map { attachmentStore.embed(it, media) }))
             }.onFailure { failure ->
                 _state.update { it.copy(error = "Export failed: ${failure.message}") }
             }
@@ -425,9 +428,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val snapshot = _state.value.mappings
+                val media = _state.value.settings.exportMedia
                 val files = MessageTree.getRoots(snapshot).map { root ->
                     val nodes = snapshot.values.filter { it.root == root.id }
-                    exportFileName(root.id) to MessageStore.encodeExport(nodes.map(attachmentStore::embed))
+                    exportFileName(root.id) to
+                        MessageStore.encodeExport(nodes.map { attachmentStore.embed(it, media) })
                 }
                 fileStore.backup(treeUri, files)
             }.onFailure { failure ->
@@ -536,6 +541,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 if (!source.isFile) error("File is no longer available.")
                 fileStore.write(uri, source)
             }.onFailure { failure ->
+                // The picker already created the document, so a failed write
+                // would otherwise leave an empty file behind.
+                fileStore.discard(uri)
                 _state.update { it.copy(error = "Save failed: ${failure.message}") }
             }
         }

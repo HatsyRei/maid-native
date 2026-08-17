@@ -145,6 +145,11 @@ val DescriptionIcon: ImageVector by lazy {
     )
 }
 
+/** Material `pause` (audio playback; `play_arrow` ships in material-icons-core). */
+val PauseIcon: ImageVector by lazy {
+    materialIcon("Pause", "M6,19h4V5H6v14zM14,5v14h4V5h-4z")
+}
+
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
         name = name,

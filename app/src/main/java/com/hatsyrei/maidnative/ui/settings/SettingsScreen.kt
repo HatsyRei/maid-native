@@ -73,6 +73,7 @@ fun SettingsScreen(
     onImportNameplate: (Uri) -> Unit,
     onUserName: (String) -> Unit,
     onAssistantName: (String) -> Unit,
+    onExportMedia: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
@@ -240,8 +241,10 @@ fun SettingsScreen(
             ChatSection(
                 userName = state.settings.userName,
                 assistantName = state.settings.assistantName,
+                exportMedia = state.settings.exportMedia,
                 onUserName = onUserName,
                 onAssistantName = onAssistantName,
+                onExportMedia = onExportMedia,
             )
         }
     }

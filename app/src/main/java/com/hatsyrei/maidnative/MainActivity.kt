@@ -142,6 +142,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                         onImportNameplate = viewModel::importNameplate,
                         onUserName = viewModel::setUserName,
                         onAssistantName = viewModel::setAssistantName,
+                        onExportMedia = viewModel::setExportMedia,
                         onBack = { screen = Screen.Chat },
                     )
                 }

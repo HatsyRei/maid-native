@@ -79,22 +79,27 @@ class AttachmentStore(private val context: Context) {
      * Rewrites [node]'s attachment records to carry their bytes inline, so an
      * export stays readable after an app wipe or on another device. The local
      * path is dropped on the way out: it means nothing anywhere else.
+     *
+     * With [includeMedia] off, images and audio keep their record but lose
+     * their bytes — the conversation still shows what was attached, and the
+     * file is simply unavailable on the other side.
      */
-    fun embed(node: MessageNode): MessageNode {
+    fun embed(node: MessageNode, includeMedia: Boolean = true): MessageNode {
         val attachments = node.attachments()
         if (attachments.isEmpty()) return node
         val array = JSONArray()
         for (attachment in attachments) {
-            val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
-            array.put(
-                JSONObject()
-                    .put("id", attachment.id)
-                    .put("kind", attachment.kind.name)
-                    .put("name", attachment.name)
-                    .put("mime", attachment.mime)
-                    .put("size", attachment.sizeBytes)
-                    .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)),
-            )
+            val entry = JSONObject()
+                .put("id", attachment.id)
+                .put("kind", attachment.kind.name)
+                .put("name", attachment.name)
+                .put("mime", attachment.mime)
+                .put("size", attachment.sizeBytes)
+            if (includeMedia || attachment.kind == Attachment.Kind.TEXT) {
+                val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
+                entry.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            }
+            array.put(entry)
         }
         return node.copy(metadata = node.metadata.replacingAttachments(array))
     }

@@ -34,6 +34,11 @@ class SettingsRepository(private val context: Context) {
          * the choice; endpoints that reject the argument fall back silently.
          */
         val reasoning: Boolean = true,
+        /**
+         * Whether exports inline image and audio bytes. Off keeps the JSON
+         * small, at the cost of those attachments not surviving the round trip.
+         */
+        val exportMedia: Boolean = true,
         /** ARGB accent, or 0 for the built-in blue. */
         val accentColor: Int = 0,
         /** Role labels shown on message cards. */
@@ -67,6 +72,7 @@ class SettingsRepository(private val context: Context) {
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
+            exportMedia = prefs[KEY_EXPORT_MEDIA] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
             // A cleared field falls back to the default rather than a blank label.
             userName = prefs[KEY_USER_NAME]?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_NAME,
@@ -101,6 +107,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setReasoning(enabled: Boolean) {
         context.dataStore.edit { it[KEY_REASONING] = enabled }
+    }
+
+    suspend fun setExportMedia(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_EXPORT_MEDIA] = enabled }
     }
 
     suspend fun setAccentColor(argb: Int) {
@@ -225,6 +235,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_MODEL = stringPreferencesKey("open-ai-model")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
         private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")
+        private val KEY_EXPORT_MEDIA = booleanPreferencesKey("export-media")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")
         private val KEY_ASSISTANT_NAME = stringPreferencesKey("assistant-name")

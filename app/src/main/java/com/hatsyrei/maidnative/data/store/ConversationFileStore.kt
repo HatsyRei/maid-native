@@ -30,6 +30,11 @@ class ConversationFileStore(private val resolver: ContentResolver) {
         } ?: error("Could not open file for writing.")
     }
 
+    /** Remove a document the picker created for a write that then failed. */
+    fun discard(uri: Uri) {
+        runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+    }
+
     /**
      * Create one JSON document per ([fileName], json) entry inside the tree
      * picked as [treeUri]. Entries whose document can't be created are skipped.
