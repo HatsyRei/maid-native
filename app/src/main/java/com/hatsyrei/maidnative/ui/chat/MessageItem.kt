@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,6 +70,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
+ * The card every row in the thread sits in. [gestures] rather than the usual
+ * `modifier` because it must land between the backgrounds and the padding: the
+ * touch area has to cover the padding, and the press dim has to sit above the
+ * container colour.
+ */
+@Composable
+private fun MessageCard(
+    pressed: Boolean,
+    gestures: Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, shape)
+            // Darken (dim) the card while pressed as the long-press cue.
+            .background(if (pressed) Color.Black.copy(alpha = 0.18f) else Color.Transparent, shape)
+            .then(gestures)
+            .padding(14.dp),
+        content = content,
+    )
+}
+
+/**
  * The conversation's system node, shown as the first card in the thread — the
  * root of every tree *is* the system message, so this stops the UI from hiding
  * the one setting that shapes every reply. Collapsed to a single line by default
@@ -82,28 +108,18 @@ internal fun SystemPromptCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerLow,
-                RoundedCornerShape(16.dp),
+    MessageCard(
+        pressed = pressed,
+        gestures = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    tryAwaitRelease()
+                    pressed = false
+                },
+                onTap = { expanded = !expanded },
             )
-            .background(
-                if (pressed) Color.Black.copy(alpha = 0.18f) else Color.Transparent,
-                RoundedCornerShape(16.dp),
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        tryAwaitRelease()
-                        pressed = false
-                    },
-                    onTap = { expanded = !expanded },
-                )
-            }
-            .padding(14.dp),
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -185,30 +201,18 @@ internal fun MessageItem(
     var pressed by remember { mutableStateOf(false) }
     var reasoningExpanded by remember(node.id) { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerLow,
-                RoundedCornerShape(16.dp),
+    MessageCard(
+        pressed = pressed,
+        gestures = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    tryAwaitRelease()
+                    pressed = false
+                },
+                onLongPress = { pressOffset = it; menus.open(menuId) },
             )
-            .background(
-                // Darken (dim) the card while pressed as the long-press cue.
-                if (pressed) Color.Black.copy(alpha = 0.18f)
-                else Color.Transparent,
-                RoundedCornerShape(16.dp),
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        tryAwaitRelease()
-                        pressed = false
-                    },
-                    onLongPress = { pressOffset = it; menus.open(menuId) },
-                )
-            }
-            .padding(14.dp),
+        },
     ) {
         Box {
             TapContextMenu(
