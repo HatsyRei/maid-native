@@ -344,18 +344,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Seed a conversation: its root node *is* the system message. [prompt]
+     * defaults to the configured persona, which is what every path that creates
+     * a chat implicitly wants.
+     */
+    private fun addSystemRoot(
+        mappings: Mappings,
+        id: String,
+        prompt: String = _state.value.settings.systemPrompt
+            .ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
+    ): Mappings = MessageTree.addNode(
+        mappings, id, "system", prompt,
+        null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
+    )
+
     fun newChat() {
         // Mirror drawer-content.tsx `createChat`: create the system root node up
         // front so the conversation shows in the drawer immediately, then make it
         // the active chat. The first `submit` then attaches to this existing root.
-        val s = _state.value.settings
         val rootId = UUID.randomUUID().toString()
-        val next = MessageTree.addNode(
-            _state.value.mappings, rootId, "system",
-            s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
-            null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
-        )
-        _state.update { it.copy(mappings = next, root = rootId) }
+        _state.update { it.copy(mappings = addSystemRoot(it.mappings, rootId), root = rootId) }
         persist()
     }
 
@@ -378,11 +387,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val id = UUID.randomUUID().toString()
-        val next = MessageTree.addNode(
-            _state.value.mappings, id, "system", prompt,
-            null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
-        )
-        _state.update { it.copy(mappings = next, root = id) }
+        _state.update { it.copy(mappings = addSystemRoot(it.mappings, id, prompt), root = id) }
         persist()
     }
 
@@ -481,7 +486,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val pending = _state.value.pendingAttachments
         if ((prompt.isEmpty() && pending.isEmpty()) || _state.value.busy) return
 
-        val s = _state.value.settings
         var next = _state.value.mappings
         val existingRoot = _state.value.root
 
@@ -491,11 +495,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             parent = thread.last().id
         } else {
             parent = UUID.randomUUID().toString()
-            next = MessageTree.addNode(
-                next, parent, "system",
-                s.systemPrompt.ifEmpty { SettingsRepository.DEFAULT_SYSTEM_PROMPT },
-                null, null, null, mapOf("title" to ConversationDefaults.CHAT_TITLE),
-            )
+            next = addSystemRoot(next, parent)
         }
         val rootId = existingRoot ?: parent
 
