@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,15 +26,10 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -188,15 +182,7 @@ private fun DrawerChatItem(
     onDelete: () -> Unit,
     onExport: () -> Unit,
 ) {
-    val menus = LocalMenuController.current
-    val menuId = remember(id) { "chat:$id" }
-    // `derivedStateOf` so this pill recomposes when *its* menu toggles, not every
-    // time any other item's does.
-    val menuOpen by remember(menuId) { derivedStateOf { menus.openId == menuId } }
-    val closeMenu = { menus.close(menuId) }
-    DisposableEffect(menuId) { onDispose { menus.close(menuId) } }
-    var pressOffset by remember { mutableStateOf(Offset.Zero) }
-    var pressed by remember { mutableStateOf(false) }
+    val menu = rememberTapMenu(remember(id) { "chat:$id" })
     // Fade the pill between focused and unfocused states (RN parity).
     val pillColor by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
@@ -217,17 +203,7 @@ private fun DrawerChatItem(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                pressed = true
-                                tryAwaitRelease()
-                                pressed = false
-                            },
-                            onTap = { onClick() },
-                            onLongPress = { pressOffset = it; menus.open(menuId) },
-                        )
-                    }
+                    .tapMenuGestures(menu, onTap = onClick)
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
                 Text(
@@ -235,24 +211,24 @@ private fun DrawerChatItem(
                     maxLines = 1,
                     style = MaterialTheme.typography.labelLarge,
                     // Dim just the label while pressed as the long-press cue.
-                    color = if (pressed) pillTextColor.copy(alpha = 0.5f) else pillTextColor,
+                    color = if (menu.pressed) pillTextColor.copy(alpha = 0.5f) else pillTextColor,
                 )
             }
         }
         TapContextMenu(
-            expanded = menuOpen,
-            touchOffset = pressOffset,
-            onDismiss = closeMenu,
+            expanded = menu.expanded,
+            touchOffset = menu.touchOffset,
+            onDismiss = menu::close,
         ) {
             MenuOption(
                 text = "Rename",
                 trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                onClick = { closeMenu(); onRename() },
+                onClick = { menu.close(); onRename() },
             )
             MenuOption(
                 text = "Export",
                 trailingIcon = { Icon(FileDownloadIcon, contentDescription = null) },
-                onClick = { closeMenu(); onExport() },
+                onClick = { menu.close(); onExport() },
             )
             MenuOption(
                 text = "Delete",
@@ -264,7 +240,7 @@ private fun DrawerChatItem(
                         tint = MaterialTheme.colorScheme.error,
                     )
                 },
-                onClick = { closeMenu(); onDelete() },
+                onClick = { menu.close(); onDelete() },
             )
         }
     }

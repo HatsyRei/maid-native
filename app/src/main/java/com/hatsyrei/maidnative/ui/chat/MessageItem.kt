@@ -34,8 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -45,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -189,35 +186,18 @@ internal fun MessageItem(
     }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val menus = LocalMenuController.current
-    val menuId = remember(node.id) { "message:${node.id}" }
-    // `derivedStateOf` so this bubble recomposes when *its* menu toggles, not
-    // every time any other item's does.
-    val menuOpen by remember(menuId) { derivedStateOf { menus.openId == menuId } }
-    val closeMenu = { menus.close(menuId) }
-    // The list disposes off-screen items; drop the slot so it can't reopen on scroll back.
-    DisposableEffect(menuId) { onDispose { menus.close(menuId) } }
-    var pressOffset by remember { mutableStateOf(Offset.Zero) }
-    var pressed by remember { mutableStateOf(false) }
+    val menu = rememberTapMenu(remember(node.id) { "message:${node.id}" })
+    val closeMenu = menu::close
     var reasoningExpanded by remember(node.id) { mutableStateOf(false) }
 
     MessageCard(
-        pressed = pressed,
-        gestures = Modifier.pointerInput(Unit) {
-            detectTapGestures(
-                onPress = {
-                    pressed = true
-                    tryAwaitRelease()
-                    pressed = false
-                },
-                onLongPress = { pressOffset = it; menus.open(menuId) },
-            )
-        },
+        pressed = menu.pressed,
+        gestures = Modifier.tapMenuGestures(menu),
     ) {
         Box {
             TapContextMenu(
-                expanded = menuOpen,
-                touchOffset = pressOffset,
+                expanded = menu.expanded,
+                touchOffset = menu.touchOffset,
                 onDismiss = closeMenu,
             ) {
                 if (node.role == "assistant") {

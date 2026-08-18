@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative.ui.chat
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Column
@@ -17,10 +18,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -28,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -139,6 +144,71 @@ internal class MenuController {
 }
 
 internal val LocalMenuController = staticCompositionLocalOf { MenuController() }
+
+/**
+ * One item's claim on the shared menu slot, plus the press bookkeeping its
+ * long-press gesture needs.
+ */
+@Stable
+internal class TapMenuState(private val menus: MenuController, private val id: String) {
+    /**
+     * `derivedStateOf` so the owning item recomposes when *its* menu toggles,
+     * not every time any other item's does.
+     */
+    val expanded: Boolean by derivedStateOf { menus.openId == id }
+
+    /** Where the long-press landed, so the popup can center on the finger. */
+    var touchOffset by mutableStateOf(Offset.Zero)
+        private set
+
+    /** Latched for the duration of the touch; each item draws its own cue from it. */
+    var pressed by mutableStateOf(false)
+        private set
+
+    fun close() = menus.close(id)
+
+    internal fun setPressed(value: Boolean) {
+        pressed = value
+    }
+
+    internal fun openAt(offset: Offset) {
+        touchOffset = offset
+        menus.open(id)
+    }
+}
+
+@Composable
+internal fun rememberTapMenu(id: String): TapMenuState {
+    val menus = LocalMenuController.current
+    val state = remember(menus, id) { TapMenuState(menus, id) }
+    // Lists dispose off-screen items; drop the slot so it can't reopen on scroll back.
+    DisposableEffect(state) { onDispose { state.close() } }
+    return state
+}
+
+/**
+ * Press-and-hold to claim [state]'s menu slot. Keyed on [state] alone so a new
+ * [onTap] closure per recomposition doesn't restart the gesture detector
+ * mid-touch.
+ */
+@Composable
+internal fun Modifier.tapMenuGestures(
+    state: TapMenuState,
+    onTap: () -> Unit = {},
+): Modifier {
+    val tap by rememberUpdatedState(onTap)
+    return pointerInput(state) {
+        detectTapGestures(
+            onPress = {
+                state.setPressed(true)
+                tryAwaitRelease()
+                state.setPressed(false)
+            },
+            onTap = { tap() },
+            onLongPress = { state.openAt(it) },
+        )
+    }
+}
 
 /**
  * A context menu that pops up centered horizontally on the user's touch point
