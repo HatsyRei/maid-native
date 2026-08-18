@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tree.MessageTree
+import com.hatsyrei.maidnative.ui.common.TextInputDialog
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.markdown.rememberChatStreamingMarkdownState
 import kotlin.math.abs
@@ -228,8 +229,10 @@ fun ChatScreen(
             },
         )
 
-        is ChatDialog.Rename -> RenameDialog(
+        is ChatDialog.Rename -> TextInputDialog(
+            title = "Rename conversation",
             initial = current.initial,
+            confirmLabel = "Rename",
             onDismiss = dismiss,
             onConfirm = { title ->
                 onRenameChat(current.id, title)
@@ -237,13 +240,17 @@ fun ChatScreen(
             },
         )
 
-        is ChatDialog.SystemPrompt -> SystemPromptDialog(
+        is ChatDialog.SystemPrompt -> TextInputDialog(
+            title = "System prompt",
             initial = current.initial,
+            confirmLabel = "Save",
             onDismiss = dismiss,
             onConfirm = { text ->
                 onSystemPrompt(text)
                 dismiss()
             },
+            description = "Applies to this conversation, including messages already sent.",
+            multiline = true,
         )
 
         is ChatDialog.DeleteMessage -> ConfirmDialog(

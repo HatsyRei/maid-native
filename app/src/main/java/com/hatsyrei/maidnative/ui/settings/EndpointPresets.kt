@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,9 +28,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,11 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
+import com.hatsyrei.maidnative.ui.common.TextInputDialog
 
 private val MenuItemPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
 
@@ -207,36 +203,21 @@ internal fun PresetNameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var text by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
-    val trimmed = text.text.trim()
-    val replaces = takenNames.any { it.equals(trimmed, ignoreCase = true) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Preset name") },
-                singleLine = true,
-                // Always occupied, so showing the warning doesn't resize the dialog.
-                supportingText = {
-                    Text(
-                        text = if (replaces) "Replaces an existing preset" else "",
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(trimmed) }, enabled = trimmed.isNotEmpty()) {
-                Text(confirmLabel)
+    TextInputDialog(
+        title = title,
+        initial = initial,
+        confirmLabel = confirmLabel,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        label = "Preset name",
+        // Returns "" rather than nothing so the slot stays occupied, and the
+        // warning appearing doesn't resize the dialog.
+        supportingText = { name ->
+            if (takenNames.any { it.equals(name, ignoreCase = true) }) {
+                "Replaces an existing preset"
+            } else {
+                ""
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
