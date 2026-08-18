@@ -89,12 +89,7 @@ class AttachmentStore(private val context: Context) {
         if (attachments.isEmpty()) return node
         val array = JSONArray()
         for (attachment in attachments) {
-            val entry = JSONObject()
-                .put("id", attachment.id)
-                .put("kind", attachment.kind.name)
-                .put("name", attachment.name)
-                .put("mime", attachment.mime)
-                .put("size", attachment.sizeBytes)
+            val entry = attachment.toJson()
             if (includeMedia || attachment.kind == Attachment.Kind.TEXT) {
                 val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
                 entry.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
@@ -361,19 +356,23 @@ fun MessageNode.attachments(): List<Attachment> {
     }
 }
 
+/**
+ * The stored record, minus location: [embed] replaces it with the bytes, while
+ * [withAttachments] adds the local path.
+ */
+private fun Attachment.toJson(): JSONObject =
+    JSONObject()
+        .put("id", id)
+        .put("kind", kind.name)
+        .put("name", name)
+        .put("mime", mime)
+        .put("size", sizeBytes)
+
 /** Returns [metadata] carrying [attachments], dropping the key when there are none. */
 fun withAttachments(metadata: Map<String, Any?>, attachments: List<Attachment>): Map<String, Any?> {
     val array = JSONArray()
     for (attachment in attachments) {
-        array.put(
-            JSONObject()
-                .put("id", attachment.id)
-                .put("kind", attachment.kind.name)
-                .put("name", attachment.name)
-                .put("mime", attachment.mime)
-                .put("size", attachment.sizeBytes)
-                .put("path", attachment.path),
-        )
+        array.put(attachment.toJson().put("path", attachment.path))
     }
     return metadata.replacingAttachments(array)
 }
