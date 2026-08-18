@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
@@ -68,7 +69,7 @@ class SettingsRepository(private val context: Context) {
     val settings: Flow<Settings> = context.dataStore.data.map { prefs ->
         Settings(
             baseURL = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL,
-            apiKey = SecretCipher.decode(prefs[KEY_API_KEY] ?: ""),
+            apiKey = decodeApiKey(prefs[KEY_API_KEY] ?: ""),
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
@@ -84,11 +85,16 @@ class SettingsRepository(private val context: Context) {
             scanPrefixLength = (prefs[KEY_SCAN_PREFIX] ?: EndpointScanner.DEFAULT_PREFIX_LENGTH)
                 .takeIf { it in EndpointScanner.PREFIX_CHOICES } ?: EndpointScanner.DEFAULT_PREFIX_LENGTH,
         )
-    }
+    }.distinctUntilChanged()
 
-    val presets: Flow<List<EndpointPreset>> = context.dataStore.data.map { prefs ->
-        decodePresets(prefs[KEY_PRESETS])
-    }
+    val presets: Flow<List<EndpointPreset>> = context.dataStore.data
+        // DataStore re-emits the whole snapshot on every write, including ones
+        // this flow has nothing to do with (the active chat changes on each
+        // conversation switch). Narrowing to the stored value first means the
+        // JSON parse and its per-entry Keystore decrypt run only on a real edit.
+        .map { it[KEY_PRESETS] }
+        .distinctUntilChanged()
+        .map { decodePresets(it) }
 
     /**
      * Root id of the conversation the app was last in, so a relaunch reopens it.
@@ -96,6 +102,17 @@ class SettingsRepository(private val context: Context) {
      * in the UI reads it after startup.
      */
     val activeChat: Flow<String?> = context.dataStore.data.map { it[KEY_ACTIVE_CHAT] }
+
+    // Decrypting through the Android Keystore is an IPC round trip, and the
+    // ciphertext only changes when the user edits the key, so the last result is
+    // held rather than re-derived for every snapshot the settings flow maps.
+    @Volatile
+    private var decodedApiKey: Pair<String, String>? = null
+
+    private fun decodeApiKey(stored: String): String {
+        decodedApiKey?.let { (cipher, plain) -> if (cipher == stored) return plain }
+        return SecretCipher.decode(stored).also { decodedApiKey = stored to it }
+    }
 
     suspend fun setBaseURL(value: String) = edit(KEY_BASE_URL, value)
     suspend fun setApiKey(value: String) = edit(KEY_API_KEY, SecretCipher.encode(value))
