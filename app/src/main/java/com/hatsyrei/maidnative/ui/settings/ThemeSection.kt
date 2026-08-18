@@ -1,6 +1,5 @@
 package com.hatsyrei.maidnative.ui.settings
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,18 +41,16 @@ import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 internal fun ThemeSection(
     accentColor: Int,
     nameplate: String,
-    onAccentColor: (Int) -> Unit,
-    onNameplate: (String) -> Unit,
-    onImportNameplate: (Uri) -> Unit,
+    actions: SettingsActions,
 ) {
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
-    ) { uri -> uri?.let(onImportNameplate) }
+    ) { uri -> uri?.let(actions.importNameplate) }
 
     Text("Theme", style = MaterialTheme.typography.titleMedium)
 
     Label("Accent")
-    AccentPicker(selected = accentColor, onSelect = onAccentColor)
+    AccentPicker(selected = accentColor, onSelect = actions.setAccentColor)
 
     Label("Composer background")
     Row(
@@ -64,19 +61,19 @@ internal fun ThemeSection(
     ) {
         NameplateOption(
             selected = nameplate == SettingsRepository.NAMEPLATE_NONE,
-            onClick = { onNameplate(SettingsRepository.NAMEPLATE_NONE) },
+            onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_NONE) },
             label = "None",
         )
         NameplateOption(
             painter = painterResource(R.drawable.nameplate_blossom),
             selected = nameplate == SettingsRepository.NAMEPLATE_BLOSSOM,
-            onClick = { onNameplate(SettingsRepository.NAMEPLATE_BLOSSOM) },
+            onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_BLOSSOM) },
             label = "Blossom",
         )
         NameplateOption(
             painter = painterResource(R.drawable.nameplate_twilight),
             selected = nameplate == SettingsRepository.NAMEPLATE_TWILIGHT,
-            onClick = { onNameplate(SettingsRepository.NAMEPLATE_TWILIGHT) },
+            onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_TWILIGHT) },
             label = "Twilight",
         )
         val custom = nameplate == SettingsRepository.NAMEPLATE_CUSTOM

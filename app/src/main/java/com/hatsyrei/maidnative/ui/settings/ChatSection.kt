@@ -23,9 +23,7 @@ internal fun ChatSection(
     userName: String,
     assistantName: String,
     exportMedia: Boolean,
-    onUserName: (String) -> Unit,
-    onAssistantName: (String) -> Unit,
-    onExportMedia: (Boolean) -> Unit,
+    actions: SettingsActions,
 ) {
     var user by remember(userName) { mutableStateOf(userName) }
     var assistant by remember(assistantName) { mutableStateOf(assistantName) }
@@ -42,7 +40,7 @@ internal fun ChatSection(
             // when blank, and an unchanged fallback wouldn't re-key the field.
             val name = value.trim().ifBlank { SettingsRepository.DEFAULT_USER_NAME }
             user = name
-            onUserName(name)
+            actions.setUserName(name)
         },
         modifier = Modifier.fillMaxWidth(),
     )
@@ -55,7 +53,7 @@ internal fun ChatSection(
         onCommit = { value ->
             val name = value.trim().ifBlank { SettingsRepository.DEFAULT_ASSISTANT_NAME }
             assistant = name
-            onAssistantName(name)
+            actions.setAssistantName(name)
         },
         modifier = Modifier.fillMaxWidth(),
     )
@@ -73,6 +71,6 @@ internal fun ChatSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(checked = exportMedia, onCheckedChange = onExportMedia)
+        Switch(checked = exportMedia, onCheckedChange = actions.setExportMedia)
     }
 }

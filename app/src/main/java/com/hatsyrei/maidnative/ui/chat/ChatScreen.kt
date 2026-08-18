@@ -61,28 +61,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    onSubmit: (String) -> Unit,
-    onStop: () -> Unit,
-    onAttach: (Uri, Attachment.Kind) -> Unit,
-    onRemoveAttachment: (Attachment) -> Unit,
-    onSaveAttachment: (Attachment, Uri) -> Unit,
-    onNewChat: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onRegenerate: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onEdit: (String, String, List<Attachment>) -> Unit,
-    onRevise: (String, String, List<Attachment>) -> Unit,
-    onPrevBranch: (String) -> Unit,
-    onNextBranch: (String) -> Unit,
-    onSelectChat: (String) -> Unit,
-    onRenameChat: (String, String) -> Unit,
-    onDeleteChat: (String) -> Unit,
-    onSystemPrompt: (String) -> Unit,
-    onSelectModel: (String) -> Unit,
-    exportFileName: (String) -> String,
-    onExportConversation: (String, Uri) -> Unit,
-    onImportConversations: (List<Uri>) -> Unit,
-    onBackupAllChats: (Uri) -> Unit,
+    actions: ChatActions,
 ) {
     val listState = rememberLazyListState()
     // One slot rather than four independent flags: the dialogs are mutually
@@ -97,15 +76,15 @@ fun ChatScreen(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         val root = exportRoot
-        if (uri != null && root != null) onExportConversation(root, uri)
+        if (uri != null && root != null) actions.exportConversation(root, uri)
         exportRoot = null
     }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris -> if (uris.isNotEmpty()) onImportConversations(uris) }
+    ) { uris -> if (uris.isNotEmpty()) actions.importConversations(uris) }
     val backupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
-    ) { uri -> if (uri != null) onBackupAllChats(uri) }
+    ) { uri -> if (uri != null) actions.backupAllChats(uri) }
 
     // Back button closes the drawer instead of leaving the app.
     BackHandler(enabled = drawerState.isOpen) {
@@ -153,13 +132,13 @@ fun ChatScreen(
                         drawerState.currentValue == DrawerValue.Open &&
                             abs(drawerState.currentOffset) < 1f
                     },
-                    onSelect = { id -> onSelectChat(id) },
-                    onNewChat = { onNewChat() },
+                    onSelect = actions.selectChat,
+                    onNewChat = actions.newChat,
                     onRename = { id, title -> dialog = ChatDialog.Rename(id, title) },
                     onDeleteChat = { id -> dialog = ChatDialog.DeleteChat(id) },
                     onExport = { id ->
                         exportRoot = id
-                        exportLauncher.launch(exportFileName(id))
+                        exportLauncher.launch(actions.exportFileName(id))
                     },
                     onImport = { importLauncher.launch(arrayOf("application/json")) },
                     onBackupAll = { backupLauncher.launch(null) },
@@ -180,24 +159,10 @@ fun ChatScreen(
                 ChatScaffold(
                     state = state,
                     listState = listState,
+                    actions = actions,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onOpenSettings = onOpenSettings,
-                    onSubmit = onSubmit,
-                    onStop = onStop,
-                    onAttach = onAttach,
-                    onRemoveAttachment = onRemoveAttachment,
                     onOpenAttachment = { viewing = it },
-                    onRegenerate = onRegenerate,
-                    onDelete = { id -> dialog = ChatDialog.DeleteMessage(id) },
-                    onPrevBranch = onPrevBranch,
-                    onNextBranch = onNextBranch,
-                    onSelectModel = onSelectModel,
-                    onRequestEdit = { id, initial, revise, attachments ->
-                        dialog = ChatDialog.Edit(id, initial, revise, attachments)
-                    },
-                    onRequestSystemPrompt = {
-                        dialog = ChatDialog.SystemPrompt(state.systemPrompt)
-                    },
+                    onDialog = { dialog = it },
                 )
             }
         }
@@ -207,7 +172,7 @@ fun ChatScreen(
     viewing?.let { attachment ->
         AttachmentViewer(
             attachment = attachment,
-            onSave = { uri -> onSaveAttachment(attachment, uri) },
+            onSave = { uri -> actions.saveAttachment(attachment, uri) },
             onDismiss = { viewing = null },
         )
     }
@@ -221,9 +186,9 @@ fun ChatScreen(
             onDismiss = dismiss,
             onConfirm = { text, attachments ->
                 if (current.revise) {
-                    onRevise(current.id, text, attachments)
+                    actions.revise(current.id, text, attachments)
                 } else {
-                    onEdit(current.id, text, attachments)
+                    actions.edit(current.id, text, attachments)
                 }
                 dismiss()
             },
@@ -235,7 +200,7 @@ fun ChatScreen(
             confirmLabel = "Rename",
             onDismiss = dismiss,
             onConfirm = { title ->
-                onRenameChat(current.id, title)
+                actions.renameChat(current.id, title)
                 dismiss()
             },
         )
@@ -246,7 +211,7 @@ fun ChatScreen(
             confirmLabel = "Save",
             onDismiss = dismiss,
             onConfirm = { text ->
-                onSystemPrompt(text)
+                actions.setSystemPrompt(text)
                 dismiss()
             },
             description = "Applies to this conversation, including messages already sent.",
@@ -258,7 +223,7 @@ fun ChatScreen(
             message = "Delete this message and everything below it? This can't be undone.",
             onDismiss = dismiss,
             onConfirm = {
-                onDelete(current.id)
+                actions.deleteMessage(current.id)
                 dismiss()
             },
         )
@@ -268,7 +233,7 @@ fun ChatScreen(
             message = "Delete this conversation permanently? This can't be undone.",
             onDismiss = dismiss,
             onConfirm = {
-                onDeleteChat(current.id)
+                actions.deleteChat(current.id)
                 dismiss()
             },
         )
@@ -280,20 +245,10 @@ fun ChatScreen(
 private fun ChatScaffold(
     state: ChatUiState,
     listState: LazyListState,
+    actions: ChatActions,
     onOpenDrawer: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onSubmit: (String) -> Unit,
-    onStop: () -> Unit,
-    onAttach: (Uri, Attachment.Kind) -> Unit,
-    onRemoveAttachment: (Attachment) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
-    onRegenerate: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onPrevBranch: (String) -> Unit,
-    onNextBranch: (String) -> Unit,
-    onSelectModel: (String) -> Unit,
-    onRequestEdit: (id: String, initial: String, revise: Boolean, attachments: List<Attachment>) -> Unit,
-    onRequestSystemPrompt: () -> Unit,
+    onDialog: (ChatDialog) -> Unit,
 ) {
     // A dismissed keyboard leaves the pill focused (blinking cursor); the next
     // touch on the conversation is what drops it. Kept out of the composer so a
@@ -314,12 +269,12 @@ private fun ChatScaffold(
                         ModelSelector(
                             models = state.models,
                             selected = state.settings.model,
-                            onSelect = onSelectModel,
+                            onSelect = actions.selectModel,
                         )
                     }
                 },
                 actions = {
-                    IconButton(onClick = onOpenSettings) {
+                    IconButton(onClick = actions.openSettings) {
                         Icon(
                             Icons.Filled.Settings,
                             contentDescription = "Settings",
@@ -402,7 +357,7 @@ private fun ChatScaffold(
                         SystemPromptCard(
                             prompt = state.systemPrompt,
                             enabled = !state.busy,
-                            onEdit = onRequestSystemPrompt,
+                            onEdit = { onDialog(ChatDialog.SystemPrompt(state.systemPrompt)) },
                         )
                     }
                     items(conversation, key = { it.id }) { node ->
@@ -418,14 +373,16 @@ private fun ChatScaffold(
                             isLatest = node.id == latestId,
                             userName = state.settings.userName,
                             assistantName = state.settings.assistantName,
-                            onRegenerate = { onRegenerate(node.id) },
-                            onDelete = { onDelete(node.id) },
+                            onRegenerate = { actions.regenerate(node.id) },
+                            onDelete = { onDialog(ChatDialog.DeleteMessage(node.id)) },
                             onRequestEdit = { revise ->
-                                onRequestEdit(node.id, node.content, revise, node.attachments())
+                                onDialog(
+                                    ChatDialog.Edit(node.id, node.content, revise, node.attachments()),
+                                )
                             },
                             onOpenAttachment = onOpenAttachment,
-                            onPrevBranch = { node.parent?.let(onPrevBranch) },
-                            onNextBranch = { node.parent?.let(onNextBranch) },
+                            onPrevBranch = { node.parent?.let(actions.prevBranch) },
+                            onNextBranch = { node.parent?.let(actions.nextBranch) },
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
                             streamingReasoning = state.streamingReasoning.takeIf {
                                 node.id == streamingId
@@ -459,11 +416,11 @@ private fun ChatScaffold(
                 focus = composerFocus,
                 attachments = state.pendingAttachments,
                 modalities = state.activeModalities,
-                onAttach = onAttach,
-                onRemoveAttachment = onRemoveAttachment,
+                onAttach = actions.attach,
+                onRemoveAttachment = actions.removeAttachment,
                 onOpenAttachment = onOpenAttachment,
-                onSubmit = onSubmit,
-                onStop = onStop,
+                onSubmit = actions.submit,
+                onStop = actions.stop,
             )
         }
     }

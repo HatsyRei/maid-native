@@ -21,9 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import com.hatsyrei.maidnative.ui.chat.ChatActions
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
+import com.hatsyrei.maidnative.ui.settings.SettingsActions
 import com.hatsyrei.maidnative.ui.settings.SettingsScreen
 import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 import com.hatsyrei.maidnative.ui.theme.MaidNativeTheme
@@ -67,6 +69,56 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
     val state by viewModel.state.collectAsState()
     var screen by remember { mutableStateOf(Screen.Chat) }
 
+    // Remembered once: the point of the holders is that the screens below see a
+    // stable instance rather than fresh method references every recomposition.
+    val chatActions = remember(viewModel) {
+        ChatActions(
+            submit = viewModel::submit,
+            stop = viewModel::stop,
+            attach = viewModel::attach,
+            removeAttachment = viewModel::removeAttachment,
+            saveAttachment = viewModel::saveAttachment,
+            newChat = viewModel::newChat,
+            openSettings = { screen = Screen.Settings },
+            regenerate = viewModel::regenerate,
+            deleteMessage = viewModel::deleteMessage,
+            edit = viewModel::editMessage,
+            revise = viewModel::revise,
+            prevBranch = viewModel::prevBranch,
+            nextBranch = viewModel::nextBranch,
+            selectChat = viewModel::selectChat,
+            renameChat = viewModel::renameChat,
+            deleteChat = viewModel::deleteChat,
+            setSystemPrompt = viewModel::setSystemPrompt,
+            selectModel = viewModel::setModel,
+            exportFileName = viewModel::exportFileName,
+            exportConversation = viewModel::exportConversation,
+            importConversations = viewModel::importConversations,
+            backupAllChats = viewModel::backupAllChats,
+        )
+    }
+    val settingsActions = remember(viewModel) {
+        SettingsActions(
+            setBaseURL = viewModel::setBaseURL,
+            setApiKey = viewModel::setApiKey,
+            setModel = viewModel::setModel,
+            refreshModels = viewModel::refreshModels,
+            setReasoning = viewModel::setReasoning,
+            scan = viewModel::scanEndpoint,
+            resetScan = viewModel::resetScan,
+            savePreset = viewModel::savePreset,
+            applyPreset = viewModel::applyPreset,
+            renamePreset = viewModel::renamePreset,
+            deletePreset = viewModel::deletePreset,
+            setAccentColor = viewModel::setAccentColor,
+            setNameplate = viewModel::setNameplate,
+            importNameplate = viewModel::importNameplate,
+            setUserName = viewModel::setUserName,
+            setAssistantName = viewModel::setAssistantName,
+            setExportMedia = viewModel::setExportMedia,
+        )
+    }
+
     // `AnimatedContent` disposes the outgoing screen once the transition ends,
     // which would otherwise discard everything the screen held in
     // `rememberSaveable` — most visibly the chat list's scroll position, since
@@ -94,31 +146,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
         // Bundle can store.
         screenState.SaveableStateProvider(target.name) {
             when (target) {
-                Screen.Chat -> ChatScreen(
-                    state = state,
-                    onSubmit = viewModel::submit,
-                    onStop = viewModel::stop,
-                    onAttach = viewModel::attach,
-                    onRemoveAttachment = viewModel::removeAttachment,
-                    onSaveAttachment = viewModel::saveAttachment,
-                    onNewChat = viewModel::newChat,
-                    onOpenSettings = { screen = Screen.Settings },
-                    onRegenerate = viewModel::regenerate,
-                    onDelete = viewModel::deleteMessage,
-                    onEdit = viewModel::editMessage,
-                    onRevise = viewModel::revise,
-                    onPrevBranch = viewModel::prevBranch,
-                    onNextBranch = viewModel::nextBranch,
-                    onSelectChat = viewModel::selectChat,
-                    onRenameChat = viewModel::renameChat,
-                    onDeleteChat = viewModel::deleteChat,
-                    onSystemPrompt = viewModel::setSystemPrompt,
-                    onSelectModel = viewModel::setModel,
-                    exportFileName = viewModel::exportFileName,
-                    onExportConversation = viewModel::exportConversation,
-                    onImportConversations = viewModel::importConversations,
-                    onBackupAllChats = viewModel::backupAllChats,
-                )
+                Screen.Chat -> ChatScreen(state = state, actions = chatActions)
 
                 Screen.Settings -> {
                     BackHandler { screen = Screen.Chat }
@@ -126,23 +154,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
                     SettingsScreen(
                         state = state,
                         presets = presets,
-                        onBaseURL = viewModel::setBaseURL,
-                        onApiKey = viewModel::setApiKey,
-                        onModel = viewModel::setModel,
-                        onRefreshModels = viewModel::refreshModels,
-                        onReasoning = viewModel::setReasoning,
-                        onScan = viewModel::scanEndpoint,
-                        onResetScan = viewModel::resetScan,
-                        onSavePreset = viewModel::savePreset,
-                        onApplyPreset = viewModel::applyPreset,
-                        onRenamePreset = viewModel::renamePreset,
-                        onDeletePreset = viewModel::deletePreset,
-                        onAccentColor = viewModel::setAccentColor,
-                        onNameplate = viewModel::setNameplate,
-                        onImportNameplate = viewModel::importNameplate,
-                        onUserName = viewModel::setUserName,
-                        onAssistantName = viewModel::setAssistantName,
-                        onExportMedia = viewModel::setExportMedia,
+                        actions = settingsActions,
                         onBack = { screen = Screen.Chat },
                     )
                 }

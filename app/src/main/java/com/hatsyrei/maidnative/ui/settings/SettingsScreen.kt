@@ -1,6 +1,5 @@
 package com.hatsyrei.maidnative.ui.settings
 
-import android.net.Uri
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -57,23 +56,7 @@ import com.hatsyrei.maidnative.ui.icons.BookmarksIcon
 fun SettingsScreen(
     state: ChatUiState,
     presets: List<EndpointPreset>,
-    onBaseURL: (String) -> Unit,
-    onApiKey: (String) -> Unit,
-    onModel: (String) -> Unit,
-    onRefreshModels: () -> Unit,
-    onReasoning: (Boolean) -> Unit,
-    onScan: (Int, Int) -> Unit,
-    onResetScan: () -> Unit,
-    onSavePreset: (String, String, String) -> Unit,
-    onApplyPreset: (EndpointPreset) -> Unit,
-    onRenamePreset: (String, String) -> Unit,
-    onDeletePreset: (String) -> Unit,
-    onAccentColor: (Int) -> Unit,
-    onNameplate: (String) -> Unit,
-    onImportNameplate: (Uri) -> Unit,
-    onUserName: (String) -> Unit,
-    onAssistantName: (String) -> Unit,
-    onExportMedia: (Boolean) -> Unit,
+    actions: SettingsActions,
     onBack: () -> Unit,
 ) {
     var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
@@ -86,7 +69,7 @@ fun SettingsScreen(
     val focusManager = LocalFocusManager.current
 
     // Reset the scan button to its idle state each time Settings is opened.
-    LaunchedEffect(Unit) { onResetScan() }
+    LaunchedEffect(Unit) { actions.resetScan() }
 
     Scaffold(
         topBar = {
@@ -147,7 +130,7 @@ fun SettingsScreen(
                     onTextChange = { baseURL = it },
                     committed = state.settings.baseURL,
                     label = "Base URL",
-                    onCommit = onBaseURL,
+                    onCommit = actions.setBaseURL,
                     modifier = Modifier.weight(1f),
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
@@ -166,7 +149,7 @@ fun SettingsScreen(
                 onTextChange = { apiKey = it },
                 committed = state.settings.apiKey,
                 label = "API key (optional for local endpoints)",
-                onCommit = onApiKey,
+                onCommit = actions.setApiKey,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
             )
@@ -187,11 +170,11 @@ fun SettingsScreen(
                 ModelSelector(
                     models = state.models,
                     selected = state.settings.model,
-                    onSelect = onModel,
+                    onSelect = actions.setModel,
                 )
             }
             AssistChip(
-                onClick = onRefreshModels,
+                onClick = actions.refreshModels,
                 enabled = !state.refreshingModels,
                 label = { Text("Refresh models") },
                 leadingIcon = {
@@ -222,7 +205,7 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = state.settings.reasoning,
-                    onCheckedChange = onReasoning,
+                    onCheckedChange = actions.setReasoning,
                 )
             }
 
@@ -231,9 +214,7 @@ fun SettingsScreen(
             ThemeSection(
                 accentColor = state.settings.accentColor,
                 nameplate = state.settings.nameplate,
-                onAccentColor = onAccentColor,
-                onNameplate = onNameplate,
-                onImportNameplate = onImportNameplate,
+                actions = actions,
             )
 
             Spacer(Modifier.height(8.dp))
@@ -242,9 +223,7 @@ fun SettingsScreen(
                 userName = state.settings.userName,
                 assistantName = state.settings.assistantName,
                 exportMedia = state.settings.exportMedia,
-                onUserName = onUserName,
-                onAssistantName = onAssistantName,
-                onExportMedia = onExportMedia,
+                actions = actions,
             )
         }
     }
@@ -260,7 +239,7 @@ fun SettingsScreen(
             },
             onApply = {
                 showPresets = false
-                onApplyPreset(it)
+                actions.applyPreset(it)
             },
             onRename = {
                 showPresets = false
@@ -281,7 +260,7 @@ fun SettingsScreen(
             onDismiss = { showScanOptions = false },
             onConfirm = { port, prefixLength ->
                 showScanOptions = false
-                onScan(port, prefixLength)
+                actions.scan(port, prefixLength)
             },
         )
     }
@@ -295,7 +274,7 @@ fun SettingsScreen(
             onDismiss = { savingNew = false },
             onConfirm = {
                 savingNew = false
-                onSavePreset(it, baseURL, apiKey)
+                actions.savePreset(it, baseURL, apiKey)
             },
         )
     }
@@ -309,7 +288,7 @@ fun SettingsScreen(
             onDismiss = { naming = null },
             onConfirm = {
                 naming = null
-                onRenamePreset(preset.id, it)
+                actions.renamePreset(preset.id, it)
             },
         )
     }
@@ -321,7 +300,7 @@ fun SettingsScreen(
             onDismiss = { deleting = null },
             onConfirm = {
                 deleting = null
-                onDeletePreset(preset.id)
+                actions.deletePreset(preset.id)
             },
         )
     }
