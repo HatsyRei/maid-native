@@ -19,26 +19,20 @@ import com.hatsyrei.maidnative.data.store.withAttachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
-import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.domain.tree.validateMappings
 import com.hatsyrei.maidnative.ui.theme.ThemeSettings
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -128,23 +122,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private var streamJob: Job? = null
-
-    // Accumulates the in-flight reply. Appending to a StringBuilder is amortised
-    // O(1); the previous `streamingText + chunk` reallocated and copied the whole
-    // reply per token, which is quadratic over a response and was the largest
-    // single source of CPU work and GC churn during generation.
-    //
-    // The trace is kept in its own buffer for the same reason: classifying it
-    // once, as it arrives, avoids re-scanning the accumulated text every tick.
-    private val contentBuffer = StringBuilder()
-    private val reasoningBuffer = StringBuilder()
-
-    // Lengths at the last UI publish, so an idle tick can skip emitting an
-    // identical state (and the O(n) `toString` behind it), and so a tick that
-    // only grew one of the two does not copy the other.
-    private var publishedContentLength = 0
-    private var publishedReasoningLength = 0
+    private val stream = StreamController(viewModelScope, client)
 
     // Guards the automatic model fetch so it runs at most once per app launch
     // (plus once per endpoint change). A failed fetch leaves the models list
@@ -650,100 +628,37 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         persist()
-        val conversation = MessageTree.getConversation(_state.value.mappings, rootId)
-        contentBuffer.setLength(0)
-        reasoningBuffer.setLength(0)
-        publishedContentLength = 0
-        publishedReasoningLength = 0
-        streamJob = viewModelScope.launch {
-            // Publishing is demand-driven, never timer-driven: the pump sleeps on
-            // `pending` and is woken only by an arriving token. A free-running
-            // ticker would keep waking the main thread ~30x/second for as long as
-            // the request was open, which on a stalled stream is pure drain. An
-            // idle TCP socket, by contrast, costs essentially nothing.
-            val pending = Channel<Unit>(Channel.CONFLATED)
-
-            val pump = launch {
-                for (signal in pending) {
-                    publishStreamingText(responseId)
-                    // Trailing throttle. Tokens arriving inside this window
-                    // collapse into the single conflated signal that follows it,
-                    // so the UI updates at most once per interval while the first
-                    // token of a burst still lands immediately.
-                    delay(PUBLISH_INTERVAL_MS)
-                }
-            }
-
-            client.streamChat(OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning), conversation)
-                // UNLIMITED rather than the default 64-slot buffer: the SSE
-                // listener publishes with `trySend`, which silently drops a
-                // chunk when the channel is full. Losing a token corrupts the
-                // reply, and the buffer operator fuses with the callbackFlow's
-                // own channel, so this just widens that one channel.
-                .buffer(Channel.UNLIMITED)
-                // Building the request reads every attachment off disk and
-                // base64-encodes it, which must not happen on the main thread.
-                // Fuses with the buffer above, so it stays one channel.
-                .flowOn(Dispatchers.IO)
-                .catch { e -> _state.update { it.copy(error = e.message) } }
-                .collect { chunk ->
-                    when (chunk) {
-                        is Reasoning.Chunk.Reply -> contentBuffer.append(chunk.text)
-                        is Reasoning.Chunk.Thought -> reasoningBuffer.append(chunk.text)
-                        // A chat template supplied the opening tag, so the reply
-                        // so far was really the trace. Both buffers live here, so
-                        // the correction is a move rather than a re-parse.
-                        Reasoning.Chunk.Reclassify -> {
-                            reasoningBuffer.append(contentBuffer)
-                            contentBuffer.setLength(0)
-                        }
+        stream.start(
+            config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning),
+            conversation = MessageTree.getConversation(_state.value.mappings, rootId),
+            onUpdate = { update ->
+                // Guards against a tick from a superseded job.
+                if (_state.value.streamingId == responseId) {
+                    _state.update {
+                        it.copy(
+                            streamingText = update.content ?: it.streamingText,
+                            streamingReasoning = update.reasoning ?: it.streamingReasoning,
+                        )
                     }
-                    pending.trySend(Unit)
                 }
-
-            pump.cancel()
-            finishStreaming()
-        }
+            },
+            onError = { e -> _state.update { it.copy(error = e.message) } },
+            onFinish = ::finishStreaming,
+        )
     }
 
     fun stop() {
-        // Cancelling the job unwinds the collector, which trips `awaitClose` in
-        // OpenAiClient.streamChat and cancels the underlying EventSource — so
-        // this releases the socket, not just the UI state.
-        streamJob?.cancel()
+        // `onFinish` dies with the job, so the commit happens here instead.
+        stream.cancel()
         finishStreaming()
-    }
-
-    /**
-     * Push the accumulated reply into UI state, skipping the copy entirely when
-     * nothing new has arrived since the last tick. Guards against a stale tick
-     * from a superseded job.
-     */
-    private fun publishStreamingText(responseId: String) {
-        if (_state.value.streamingId != responseId) return
-        // Not `>`: a reclassification shrinks the reply and grows the trace.
-        val contentChanged = contentBuffer.length != publishedContentLength
-        val reasoningChanged = reasoningBuffer.length != publishedReasoningLength
-        if (!contentChanged && !reasoningChanged) return
-        publishedContentLength = contentBuffer.length
-        publishedReasoningLength = reasoningBuffer.length
-        _state.update {
-            it.copy(
-                streamingText = if (contentChanged) contentBuffer.toString() else it.streamingText,
-                streamingReasoning =
-                    if (reasoningChanged) reasoningBuffer.toString() else it.streamingReasoning,
-            )
-        }
     }
 
     private fun finishStreaming() {
         if (!_state.value.busy) return
         // Commit the accumulated reply into the tree in a single map write, then
         // persist once (per-token writes were intentionally suppressed above).
-        // Read from the buffers, not from state: `stop()` cancels the job
-        // mid-cadence, so state can lag them by up to one tick.
         val id = _state.value.streamingId
-        val text = committedText()
+        val text = stream.committedText()
         val committed = if (id != null) {
             MessageTree.setContent(_state.value.mappings, id, text)
         } else {
@@ -758,25 +673,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 streamingReasoning = "",
             )
         }
-        contentBuffer.setLength(0)
-        reasoningBuffer.setLength(0)
-        publishedContentLength = 0
-        publishedReasoningLength = 0
+        stream.reset()
         persist()
-    }
-
-    /**
-     * Rejoins the two buffers into the single string the tree and the database
-     * store. Keeping one content column means no schema migration and no second
-     * write path; `Reasoning.split` takes it apart again once, on render.
-     */
-    private fun committedText(): String {
-        val reply = contentBuffer.toString().trim()
-        val thought = reasoningBuffer.toString().trim()
-        if (thought.isEmpty()) return reply
-        return buildString(thought.length + reply.length + THINK_WRAPPER_LENGTH) {
-            append("<think>\n").append(thought).append("\n</think>\n\n").append(reply)
-        }
     }
 
     private fun persist() {
@@ -784,18 +682,5 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // loop. The repository writes only the diff, and skips the DB entirely
         // when nothing changed.
         saveRequests.trySend(_state.value.mappings)
-    }
-
-    private companion object {
-        /**
-         * Minimum spacing between UI publishes of a growing reply (~30 Hz).
-         * Text streaming reads as perfectly smooth at this rate while doing far
-         * less recomposition work than the token rate, which on a fast local
-         * endpoint can exceed the display refresh rate.
-         */
-        const val PUBLISH_INTERVAL_MS = 33L
-
-        /** `<think>\n` + `\n</think>\n\n`, pre-sized so the join never regrows. */
-        const val THINK_WRAPPER_LENGTH = 21
     }
 }
