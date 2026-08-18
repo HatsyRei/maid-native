@@ -24,30 +24,32 @@ object MessageTree {
         return next
     }
 
-    /**
-     * Visit [start] and every descendant reachable via parent -> child links
-     * (branch-aware), in DFS order. Backs sibling ordering with insertion order.
-     */
-    private inline fun forEachDescendant(
-        mappings: Map<String, MessageNode>,
-        start: String,
-        action: (String) -> Unit,
-    ) {
-        val childrenByParent = LinkedHashMap<String, MutableList<String>>()
+    /** parent id -> child ids in insertion order; nodes with an absent parent are skipped. */
+    private fun childIndex(mappings: Map<String, MessageNode>): Map<String, List<String>> {
+        val index = LinkedHashMap<String, MutableList<String>>()
         for (node in mappings.values) {
             val parent = node.parent ?: continue
             if (!mappings.containsKey(parent)) continue
-            childrenByParent.getOrPut(parent) { mutableListOf() }.add(node.id)
+            index.getOrPut(parent) { mutableListOf() }.add(node.id)
         }
-        val seen = mutableSetOf<String>()
+        return index
+    }
+
+    /**
+     * Ids of [start] and every descendant reachable via parent -> child links
+     * (branch-aware), in DFS order. Backs sibling ordering with insertion order.
+     */
+    private fun descendants(mappings: Map<String, MessageNode>, start: String): Set<String> {
+        val childrenByParent = childIndex(mappings)
+        val seen = LinkedHashSet<String>()
         val stack = ArrayDeque<String>()
         stack.addLast(start)
         while (stack.isNotEmpty()) {
             val id = stack.removeLast()
             if (!seen.add(id)) continue
-            action(id)
             childrenByParent[id]?.forEach { stack.addLast(it) }
         }
+        return seen
     }
 
     fun hasNode(mappings: Mappings, id: String): Boolean = mappings.containsKey(id)
@@ -87,7 +89,7 @@ object MessageTree {
     fun getRootMapping(mappings: Mappings, root: String): Mappings {
         mappings[root] ?: return emptyMap()
         val out = LinkedHashMap<String, MessageNode>()
-        forEachDescendant(mappings, root) { id ->
+        for (id in descendants(mappings, root)) {
             mappings[id]?.let { out[id] = it }
         }
         return out
@@ -132,43 +134,30 @@ object MessageTree {
     fun deleteNode(mappings: Mappings, id: String): Mappings {
         if (!mappings.containsKey(id)) return mappings
         return updateMap(mappings) { draft ->
-            val seen = mutableSetOf<String>()
             val parentId = draft[id]?.parent
             if (parentId != null && draft[parentId]?.child == id) {
                 val replacement = draft.values.firstOrNull { it.parent == parentId && it.id != id }?.id
                 draft[parentId] = draft.getValue(parentId).copy(child = replacement)
             }
-            deleteNodeInternal(draft, id, seen)
-        }
-    }
-
-    private fun deleteNodeInternal(
-        draft: MutableMap<String, MessageNode>,
-        id: String,
-        seen: MutableSet<String>,
-    ) {
-        val node = draft[id] ?: return
-        if (seen.contains(id)) return
-        seen.add(id)
-        val childIds = draft.values.filter { it.parent == id }.map { it.id }
-        for (childId in childIds) {
-            deleteNodeInternal(draft, childId, seen)
-        }
-        val parentId = node.parent
-        if (parentId != null) {
-            val parent = draft[parentId]
-            if (parent?.child == id) {
-                draft[parentId] = parent.copy(child = null)
+            // One shared parent -> children index and an explicit stack. The
+            // previous shape rescanned every node in the store for each node it
+            // removed (quadratic in the conversation) and recursed once per
+            // generation, which a long linear thread turns into an equally deep
+            // call stack.
+            val doomed = descendants(draft, id)
+            for (doomedId in doomed) {
+                val node = draft.remove(doomedId) ?: continue
+                // A surviving node that still names a removed one as its parent
+                // can only come from a malformed graph, but leaving the pointer
+                // dangling would strand it outside every conversation.
+                val activeChildId = node.child ?: continue
+                if (activeChildId in doomed) continue
+                val activeChild = draft[activeChildId]
+                if (activeChild?.parent == doomedId) {
+                    draft[activeChildId] = activeChild.copy(parent = null)
+                }
             }
         }
-        val activeChildId = node.child
-        if (activeChildId != null) {
-            val activeChild = draft[activeChildId]
-            if (activeChild?.parent == id) {
-                draft[activeChildId] = activeChild.copy(parent = null)
-            }
-        }
-        draft.remove(id)
     }
 
     fun addNode(
@@ -271,7 +260,7 @@ object MessageTree {
                 draft[id] = draft.getValue(id).copy(parent = null)
             }
             // Rewrite root on this node + all descendants (branch-aware).
-            forEachDescendant(draft, id) { curId ->
+            for (curId in descendants(draft, id)) {
                 draft[curId]?.let { draft[curId] = it.copy(root = id) }
             }
         }
