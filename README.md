@@ -4,7 +4,9 @@
 
 # Maid Native
 
-Maid Native is a native Android client for OpenAI-compatible endpoints — streaming chat, branching conversation trees, and Markdown rendering in a ~2.0 MB APK.
+A lightweight, Material 3 themed native Android client for OpenAI-compatible
+endpoints. No account, no telemetry, no ads — just a ~2.0 MB APK and your own
+server.
 
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/kotlin-%237F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -13,6 +15,32 @@ Maid Native is a native Android client for OpenAI-compatible endpoints — strea
 [![Latest Release](https://img.shields.io/github/v/release/HatsyRei/maid-native?style=for-the-badge&color=orange)](https://github.com/HatsyRei/maid-native/releases)
 
 </div>
+
+---
+
+## Features
+
+- **Streaming chat** with Markdown rendering — incrementally parsed while the
+  reply streams, so long answers stay smooth.
+- **Branching conversation trees** — edit, revise or regenerate any message and
+  step between siblings with `‹ n/N ›` instead of a linear log.
+- **Media attachments** — images, audio and text files, gated on the model's
+  reported modalities.
+- **Chat import / export** — per-chat, multi-file import, and backup-all via the
+  Storage Access Framework, in the RN-compatible JSON format.
+- **LAN endpoint discovery** — scan your subnet (configurable port and prefix)
+  to find a local llama.cpp / OpenAI-compatible server without typing an IP.
+- **API keys encrypted at rest** with an AndroidKeyStore AES/GCM key that never
+  leaves the device, and kept out of cloud backups.
+- **Works offline** — history lives in Room, so browsing and reading need no
+  network at all.
+- **Collapsible reasoning** — `<think>` output is rendered separately and folds
+  away.
+- **Endpoint presets and a model-picker pill** for switching servers and models
+  in a couple of taps.
+- **Personalisation** — AMOLED-true-black theme with a custom accent colour,
+  composer nameplate art (bundled or your own image), and custom user /
+  assistant display names.
 
 ---
 
