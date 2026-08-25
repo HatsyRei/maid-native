@@ -75,7 +75,7 @@ class OpenAiClient {
             if (!response.isSuccessful) {
                 throw IOException("models request failed: HTTP ${response.code}")
             }
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string()
             val data = JSONObject(body).optJSONArray("data") ?: JSONArray()
             (0 until data.length()).mapNotNull { data.optJSONObject(it) }
         }
@@ -137,7 +137,7 @@ class OpenAiClient {
         return runCatching {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
-                val modalities = JSONObject(response.body?.string().orEmpty())
+                val modalities = JSONObject(response.body.string())
                     .optJSONObject("modalities") ?: return@use null
                 Modalities(
                     vision = modalities.supportFor("vision"),
