@@ -93,7 +93,9 @@ internal fun EndpointPresetSheet(
                     items(presets, key = { it.id }) { preset ->
                         PresetRow(
                             preset = preset,
-                            active = preset.baseURL == activeBaseURL && preset.apiKey == activeApiKey,
+                            active = preset.baseURL == activeBaseURL &&
+                                preset.keyReadable &&
+                                preset.apiKey == activeApiKey,
                             onApply = { onApply(preset) },
                             onRename = { onRename(preset) },
                             onDelete = { onDelete(preset) },
@@ -130,7 +132,16 @@ private fun PresetRow(
         supportingContent = {
             Column {
                 Text(preset.baseURL, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(maskKey(preset.apiKey), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (preset.keyReadable) {
+                    Text(maskKey(preset.apiKey), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else {
+                    Text(
+                        "Key can't be decrypted — re-save",
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         },
         leadingContent = {

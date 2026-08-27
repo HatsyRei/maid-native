@@ -37,13 +37,21 @@ class OpenAiClient {
     private val streamClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
+        // OkHttp follows an https -> http redirect by default. It strips the
+        // Authorization header on the scheme change, but the request BODY —
+        // the conversation and any attached images — would still go out in the
+        // clear, and the allow-HTTP setting cannot catch it because that gate
+        // applies to the configured base URL, not to a redirect target. No
+        // real OpenAI-compatible endpoint downgrades mid-request.
+        .followSslRedirects(false)
         .build()
 
     // Non-streaming requests (the models list) reuse the streaming client's
-    // connection pool + dispatcher (cheap via newBuilder) but add finite read
-    // and overall timeouts. Without these the models GET would inherit
-    // readTimeout(0) and a half-open connection could hang the request — and
-    // keep the socket/radio awake — indefinitely.
+    // connection pool + dispatcher (cheap via newBuilder, which also inherits
+    // the redirect policy above) but add finite read and overall timeouts.
+    // Without these the models GET would inherit readTimeout(0) and a half-open
+    // connection could hang the request — and keep the socket/radio awake —
+    // indefinitely.
     private val client = streamClient.newBuilder()
         .readTimeout(5, TimeUnit.SECONDS)
         .callTimeout(5, TimeUnit.SECONDS)

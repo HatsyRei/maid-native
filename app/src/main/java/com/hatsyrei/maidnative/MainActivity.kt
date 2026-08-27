@@ -101,6 +101,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
         SettingsActions(
             setBaseURL = viewModel::setBaseURL,
             setApiKey = viewModel::setApiKey,
+            setAllowCleartext = viewModel::setAllowCleartext,
             setModel = viewModel::setModel,
             refreshModels = viewModel::refreshModels,
             setReasoning = viewModel::setReasoning,

@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.data.prefs
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -10,6 +11,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
+import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,6 +28,18 @@ class SettingsRepository(private val context: Context) {
     data class Settings(
         val baseURL: String = DEFAULT_BASE_URL,
         val apiKey: String = "",
+        /**
+         * True when a key is stored but this device's Keystore can no longer
+         * decrypt it. [apiKey] reads empty in that case, and the difference
+         * matters: "no key" and "unreadable key" call for different fixes.
+         */
+        val apiKeyUnreadable: Boolean = false,
+        /**
+         * Whether plain-HTTP endpoints may be contacted at all. Off by default,
+         * because an API key sent over HTTP is readable by anything on the same
+         * network; local servers need it turned on deliberately.
+         */
+        val allowCleartext: Boolean = false,
         val model: String = "",
         val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
         /**
@@ -64,12 +78,27 @@ class SettingsRepository(private val context: Context) {
         val name: String,
         val baseURL: String,
         val apiKey: String,
+        /**
+         * The ciphertext as stored. Kept so an entry this device can no longer
+         * decrypt survives edits to its neighbours: every preset write re-encodes
+         * the whole list, and re-encrypting the empty [apiKey] substituted for an
+         * unreadable key would destroy it for good.
+         */
+        val storedKey: String = "",
+        val keyReadable: Boolean = true,
     )
 
     val settings: Flow<Settings> = context.dataStore.data.map { prefs ->
+        val baseURL = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL
+        val apiKey = decodeApiKey(prefs[KEY_API_KEY] ?: "")
         Settings(
-            baseURL = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL,
-            apiKey = decodeApiKey(prefs[KEY_API_KEY] ?: ""),
+            baseURL = baseURL,
+            apiKey = apiKey ?: "",
+            apiKeyUnreadable = apiKey == null,
+            // Absent means the user has never been asked. An endpoint that was
+            // already configured over HTTP predates the toggle and keeps
+            // working; a fresh install sits on the HTTPS default and starts off.
+            allowCleartext = prefs[KEY_ALLOW_CLEARTEXT] ?: Endpoints.isCleartext(baseURL),
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
@@ -107,15 +136,51 @@ class SettingsRepository(private val context: Context) {
     // ciphertext only changes when the user edits the key, so the last result is
     // held rather than re-derived for every snapshot the settings flow maps.
     @Volatile
-    private var decodedApiKey: Pair<String, String>? = null
+    private var decodedApiKey: Pair<String, String?>? = null
 
-    private fun decodeApiKey(stored: String): String {
+    private fun decodeApiKey(stored: String): String? {
         decodedApiKey?.let { (cipher, plain) -> if (cipher == stored) return plain }
         return SecretCipher.decode(stored).also { decodedApiKey = stored to it }
     }
 
-    suspend fun setBaseURL(value: String) = edit(KEY_BASE_URL, value)
-    suspend fun setApiKey(value: String) = edit(KEY_API_KEY, SecretCipher.encode(value))
+    /**
+     * Points the app at [value], and drops the stored API key when that moves to
+     * a different origin than the key was entered for. Returns the origin whose
+     * key was dropped, or null if nothing was dropped.
+     *
+     * Without this, editing the Base URL — or accepting whatever host won the
+     * local-network scan race — makes the very next `/models` fetch hand the
+     * user's key to a server they never gave it to.
+     */
+    suspend fun setBaseURL(value: String): String? {
+        var dropped: String? = null
+        context.dataStore.edit { prefs ->
+            val previous = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL
+            prefs[KEY_BASE_URL] = value
+            if (prefs[KEY_API_KEY].isNullOrEmpty()) return@edit
+            // A key written before origins were recorded is adopted by whatever
+            // endpoint was configured at the moment it is first moved away from.
+            val bound = prefs[KEY_API_KEY_ORIGIN] ?: Endpoints.origin(previous)
+            if (bound != null && bound == Endpoints.origin(value)) return@edit
+            prefs.remove(KEY_API_KEY)
+            prefs.remove(KEY_API_KEY_ORIGIN)
+            dropped = bound ?: previous
+        }
+        return dropped
+    }
+
+    /**
+     * @throws SecretUnavailableException if the key cannot be encrypted, leaving
+     * the stored key untouched. Encryption runs before the edit opens so a
+     * failure cannot half-write the pair.
+     */
+    suspend fun setApiKey(value: String) {
+        val cipher = SecretCipher.encode(value)
+        context.dataStore.edit { prefs ->
+            prefs.putKey(cipher, prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL)
+        }
+    }
+
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
     suspend fun setSystemPrompt(value: String) = edit(KEY_SYSTEM_PROMPT, value)
     suspend fun setUserName(value: String) = edit(KEY_USER_NAME, value.trim())
@@ -128,6 +193,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setExportMedia(enabled: Boolean) {
         context.dataStore.edit { it[KEY_EXPORT_MEDIA] = enabled }
+    }
+
+    suspend fun setAllowCleartext(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_ALLOW_CLEARTEXT] = enabled }
     }
 
     suspend fun setAccentColor(argb: Int) {
@@ -168,7 +237,11 @@ class SettingsRepository(private val context: Context) {
             presets + EndpointPreset(UUID.randomUUID().toString(), trimmed, baseURL, apiKey)
         } else {
             presets.map {
-                if (it.id == existing.id) it.copy(name = trimmed, baseURL = baseURL, apiKey = apiKey) else it
+                if (it.id == existing.id) {
+                    it.copy(name = trimmed, baseURL = baseURL, apiKey = apiKey, keyReadable = true)
+                } else {
+                    it
+                }
             }
         }
     }
@@ -185,13 +258,32 @@ class SettingsRepository(private val context: Context) {
 
     /**
      * Switches the live endpoint in a single write, so the settings collector
-     * sees one emission and fires one model fetch rather than two.
+     * sees one emission and fires one model fetch rather than two. Base URL and
+     * key move together, so this is the one path that legitimately re-binds the
+     * key to a new origin.
+     *
+     * @throws SecretUnavailableException if the key cannot be encrypted, in
+     * which case neither half is applied.
      */
     suspend fun applyPreset(preset: EndpointPreset) {
+        val cipher = SecretCipher.encode(preset.apiKey)
         context.dataStore.edit {
             it[KEY_BASE_URL] = preset.baseURL
-            it[KEY_API_KEY] = SecretCipher.encode(preset.apiKey)
+            it.putKey(cipher, preset.baseURL)
         }
+    }
+
+    /** Stores [cipher] bound to the origin of [url], or clears both when it is empty. */
+    private fun MutablePreferences.putKey(cipher: String, url: String) {
+        if (cipher.isEmpty()) {
+            remove(KEY_API_KEY)
+            remove(KEY_API_KEY_ORIGIN)
+            return
+        }
+        this[KEY_API_KEY] = cipher
+        // An unparseable URL gets an origin nothing can match, so the key is
+        // dropped rather than sent, the moment the endpoint is corrected.
+        this[KEY_API_KEY_ORIGIN] = Endpoints.origin(url) ?: ""
     }
 
     private suspend fun editPresets(transform: (List<EndpointPreset>) -> List<EndpointPreset>) {
@@ -207,11 +299,15 @@ class SettingsRepository(private val context: Context) {
             (0 until array.length()).mapNotNull { i ->
                 val entry = array.optJSONObject(i) ?: return@mapNotNull null
                 val id = entry.optString(FIELD_ID).ifEmpty { return@mapNotNull null }
+                val storedKey = entry.optString(FIELD_API_KEY)
+                val apiKey = SecretCipher.decode(storedKey)
                 EndpointPreset(
                     id = id,
                     name = entry.optString(FIELD_NAME),
                     baseURL = entry.optString(FIELD_BASE_URL),
-                    apiKey = SecretCipher.decode(entry.optString(FIELD_API_KEY)),
+                    apiKey = apiKey ?: "",
+                    storedKey = storedKey,
+                    keyReadable = apiKey != null,
                 )
             }
         }.getOrDefault(emptyList())
@@ -225,7 +321,10 @@ class SettingsRepository(private val context: Context) {
                     .put(FIELD_ID, it.id)
                     .put(FIELD_NAME, it.name)
                     .put(FIELD_BASE_URL, it.baseURL)
-                    .put(FIELD_API_KEY, SecretCipher.encode(it.apiKey)),
+                    .put(
+                        FIELD_API_KEY,
+                        if (it.keyReadable) SecretCipher.encode(it.apiKey) else it.storedKey,
+                    ),
             )
         }
         return array.toString()
@@ -249,6 +348,8 @@ class SettingsRepository(private val context: Context) {
 
         private val KEY_BASE_URL = stringPreferencesKey("open-ai-base-url")
         private val KEY_API_KEY = stringPreferencesKey("open-ai-api-key")
+        private val KEY_API_KEY_ORIGIN = stringPreferencesKey("open-ai-api-key-origin")
+        private val KEY_ALLOW_CLEARTEXT = booleanPreferencesKey("allow-cleartext-endpoints")
         private val KEY_MODEL = stringPreferencesKey("open-ai-model")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
         private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")

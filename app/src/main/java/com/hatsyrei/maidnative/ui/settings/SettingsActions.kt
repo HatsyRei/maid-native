@@ -13,6 +13,7 @@ import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 class SettingsActions(
     val setBaseURL: (String) -> Unit,
     val setApiKey: (String) -> Unit,
+    val setAllowCleartext: (Boolean) -> Unit,
     val setModel: (String) -> Unit,
     val refreshModels: () -> Unit,
     val setReasoning: (Boolean) -> Unit,

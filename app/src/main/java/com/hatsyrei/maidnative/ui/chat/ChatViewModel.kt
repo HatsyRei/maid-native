@@ -7,8 +7,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hatsyrei.maidnative.data.db.MaidDatabase
 import com.hatsyrei.maidnative.data.db.MessageRepository
+import com.hatsyrei.maidnative.data.prefs.SecretUnavailableException
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
+import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.AttachmentStore
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
@@ -54,6 +56,13 @@ data class ChatUiState(
     val refreshingModels: Boolean = false,
     val foundURL: String? = null,
     val error: String? = null,
+    /**
+     * Something the app did to the stored credentials that the user has to know
+     * about — a key dropped because the endpoint moved, or a key that could not
+     * be stored. Kept apart from [error] so a subsequent model fetch, which
+     * clears [error] on success, cannot wipe it.
+     */
+    val credentialNotice: String? = null,
     val streamingId: String? = null,
     val streamingText: String = "",
     val streamingReasoning: String = "",
@@ -216,6 +225,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val s = _state.value.settings
+                if (cleartextBlocked(s.baseURL)) {
+                    _state.update {
+                        it.copy(
+                            models = emptyList(),
+                            modalities = emptyMap(),
+                            error = if (silent) it.error else CLEARTEXT_BLOCKED,
+                        )
+                    }
+                    return@launch
+                }
                 val result = withContext(Dispatchers.IO) {
                     runCatching { client.listModels(OpenAiClient.Config(s.baseURL, s.apiKey, s.model)) }
                 }
@@ -250,8 +269,56 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setBaseURL(value: String) = viewModelScope.launch { settingsRepo.setBaseURL(value) }
-    fun setApiKey(value: String) = viewModelScope.launch { settingsRepo.setApiKey(value) }
+    /**
+     * True when [url] is plain HTTP and the user has not allowed that.
+     *
+     * Only [refreshModels] consults this. Configuring an endpoint — typing one,
+     * applying a preset, adopting a scan result — is always allowed to succeed,
+     * so the app never silently discards a URL the user asked for; the refusal
+     * lands once, at the point the endpoint is actually contacted, where the
+     * warning can name the fix.
+     */
+    private fun cleartextBlocked(url: String): Boolean =
+        Endpoints.isCleartext(url) && !_state.value.settings.allowCleartext
+
+    fun setBaseURL(value: String) = viewModelScope.launch {
+        // `error` is deliberately left alone: the endpoint change triggers a
+        // model fetch whose result owns it, and clearing it here would race
+        // that fetch and could swallow its warning.
+        val dropped = settingsRepo.setBaseURL(value.trim()) ?: return@launch
+        _state.update {
+            it.copy(
+                credentialNotice = "API key cleared: it was saved for $dropped, and this " +
+                    "endpoint is somewhere else. Re-enter the key if it belongs here.",
+            )
+        }
+    }
+
+    fun setApiKey(value: String) = viewModelScope.launch {
+        // A key that cannot be encrypted is not stored at all. Keeping the
+        // plaintext instead would leave the user believing it is protected.
+        runCatching { settingsRepo.setApiKey(value) }
+            .onSuccess { _state.update { it.copy(credentialNotice = null) } }
+            .onFailure { failure -> _state.update { it.copy(credentialNotice = failure.notice()) } }
+    }
+
+    /**
+     * Allowing HTTP re-opens the endpoint; withdrawing it has to drop the loaded
+     * model list too, or the composer would stay enabled for an endpoint that is
+     * now off limits.
+     */
+    fun setAllowCleartext(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.setAllowCleartext(enabled)
+        if (!Endpoints.isCleartext(_state.value.settings.baseURL)) return@launch
+        if (enabled) {
+            refreshModels()
+        } else {
+            _state.update {
+                it.copy(models = emptyList(), modalities = emptyMap(), error = CLEARTEXT_BLOCKED)
+            }
+        }
+    }
+
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
 
@@ -262,15 +329,41 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }
 
     fun savePreset(name: String, baseURL: String, apiKey: String) =
-        viewModelScope.launch { settingsRepo.savePreset(name, baseURL, apiKey) }
+        viewModelScope.launch { guardCredentials { settingsRepo.savePreset(name, baseURL, apiKey) } }
 
-    fun applyPreset(preset: SettingsRepository.EndpointPreset) =
-        viewModelScope.launch { settingsRepo.applyPreset(preset) }
+    fun applyPreset(preset: SettingsRepository.EndpointPreset) = viewModelScope.launch {
+        if (!preset.keyReadable) {
+            _state.update {
+                it.copy(
+                    credentialNotice = "\"${preset.name}\" holds a key this device can no longer " +
+                        "decrypt. Re-enter it and save the preset again.",
+                )
+            }
+            return@launch
+        }
+        guardCredentials { settingsRepo.applyPreset(preset) }
+    }
 
     fun renamePreset(id: String, name: String) =
-        viewModelScope.launch { settingsRepo.renamePreset(id, name) }
+        viewModelScope.launch { guardCredentials { settingsRepo.renamePreset(id, name) } }
 
-    fun deletePreset(id: String) = viewModelScope.launch { settingsRepo.deletePreset(id) }
+    fun deletePreset(id: String) =
+        viewModelScope.launch { guardCredentials { settingsRepo.deletePreset(id) } }
+
+    /**
+     * Runs a preset write, which re-encrypts the whole list and so fails as a
+     * unit if the Keystore is unavailable. Nothing is persisted in that case.
+     */
+    private suspend fun guardCredentials(block: suspend () -> Unit) {
+        runCatching { block() }
+            .onSuccess { _state.update { it.copy(credentialNotice = null) } }
+            .onFailure { failure -> _state.update { it.copy(credentialNotice = failure.notice()) } }
+    }
+
+    private fun Throwable.notice(): String = when (this) {
+        is SecretUnavailableException -> message ?: "The API key could not be stored securely."
+        else -> "The API key could not be saved: ${message ?: this::class.java.simpleName}"
+    }
 
     /** Copies the picked image into app storage, then selects it. */
     fun importNameplate(uri: Uri) = viewModelScope.launch {
@@ -294,6 +387,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
      * adopt the first match. The options are persisted first so the scan dialog
      * reopens with the same choice. On success the endpoint is saved
      * automatically, which triggers model loading via the settings collector.
+     *
+     * The probes carry no credentials ([EndpointScanner] builds a bare GET), so
+     * the sweep itself discloses nothing to the hosts it touches. A result is
+     * adopted even when plain HTTP is not allowed: the endpoint is still the
+     * right one, and the model fetch that follows explains what to turn on.
      */
     fun scanEndpoint(port: Int, prefixLength: Int) {
         if (_state.value.scanning) return
@@ -306,7 +404,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             found.onSuccess { url ->
                 if (url != null) {
                     _state.update { it.copy(foundURL = url) }
-                    settingsRepo.setBaseURL(url) // triggers refreshModels via the settings collector
+                    // Triggers refreshModels via the settings collector. Any key
+                    // bound to the previous endpoint is dropped by the write, so
+                    // that fetch cannot carry it to whichever host won the race.
+                    val dropped = settingsRepo.setBaseURL(url)
+                    if (dropped != null) {
+                        _state.update {
+                            it.copy(
+                                credentialNotice = "API key cleared: it was saved for $dropped, " +
+                                    "and the scan found a different endpoint.",
+                            )
+                        }
+                    }
                 } else {
                     _state.update {
                         it.copy(
@@ -682,5 +791,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // loop. The repository writes only the diff, and skips the DB entirely
         // when nothing changed.
         saveRequests.trySend(_state.value.mappings)
+    }
+
+    private companion object {
+        const val CLEARTEXT_BLOCKED =
+            "Blocked: this endpoint uses plain HTTP. " +
+                "Turn on \"Allow HTTP endpoints\" in Settings to use it."
     }
 }

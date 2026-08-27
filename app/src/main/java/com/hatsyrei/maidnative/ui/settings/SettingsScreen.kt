@@ -154,6 +154,40 @@ fun SettingsScreen(
                 visualTransformation = PasswordVisualTransformation(),
             )
 
+            // The key is bound to the endpoint it was entered for and is never
+            // sent anywhere else, so both of these want fixing where it is typed.
+            if (state.settings.apiKeyUnreadable) {
+                Text(
+                    "The stored API key can no longer be decrypted on this device. " +
+                        "Enter it again to replace it.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            state.credentialNotice?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Allow HTTP endpoints", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Unencrypted HTTP. Only enable on trusted networks. " +
+                            "Local servers may need this.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.settings.allowCleartext,
+                    onCheckedChange = actions.setAllowCleartext,
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
 
             Text("Model", style = MaterialTheme.typography.titleMedium)
@@ -321,7 +355,16 @@ internal fun AutoSaveTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // [committed] lags a commit by a store round trip, so IME "Done" — which also
+    // drops focus — would otherwise fire the same write a second time.
+    var sent by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
+    val commit = { value: String ->
+        if (value != committed && value != sent) {
+            sent = value
+            onCommit(value)
+        }
+    }
     OutlinedTextField(
         value = text,
         onValueChange = onTextChange,
@@ -330,11 +373,11 @@ internal fun AutoSaveTextField(
         visualTransformation = visualTransformation,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = {
-            onCommit(text)
+            commit(text)
             focusManager.clearFocus()
         }),
         modifier = modifier.onFocusChanged { focus ->
-            if (focused && !focus.isFocused && text != committed) onCommit(text)
+            if (focused && !focus.isFocused) commit(text)
             focused = focus.isFocused
         },
     )
