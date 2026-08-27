@@ -48,10 +48,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.common.TextInputDialog
+import com.hatsyrei.maidnative.ui.common.rememberAvatar
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.markdown.rememberChatStreamingMarkdownState
 import kotlin.math.abs
@@ -347,6 +349,11 @@ private fun ChatScaffold(
                 // instead of once per use site.
                 val conversation = state.conversation
                 val latestId = conversation.lastOrNull()?.id
+                // Decoded here rather than per bubble: every row would otherwise
+                // hold its own copy of the same two bitmaps.
+                val userAvatar = rememberAvatar(AvatarStore.Role.USER, state.settings.userAvatar)
+                val assistantAvatar =
+                    rememberAvatar(AvatarStore.Role.ASSISTANT, state.settings.assistantAvatar)
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -373,6 +380,8 @@ private fun ChatScaffold(
                             isLatest = node.id == latestId,
                             userName = state.settings.userName,
                             assistantName = state.settings.assistantName,
+                            userAvatar = userAvatar,
+                            assistantAvatar = assistantAvatar,
                             onRegenerate = { actions.regenerate(node.id) },
                             onDelete = { onDialog(ChatDialog.DeleteMessage(node.id)) },
                             onRequestEdit = { revise ->

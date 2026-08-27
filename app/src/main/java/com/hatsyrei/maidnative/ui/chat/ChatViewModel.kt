@@ -13,6 +13,7 @@ import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.AttachmentStore
+import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.data.store.NameplateStore
@@ -113,6 +114,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = MessageRepository(MaidDatabase.get(app).messageDao())
     private val fileStore = ConversationFileStore(app.contentResolver)
     private val nameplateStore = NameplateStore(app)
+    private val avatarStore = AvatarStore(app)
     private val attachmentStore = AttachmentStore(app)
     private val legacyFile = File(app.filesDir, "messages.json")
 
@@ -375,6 +377,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             _state.update { it.copy(error = "That image could not be loaded.") }
         }
+    }
+
+    /** Copies the picked image into app storage as [role]'s profile picture. */
+    fun importAvatar(role: AvatarStore.Role, uri: Uri) = viewModelScope.launch {
+        val imported = withContext(Dispatchers.IO) {
+            runCatching { avatarStore.import(role, uri) }.getOrDefault(false)
+        }
+        if (imported) {
+            settingsRepo.setAvatar(role, System.currentTimeMillis())
+        } else {
+            _state.update { it.copy(error = "That image could not be loaded.") }
+        }
+    }
+
+    fun removeAvatar(role: AvatarStore.Role) = viewModelScope.launch {
+        withContext(Dispatchers.IO) { avatarStore.delete(role) }
+        settingsRepo.setAvatar(role, 0L)
     }
 
     /** Clear transient scan state so re-entering Settings shows a fresh scan button. */

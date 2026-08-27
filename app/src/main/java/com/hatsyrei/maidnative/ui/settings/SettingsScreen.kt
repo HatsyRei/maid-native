@@ -256,6 +256,8 @@ fun SettingsScreen(
             ChatSection(
                 userName = state.settings.userName,
                 assistantName = state.settings.assistantName,
+                userAvatar = state.settings.userAvatar,
+                assistantAvatar = state.settings.assistantAvatar,
                 exportMedia = state.settings.exportMedia,
                 actions = actions,
             )

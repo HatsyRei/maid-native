@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.ui.settings
 import android.net.Uri
 import androidx.compose.runtime.Stable
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
+import com.hatsyrei.maidnative.data.store.AvatarStore
 
 /**
  * Everything the settings screen can ask the view model to do. Grouped for the
@@ -28,5 +29,7 @@ class SettingsActions(
     val importNameplate: (Uri) -> Unit,
     val setUserName: (String) -> Unit,
     val setAssistantName: (String) -> Unit,
+    val importAvatar: (AvatarStore.Role, Uri) -> Unit,
+    val removeAvatar: (AvatarStore.Role) -> Unit,
     val setExportMedia: (Boolean) -> Unit,
 )

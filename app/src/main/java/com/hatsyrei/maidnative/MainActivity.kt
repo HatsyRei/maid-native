@@ -116,6 +116,8 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             importNameplate = viewModel::importNameplate,
             setUserName = viewModel::setUserName,
             setAssistantName = viewModel::setAssistantName,
+            importAvatar = viewModel::importAvatar,
+            removeAvatar = viewModel::removeAvatar,
             setExportMedia = viewModel::setExportMedia,
         )
     }

@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.Endpoints
+import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -59,6 +60,13 @@ class SettingsRepository(private val context: Context) {
         /** Role labels shown on message cards. */
         val userName: String = DEFAULT_USER_NAME,
         val assistantName: String = DEFAULT_ASSISTANT_NAME,
+        /**
+         * Import time of each role's profile picture, or 0 when none is set.
+         * The image itself lives at a fixed path, so the stamp is both the
+         * "is one set" flag and what busts its decoded cache.
+         */
+        val userAvatar: Long = 0L,
+        val assistantAvatar: Long = 0L,
         val nameplate: String = DEFAULT_NAMEPLATE,
         /** Import time of the custom nameplate; only used to invalidate its decoded cache. */
         val nameplateStamp: Long = 0L,
@@ -108,6 +116,8 @@ class SettingsRepository(private val context: Context) {
             userName = prefs[KEY_USER_NAME]?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_NAME,
             assistantName = prefs[KEY_ASSISTANT_NAME]?.takeIf { it.isNotBlank() }
                 ?: DEFAULT_ASSISTANT_NAME,
+            userAvatar = prefs[KEY_USER_AVATAR] ?: 0L,
+            assistantAvatar = prefs[KEY_ASSISTANT_AVATAR] ?: 0L,
             nameplate = prefs[KEY_NAMEPLATE] ?: DEFAULT_NAMEPLATE,
             nameplateStamp = prefs[KEY_NAMEPLATE_STAMP] ?: 0L,
             scanPort = (prefs[KEY_SCAN_PORT] ?: EndpointScanner.DEFAULT_PORT).coerceIn(MIN_PORT, MAX_PORT),
@@ -223,6 +233,15 @@ class SettingsRepository(private val context: Context) {
             it[KEY_NAMEPLATE] = NAMEPLATE_CUSTOM
             it[KEY_NAMEPLATE_STAMP] = stamp
         }
+    }
+
+    /** Records a freshly imported profile picture, or clears it when [stamp] is 0. */
+    suspend fun setAvatar(role: AvatarStore.Role, stamp: Long) {
+        val key = when (role) {
+            AvatarStore.Role.USER -> KEY_USER_AVATAR
+            AvatarStore.Role.ASSISTANT -> KEY_ASSISTANT_AVATAR
+        }
+        context.dataStore.edit { if (stamp == 0L) it.remove(key) else it[key] = stamp }
     }
 
     private suspend fun edit(key: Preferences.Key<String>, value: String) {
@@ -357,6 +376,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")
         private val KEY_ASSISTANT_NAME = stringPreferencesKey("assistant-name")
+        private val KEY_USER_AVATAR = longPreferencesKey("user-avatar-stamp")
+        private val KEY_ASSISTANT_AVATAR = longPreferencesKey("assistant-avatar-stamp")
         private val KEY_NAMEPLATE = stringPreferencesKey("composer-nameplate")
         private val KEY_NAMEPLATE_STAMP = longPreferencesKey("composer-nameplate-stamp")
         private val KEY_PRESETS = stringPreferencesKey("endpoint-presets")

@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -58,6 +61,7 @@ import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.tree.MessageNode
+import com.hatsyrei.maidnative.ui.common.Avatar
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import com.hatsyrei.maidnative.ui.markdown.StreamingMarkdownText
@@ -161,6 +165,8 @@ internal fun MessageItem(
     isLatest: Boolean,
     userName: String,
     assistantName: String,
+    userAvatar: Painter?,
+    assistantAvatar: Painter?,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onRequestEdit: (revise: Boolean) -> Unit,
@@ -258,6 +264,7 @@ internal fun MessageItem(
         }
         MessageHeader(
             name = if (isUser) userName else assistantName,
+            avatar = if (isUser) userAvatar else assistantAvatar,
             controls = {
                 if (siblingCount > 1) {
                     IconButton(
@@ -445,15 +452,20 @@ private const val THUMBNAIL_PX = 288
  */@Composable
 private fun MessageHeader(
     name: String,
+    avatar: Painter?,
     controls: @Composable RowScope.() -> Unit,
 ) {
     Layout(
         content = {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(painter = avatar, name = name, size = 40.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically, content = controls)
         },
     ) { measurables, constraints ->
