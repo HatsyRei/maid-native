@@ -40,7 +40,7 @@ server.
   in a couple of taps.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,
   composer nameplate art (bundled or your own image), and custom user /
-  assistant display names.
+  assistant display names and profile pictures.
 
 ---
 

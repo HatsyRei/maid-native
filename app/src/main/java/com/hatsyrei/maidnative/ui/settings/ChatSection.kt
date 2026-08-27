@@ -111,12 +111,6 @@ internal fun ChatSection(
         )
     }
 
-    Text(
-        "Pictures are cropped to a circle and copied into the app.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
