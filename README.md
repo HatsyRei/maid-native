@@ -14,6 +14,25 @@ server.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/HatsyRei/maid-native?style=for-the-badge&color=orange)](https://github.com/HatsyRei/maid-native/releases)
 
+<table align="center">
+<tr>
+<td width="20%"><a href="docs/screenshots/chat-multimodal.png"><img src="docs/screenshots/chat-multimodal.png" width="100%" alt="Chat with an image attachment and Markdown reply" /></a></td>
+<td width="20%"><a href="docs/screenshots/branching.png"><img src="docs/screenshots/branching.png" width="100%" alt="Branch navigation between sibling replies" /></a></td>
+<td width="20%"><a href="docs/screenshots/drawer.png"><img src="docs/screenshots/drawer.png" width="100%" alt="Chat drawer with saved conversations" /></a></td>
+<td width="20%"><a href="docs/screenshots/settings-endpoint.png"><img src="docs/screenshots/settings-endpoint.png" width="100%" alt="Endpoint and model settings" /></a></td>
+<td width="20%"><a href="docs/screenshots/settings-theme.png"><img src="docs/screenshots/settings-theme.png" width="100%" alt="Theme accent, composer background and profile settings" /></a></td>
+</tr>
+<tr>
+<td align="center"><sub><b>Multimodal chat</b></sub></td>
+<td align="center"><sub><b>Branching replies</b></sub></td>
+<td align="center"><sub><b>Chat drawer</b></sub></td>
+<td align="center"><sub><b>Endpoint &amp; model</b></sub></td>
+<td align="center"><sub><b>Personalisation</b></sub></td>
+</tr>
+</table>
+
+<sub>Click any screenshot to view it full size.</sub>
+
 </div>
 
 ---
