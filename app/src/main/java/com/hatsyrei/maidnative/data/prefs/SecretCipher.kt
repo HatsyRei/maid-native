@@ -44,16 +44,15 @@ internal object SecretCipher {
     }
 
     /**
-     * Null when an encrypted value cannot be read back — the reachable case is a
+     * Null when a stored value cannot be read back — the reachable case is a
      * Keystore key that was invalidated or never restored (its material is not
      * backed up), which leaves undecryptable ciphertext behind. That is reported
      * rather than folded into an empty key, which would look like "no key set"
      * and send unauthenticated requests instead.
-     *
-     * Values without the [PREFIX] predate encryption and are read back verbatim.
      */
     fun decode(stored: String): String? {
-        if (!stored.startsWith(PREFIX)) return stored
+        if (stored.isEmpty()) return ""
+        if (!stored.startsWith(PREFIX)) return null
         return runCatching {
             val bytes = Base64.decode(stored.removePrefix(PREFIX), Base64.NO_WRAP)
             val cipher = Cipher.getInstance(TRANSFORMATION)
