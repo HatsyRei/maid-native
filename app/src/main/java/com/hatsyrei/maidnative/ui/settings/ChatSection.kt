@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.store.AvatarStore
@@ -50,8 +52,9 @@ internal fun ChatSection(
     exportMedia: Boolean,
     actions: SettingsActions,
 ) {
-    var user by remember(userName) { mutableStateOf(userName) }
-    var assistant by remember(assistantName) { mutableStateOf(assistantName) }
+    // A name is read left to right, so a long one should overflow at its tail.
+    val user = rememberTextFieldState(userName, TextRange.Zero)
+    val assistant = rememberTextFieldState(assistantName, TextRange.Zero)
 
     Text("Chat", style = MaterialTheme.typography.titleMedium)
 
@@ -65,23 +68,23 @@ internal fun ChatSection(
         AvatarPicker(
             role = AvatarStore.Role.USER,
             stamp = userAvatar,
-            name = user,
+            name = user.text.toString(),
             label = "Your profile picture",
             actions = actions,
         )
         AutoSaveTextField(
-            text = user,
-            onTextChange = { user = it },
+            state = user,
             committed = userName,
             label = "Your name",
             onCommit = { value ->
                 // Normalise locally too: the stored value falls back to the default
                 // when blank, and an unchanged fallback wouldn't re-key the field.
                 val name = value.trim().ifBlank { SettingsRepository.DEFAULT_USER_NAME }
-                user = name
+                user.replaceText(name, caretAtStart = true)
                 actions.setUserName(name)
             },
             modifier = Modifier.weight(1f),
+            caretAtStart = true,
         )
     }
 
@@ -93,21 +96,21 @@ internal fun ChatSection(
         AvatarPicker(
             role = AvatarStore.Role.ASSISTANT,
             stamp = assistantAvatar,
-            name = assistant,
+            name = assistant.text.toString(),
             label = "Assistant profile picture",
             actions = actions,
         )
         AutoSaveTextField(
-            text = assistant,
-            onTextChange = { assistant = it },
+            state = assistant,
             committed = assistantName,
             label = "Assistant name",
             onCommit = { value ->
                 val name = value.trim().ifBlank { SettingsRepository.DEFAULT_ASSISTANT_NAME }
-                assistant = name
+                assistant.replaceText(name, caretAtStart = true)
                 actions.setAssistantName(name)
             },
             modifier = Modifier.weight(1f),
+            caretAtStart = true,
         )
     }
 

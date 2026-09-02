@@ -5,16 +5,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -25,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -36,20 +45,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
 import com.hatsyrei.maidnative.ui.chat.ConfirmDialog
 import com.hatsyrei.maidnative.ui.chat.ModelSelector
 import com.hatsyrei.maidnative.ui.icons.BookmarksIcon
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +71,8 @@ fun SettingsScreen(
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
-    var baseURL by remember(state.settings.baseURL) { mutableStateOf(state.settings.baseURL) }
-    var apiKey by remember(state.settings.apiKey) { mutableStateOf(state.settings.apiKey) }
+    val baseURL = rememberTextFieldState(state.settings.baseURL)
+    val apiKey = rememberTextFieldState(state.settings.apiKey)
     var showPresets by remember { mutableStateOf(false) }
     var showScanOptions by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
@@ -126,8 +138,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 AutoSaveTextField(
-                    text = baseURL,
-                    onTextChange = { baseURL = it },
+                    state = baseURL,
                     committed = state.settings.baseURL,
                     label = "Base URL",
                     onCommit = actions.setBaseURL,
@@ -145,13 +156,12 @@ fun SettingsScreen(
             }
 
             AutoSaveTextField(
-                text = apiKey,
-                onTextChange = { apiKey = it },
+                state = apiKey,
                 committed = state.settings.apiKey,
                 label = "API key (optional for local endpoints)",
                 onCommit = actions.setApiKey,
                 modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
+                secure = true,
             )
 
             // The key is bound to the endpoint it was entered for and is never
@@ -305,12 +315,12 @@ fun SettingsScreen(
         PresetNameDialog(
             title = "Save endpoint",
             confirmLabel = "Save",
-            initial = defaultPresetName(baseURL),
+            initial = defaultPresetName(baseURL.text.toString()),
             takenNames = presets.map { it.name },
             onDismiss = { savingNew = false },
             onConfirm = {
                 savingNew = false
-                actions.savePreset(it, baseURL, apiKey)
+                actions.savePreset(it, baseURL.text.toString(), apiKey.text.toString())
             },
         )
     }
@@ -343,20 +353,54 @@ fun SettingsScreen(
 }
 
 /**
+ * Rewrites a field, parking the caret at whichever end should stay in view when
+ * the value is wider than the field (the field scrolls to follow the caret).
+ */
+internal fun TextFieldState.replaceText(value: String, caretAtStart: Boolean = false) {
+    edit {
+        replace(0, length, value)
+        selection = TextRange(if (caretAtStart) 0 else length)
+    }
+}
+
+/**
  * An [OutlinedTextField] that commits its value on IME "Done" and when it loses
  * focus (only when the text actually differs from the last [committed] value).
+ *
+ * Deliberately the [TextFieldState] overload: the legacy `value`/`onValueChange`
+ * one recomputes the dragged offset from the gesture's own deltas alone, so a
+ * cursor or selection handle held at the edge of a value wider than the field
+ * stops there instead of scrolling. The state-based field compensates for the
+ * scroll it causes, which keeps the drag going (`handleDragPosition`).
  */
 @Composable
 internal fun AutoSaveTextField(
-    text: String,
-    onTextChange: (String) -> Unit,
+    state: TextFieldState,
     committed: String,
     label: String,
     onCommit: (String) -> Unit,
     modifier: Modifier = Modifier,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
+    secure: Boolean = false,
+    caretAtStart: Boolean = false,
 ) {
+    // Adopt values the store writes behind the field's back (a scan result, a
+    // loaded preset). No-op for the round trip of the field's own commit.
+    LaunchedEffect(committed) {
+        if (state.text.toString() != committed) state.replaceText(committed, caretAtStart)
+    }
+
     var focused by remember { mutableStateOf(false) }
+    // The field asks the scroller for its caret line only, and it asks before the
+    // keyboard has taken its space, so a field near the bottom ends up half under
+    // it. Re-ask for the whole box for as long as the inset is moving.
+    val requester = remember { BringIntoViewRequester() }
+    val density = LocalDensity.current
+    val ime = WindowInsets.ime
+    LaunchedEffect(focused) {
+        if (!focused) return@LaunchedEffect
+        snapshotFlow { ime.getBottom(density) }.collectLatest { requester.bringIntoView() }
+    }
+
     // [committed] lags a commit by a store round trip, so IME "Done" — which also
     // drops focus — would otherwise fire the same write a second time.
     var sent by remember { mutableStateOf<String?>(null) }
@@ -367,20 +411,36 @@ internal fun AutoSaveTextField(
             onCommit(value)
         }
     }
-    OutlinedTextField(
-        value = text,
-        onValueChange = onTextChange,
-        label = { Text(label) },
-        singleLine = true,
-        visualTransformation = visualTransformation,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = {
-            commit(text)
-            focusManager.clearFocus()
-        }),
-        modifier = modifier.onFocusChanged { focus ->
-            if (focused && !focus.isFocused) commit(text)
+    val fieldModifier = modifier
+        .bringIntoViewRequester(requester)
+        .onFocusChanged { focus ->
+            if (focused && !focus.isFocused) commit(state.text.toString())
             focused = focus.isFocused
-        },
-    )
+        }
+    val onKeyboardAction = KeyboardActionHandler {
+        commit(state.text.toString())
+        focusManager.clearFocus()
+    }
+    if (secure) {
+        OutlinedSecureTextField(
+            state = state,
+            label = { Text(label) },
+            textObfuscationMode = TextObfuscationMode.Hidden,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+            ),
+            onKeyboardAction = onKeyboardAction,
+            modifier = fieldModifier,
+        )
+    } else {
+        OutlinedTextField(
+            state = state,
+            label = { Text(label) },
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            onKeyboardAction = onKeyboardAction,
+            modifier = fieldModifier,
+        )
+    }
 }

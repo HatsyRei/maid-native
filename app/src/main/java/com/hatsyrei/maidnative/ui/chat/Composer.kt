@@ -31,6 +31,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -124,7 +128,8 @@ internal fun Composer(
     onStop: () -> Unit,
     nameplate: Painter? = LocalNameplate.current,
 ) {
-    var text by remember { mutableStateOf("") }
+    val input = rememberTextFieldState()
+    val text = input.text
     val canSend = enabled && (text.trim().isNotEmpty() || attachments.isNotEmpty())
     val active = busy || canSend
 
@@ -187,8 +192,7 @@ internal fun Composer(
             ) {
                 AttachButton(enabled = enabled, modalities = modalities, onPick = onAttach)
                 BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
+                    state = input,
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(max = 120.dp)
@@ -197,11 +201,11 @@ internal fun Composer(
                         color = MaterialTheme.colorScheme.onSurface,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    maxLines = 5,
+                    lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5),
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
                     ),
-                    decorationBox = { innerTextField ->
+                    decorator = TextFieldDecorator { innerTextField ->
                         Box(
                             modifier = Modifier.padding(vertical = 12.dp),
                             contentAlignment = Alignment.CenterStart,
@@ -235,8 +239,8 @@ internal fun Composer(
                             if (busy) {
                                 onStop()
                             } else if (canSend) {
-                                onSubmit(text)
-                                text = ""
+                                onSubmit(text.toString())
+                                input.clearText()
                             }
                         },
                         enabled = active,

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
@@ -29,7 +32,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,9 +41,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
+import com.hatsyrei.maidnative.ui.common.DialogOverIme
+import com.hatsyrei.maidnative.ui.common.liftAboveIme
 
 /** Ports that OpenAI-compatible servers ship with, offered as one-tap fills. */
 private val COMMON_PORTS = listOf(8080, 9931, 1234, 11434, 8000)
+
+/** Digits only, so the field can never hold what the keyboard type would let
+ * through by another route (paste, a hardware key). */
+private val PORT_INPUT = InputTransformation {
+    for (i in length - 1 downTo 0) {
+        if (!charAt(i).isDigit()) replace(i, i + 1, "")
+    }
+    if (length > 5) replace(5, length, "")
+}
 
 /** The Base URL field's scan action; tapping it opens the scan options dialog. */
 @Composable
@@ -83,14 +96,16 @@ internal fun ScanOptionsDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int, Int) -> Unit,
 ) {
-    var portText by remember { mutableStateOf(port.toString()) }
+    val portText = rememberTextFieldState(port.toString())
     var prefix by remember { mutableIntStateOf(prefixLength) }
-    val parsedPort = portText.toIntOrNull()
+    val parsedPort = portText.text.toString().toIntOrNull()
     val portValid = parsedPort != null &&
         parsedPort in SettingsRepository.MIN_PORT..SettingsRepository.MAX_PORT
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.liftAboveIme(),
+        properties = DialogOverIme,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("Scan options") },
         text = {
@@ -109,14 +124,10 @@ internal fun ScanOptionsDialog(
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
                     OutlinedTextField(
-                        value = portText,
-                        // Digits only, so the field can never hold something the
-                        // keyboard type would otherwise let through (paste, hardware).
-                        onValueChange = { input ->
-                            portText = input.filter { it.isDigit() }.take(5)
-                        },
+                        state = portText,
+                        inputTransformation = PORT_INPUT,
                         label = { Text("Port") },
-                        singleLine = true,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         isError = !portValid,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
@@ -132,7 +143,7 @@ internal fun ScanOptionsDialog(
                         COMMON_PORTS.forEach { common ->
                             FilterChip(
                                 selected = parsedPort == common,
-                                onClick = { portText = common.toString() },
+                                onClick = { portText.replaceText(common.toString()) },
                                 label = { Text(common.toString()) },
                                 // The same fill as the model pill and the
                                 // selected chat entry, so accents agree.
