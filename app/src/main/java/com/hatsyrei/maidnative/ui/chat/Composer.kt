@@ -8,9 +8,16 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.content.MediaType
+import androidx.compose.foundation.content.ReceiveContentListener
+import androidx.compose.foundation.content.TransferableContent
+import androidx.compose.foundation.content.consume
+import androidx.compose.foundation.content.contentReceiver
+import androidx.compose.foundation.content.hasMediaType
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -47,6 +54,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +66,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -113,7 +122,7 @@ internal fun Modifier.clearFocusOnTouch(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun Composer(
     enabled: Boolean,
@@ -154,6 +163,8 @@ internal fun Composer(
         label = "nameplateReveal",
     )
     val nameplateAlpha = engagementAlpha * revealAlpha
+
+    val imageReceiver = rememberImageReceiver(modalities, onAttach)
 
     // Single full-width pill (RN prompt-input-group): the input spans the width
     // and the send/stop button lives inside the pill at the right end.
@@ -196,6 +207,7 @@ internal fun Composer(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(max = 120.dp)
+                        .contentReceiver(imageReceiver)
                         .onFocusChanged { focused = it.isFocused },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurface,
@@ -270,6 +282,45 @@ internal fun Composer(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Turns an image arriving through the text field — a clipboard paste, a
+ * keyboard's image commit, or a drop — into a staged attachment, so a
+ * screenshot copied from any app can be sent without going back through the
+ * picker.
+ *
+ * Only image items are taken, and only when the model has not positively said
+ * it cannot see: everything else is handed back so the normal text paste still
+ * happens. The listener is remembered because it is the modifier's equality
+ * key; the two values it reads are held in state so a fresh one is never
+ * needed.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun rememberImageReceiver(
+    modalities: Modalities,
+    onAttach: (Uri, Attachment.Kind) -> Unit,
+): ReceiveContentListener {
+    val resolver = LocalContext.current.contentResolver
+    val currentModalities by rememberUpdatedState(modalities)
+    val currentAttach by rememberUpdatedState(onAttach)
+    return remember(resolver) {
+        object : ReceiveContentListener {
+            override fun onReceive(transferableContent: TransferableContent): TransferableContent? {
+                if (!transferableContent.hasMediaType(MediaType.Image)) return transferableContent
+                if (!currentModalities.vision.permitted) return transferableContent
+                return transferableContent.consume { item ->
+                    val uri = item.uri ?: return@consume false
+                    // The clip's declared type can be a wildcard, so the item's
+                    // own type decides whether this is really an image.
+                    val isImage = resolver.getType(uri)?.startsWith("image/") == true
+                    if (isImage) currentAttach(uri, Attachment.Kind.IMAGE)
+                    isImage
                 }
             }
         }
