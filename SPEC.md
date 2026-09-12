@@ -48,7 +48,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 ### Toolchain (prototype, verified locally)
 - JDK 21 (`~/.local/jdks/jdk-21`), compiling to JVM 17 bytecode (no separate toolchain provisioning).
 - Android SDK: compileSdk **37**, targetSdk **36**, minSdk **24** (matches the RN app's minSdk). compileSdk is the floor imposed by markdown-renderer `0.45.0`; targetSdk is held at 36 deliberately, since compiling against newer APIs is independent of opting in to new runtime behaviour.
-- Gradle **9.7.1**, AGP **9.4.0**, Kotlin **2.4.10**, KSP **2.3.11**, Compose BOM **2026.08.00**, Room **2.8.4**, OkHttp **5.5.0**.
+- Gradle **9.7.1**, AGP **9.4.0**, Kotlin **2.4.20**, KSP **2.3.12**, Compose BOM **2026.08.00**, Room **2.8.4**, OkHttp **5.5.0**.
 - AGP 9 supplies **built-in Kotlin**, so `org.jetbrains.kotlin.android` is no longer applied (it is incompatible with AGP 9's new DSL). AGP pins KGP/KSP to its own baseline, so our higher versions are declared on the root `buildscript` classpath (`kotlin-gradle-plugin`, `symbol-processing-gradle-plugin`).
 - `androidx.compose.material:material-icons-core` is now an explicit dependency; recent `material3` no longer brings it in transitively.
 - `applicationId = com.hatsyrei.maidnative` (distinct from `com.hatsyrei.maid`) → installs **side-by-side**.

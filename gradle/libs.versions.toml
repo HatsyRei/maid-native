@@ -1,6 +1,6 @@
 [versions]
 agp = "9.4.0"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 coreKtx = "1.19.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
@@ -12,7 +12,7 @@ coroutines = "1.11.0"
 markdownRenderer = "0.45.0"
 room = "2.8.4"
 # KSP moved to decoupled versioning at 2.3.0; no longer pinned to the Kotlin version.
-ksp = "2.3.11"
+ksp = "2.3.12"
 junit = "4.13.2"
 
 [libraries]
