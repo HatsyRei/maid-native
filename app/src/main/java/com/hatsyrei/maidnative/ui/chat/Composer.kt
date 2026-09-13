@@ -62,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -75,9 +76,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.ui.icons.AddIcon
@@ -362,45 +361,43 @@ private fun AttachButton(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (open) {
-            val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
-            val provider = remember(gapPx) { AboveAnchorPositionProvider(gapPx) }
-            Popup(
-                popupPositionProvider = provider,
-                onDismissRequest = { open = false },
-                properties = PopupProperties(focusable = true),
-            ) {
-                MenuSurface(Modifier.widthIn(min = 148.dp, max = 176.dp)) {
-                    MenuOption(
-                        text = "Image",
-                        trailingIcon = { Icon(ImageIcon, contentDescription = null) },
-                        enabled = modalities.vision.permitted,
-                        onClick = {
-                            open = false
-                            imagePicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                            )
-                        },
+        val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
+        val provider = remember(gapPx) { AboveAnchorPositionProvider(gapPx) }
+        MenuPopup(
+            expanded = open,
+            popupPositionProvider = provider,
+            transformOrigin = TransformOrigin(0f, 1f),
+            onDismissRequest = { open = false },
+            modifier = Modifier.widthIn(min = 148.dp, max = 176.dp),
+        ) {
+            MenuOption(
+                text = "Image",
+                trailingIcon = { Icon(ImageIcon, contentDescription = null) },
+                enabled = modalities.vision.permitted,
+                onClick = {
+                    open = false
+                    imagePicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                     )
-                    MenuOption(
-                        text = "Audio",
-                        trailingIcon = { Icon(AudiotrackIcon, contentDescription = null) },
-                        enabled = modalities.audio.permitted,
-                        onClick = {
-                            open = false
-                            audioPicker.launch(AUDIO_MIME_TYPES)
-                        },
-                    )
-                    MenuOption(
-                        text = "Text file",
-                        trailingIcon = { Icon(DescriptionIcon, contentDescription = null) },
-                        onClick = {
-                            open = false
-                            textPicker.launch(TEXT_MIME_TYPES)
-                        },
-                    )
-                }
-            }
+                },
+            )
+            MenuOption(
+                text = "Audio",
+                trailingIcon = { Icon(AudiotrackIcon, contentDescription = null) },
+                enabled = modalities.audio.permitted,
+                onClick = {
+                    open = false
+                    audioPicker.launch(AUDIO_MIME_TYPES)
+                },
+            )
+            MenuOption(
+                text = "Text file",
+                trailingIcon = { Icon(DescriptionIcon, contentDescription = null) },
+                onClick = {
+                    open = false
+                    textPicker.launch(TEXT_MIME_TYPES)
+                },
+            )
         }
     }
 }

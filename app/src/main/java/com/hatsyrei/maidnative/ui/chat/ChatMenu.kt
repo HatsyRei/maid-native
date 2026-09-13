@@ -1,10 +1,19 @@
 package com.hatsyrei.maidnative.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -105,7 +115,7 @@ internal fun MenuOption(
 @Composable
 internal fun MenuSurface(
     modifier: Modifier = Modifier,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -221,18 +231,60 @@ internal fun TapContextMenu(
     expanded: Boolean,
     touchOffset: Offset,
     onDismiss: () -> Unit,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (!expanded) return
     val provider = remember(touchOffset) {
         TapMenuPositionProvider(IntOffset(touchOffset.x.roundToInt(), touchOffset.y.roundToInt()))
     }
-    Popup(
+    MenuPopup(
+        expanded = expanded,
         popupPositionProvider = provider,
+        transformOrigin = TransformOrigin.Center,
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(min = 168.dp, max = 172.dp),
+        content = content,
+    )
+}
+
+/**
+ * [MenuSurface] in a [Popup], with material3's dropdown scale+fade.
+ *
+ * A raw [Popup] animates nothing on any API level: the transition normally
+ * comes from `DropdownMenuContent`, which the app's touch-anchored menus
+ * deliberately bypass. The popup therefore stays mounted until the exit
+ * animation goes idle rather than keying straight off [expanded].
+ *
+ * [transformOrigin] is fixed per call site instead of derived from the anchor,
+ * so the position providers' clamping stays untouched.
+ */
+@Composable
+internal fun MenuPopup(
+    expanded: Boolean,
+    popupPositionProvider: PopupPositionProvider,
+    transformOrigin: TransformOrigin,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val visibility = remember { MutableTransitionState(false) }
+    visibility.targetState = expanded
+    // The window has to outlive `expanded` or the exit has nothing to play in.
+    if (!visibility.currentState && !visibility.targetState && visibility.isIdle) return
+
+    Popup(
+        popupPositionProvider = popupPositionProvider,
+        onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = true),
     ) {
-        MenuSurface(Modifier.widthIn(min = 168.dp, max = 172.dp), content)
+        AnimatedVisibility(
+            visibleState = visibility,
+            enter = fadeIn(tween(30)) +
+                scaleIn(tween(120, easing = LinearOutSlowInEasing), 0.8f, transformOrigin),
+            // Hold full size and let the fade carry the exit, then snap back.
+            exit = fadeOut(tween(75)) + scaleOut(tween(1, delayMillis = 74), 0.8f, transformOrigin),
+        ) {
+            MenuSurface(modifier, content)
+        }
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -30,9 +31,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,35 +63,31 @@ internal fun ModelSelector(
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
             }
         }
-        if (open) {
-            val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
-            val provider = remember(gapPx) { CenteredBelowAnchorPositionProvider(gapPx) }
-            Popup(
-                popupPositionProvider = provider,
-                onDismissRequest = { open = false },
-                properties = PopupProperties(focusable = true),
-            ) {
-                MenuSurface(
-                    Modifier
-                        .width(240.dp)
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    models.forEach { model ->
-                        MenuOption(
-                            text = model,
-                            textColor = if (model == selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            onClick = {
-                                open = false
-                                onSelect(model)
-                            },
-                        )
-                    }
-                }
+        val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
+        val provider = remember(gapPx) { CenteredBelowAnchorPositionProvider(gapPx) }
+        MenuPopup(
+            expanded = open,
+            popupPositionProvider = provider,
+            transformOrigin = TransformOrigin(0.5f, 0f),
+            onDismissRequest = { open = false },
+            modifier = Modifier
+                .width(240.dp)
+                .heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            models.forEach { model ->
+                MenuOption(
+                    text = model,
+                    textColor = if (model == selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(model)
+                    },
+                )
             }
         }
     }
