@@ -22,6 +22,7 @@ import com.hatsyrei.maidnative.data.store.withAttachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
+import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -323,6 +324,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
+    fun setSampling(value: Sampling) = viewModelScope.launch { settingsRepo.setSampling(value) }
 
     fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
@@ -757,7 +759,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         persist()
         stream.start(
-            config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning),
+            config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning, s.sampling),
             conversation = MessageTree.getConversation(_state.value.mappings, rootId),
             onUpdate = { update ->
                 // Guards against a tick from a superseded job.

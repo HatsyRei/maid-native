@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.runtime.Stable
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 import com.hatsyrei.maidnative.data.store.AvatarStore
+import com.hatsyrei.maidnative.domain.Sampling
 
 /**
  * Everything the settings screen can ask the view model to do. Grouped for the
@@ -18,6 +19,7 @@ class SettingsActions(
     val setModel: (String) -> Unit,
     val refreshModels: () -> Unit,
     val setReasoning: (Boolean) -> Unit,
+    val setSampling: (Sampling) -> Unit,
     val scan: (port: Int, prefixLength: Int) -> Unit,
     val resetScan: () -> Unit,
     val savePreset: (name: String, baseURL: String, apiKey: String) -> Unit,

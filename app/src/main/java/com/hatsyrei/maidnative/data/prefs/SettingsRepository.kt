@@ -14,6 +14,7 @@ import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
+import com.hatsyrei.maidnative.domain.Sampling
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -50,6 +51,12 @@ class SettingsRepository(private val context: Context) {
          * the choice; endpoints that reject the argument fall back silently.
          */
         val reasoning: Boolean = true,
+        /**
+         * Sampling fields the user has taken over. Empty by default, and an
+         * absent field is left out of the request entirely so the endpoint (and
+         * the model's own recommended settings) still decide it.
+         */
+        val sampling: Sampling = Sampling(),
         /**
          * Whether exports inline image and audio bytes. Off keeps the JSON
          * small, at the cost of those attachments not surviving the round trip.
@@ -110,6 +117,7 @@ class SettingsRepository(private val context: Context) {
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
+            sampling = Sampling.decode(prefs[KEY_SAMPLING]),
             exportMedia = prefs[KEY_EXPORT_MEDIA] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
             // A cleared field falls back to the default rather than a blank label.
@@ -199,6 +207,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setReasoning(enabled: Boolean) {
         context.dataStore.edit { it[KEY_REASONING] = enabled }
+    }
+
+    suspend fun setSampling(value: Sampling) {
+        val encoded = value.encode()
+        context.dataStore.edit {
+            if (encoded.isEmpty()) it.remove(KEY_SAMPLING) else it[KEY_SAMPLING] = encoded
+        }
     }
 
     suspend fun setExportMedia(enabled: Boolean) {
@@ -372,6 +387,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_MODEL = stringPreferencesKey("open-ai-model")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
         private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")
+        private val KEY_SAMPLING = stringPreferencesKey("sampling")
         private val KEY_EXPORT_MEDIA = booleanPreferencesKey("export-media")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")

@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.ui.settings
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -75,6 +76,7 @@ fun SettingsScreen(
     val apiKey = rememberTextFieldState(state.settings.apiKey)
     var showPresets by remember { mutableStateOf(false) }
     var showScanOptions by remember { mutableStateOf(false) }
+    var showSampling by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
     var savingNew by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EndpointPreset?>(null) }
@@ -217,21 +219,31 @@ fun SettingsScreen(
                     onSelect = actions.setModel,
                 )
             }
-            AssistChip(
-                onClick = actions.refreshModels,
-                enabled = !state.refreshingModels,
-                label = { Text("Refresh models") },
-                leadingIcon = {
-                    if (state.refreshingModels) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                    }
-                },
-            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = actions.refreshModels,
+                    enabled = !state.refreshingModels,
+                    label = { Text("Refresh models") },
+                    leadingIcon = {
+                        if (state.refreshingModels) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                        }
+                    },
+                )
+
+                SamplingChip(
+                    sampling = state.settings.sampling,
+                    onClick = {
+                        focusManager.clearFocus()
+                        showSampling = true
+                    },
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -307,6 +319,17 @@ fun SettingsScreen(
             onConfirm = { port, prefixLength ->
                 showScanOptions = false
                 actions.scan(port, prefixLength)
+            },
+        )
+    }
+
+    if (showSampling) {
+        SamplingDialog(
+            sampling = state.settings.sampling,
+            onDismiss = { showSampling = false },
+            onConfirm = {
+                showSampling = false
+                actions.setSampling(it)
             },
         )
     }

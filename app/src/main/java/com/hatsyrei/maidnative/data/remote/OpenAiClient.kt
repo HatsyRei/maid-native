@@ -5,6 +5,7 @@ import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Reasoning
+import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.Support
 import com.hatsyrei.maidnative.domain.TurnStats
 import com.hatsyrei.maidnative.domain.tree.MessageNode
@@ -69,6 +70,8 @@ class OpenAiClient {
         val model: String,
         /** Requested thinking mode, forced on the server rather than left to the chat template. */
         val reasoning: Boolean = true,
+        /** Sampling fields the user has taken over; the rest are left out of the request. */
+        val sampling: Sampling = Sampling(),
     )
 
     data class ModelInfo(val id: String, val modalities: Modalities)
@@ -335,6 +338,12 @@ class OpenAiClient {
                 "chat_template_kwargs",
                 JSONObject().put("enable_thinking", config.reasoning),
             )
+        }
+        // Only the fields the user took over. Sending a value for the rest would
+        // override both the server's own flags and the recommended sampling that
+        // llama.cpp reads out of the model's metadata.
+        for ((key, value) in config.sampling.parameters()) {
+            payload.put(key, value)
         }
         for ((key, value) in parameters) {
             payload.put(key, value ?: JSONObject.NULL)
