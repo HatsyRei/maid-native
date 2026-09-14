@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
+import com.hatsyrei.maidnative.domain.stats
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.common.Avatar
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
@@ -360,6 +361,24 @@ internal fun MessageItem(
                 markdown = body,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        }
+        // Absent rather than "N/A" when unknown: a label repeated down every
+        // message of a pre-stats conversation would be noise, and a reply still
+        // streaming has no counts yet, so this doubles as a done marker.
+        if (node.role == "assistant") {
+            val footnote = remember(node.metadata, node.content) {
+                formatTurnFootnote(node.stats(), node.content)
+            }
+            if (footnote != null) {
+                Text(
+                    text = footnote,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 12.dp),
+                )
+            }
         }
     }
 }
