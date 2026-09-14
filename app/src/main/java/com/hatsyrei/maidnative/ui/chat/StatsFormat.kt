@@ -24,8 +24,8 @@ internal fun formatTokensPerSecond(rate: Double): String =
  *
  * An edited body carries `≥` or `≤` rather than a new number — it is longer or
  * shorter than what was counted, and that is all we honestly know, so it shows
- * no rate either. A stopped reply has no count at all: an aborted stream never
- * carries the server's `usage`.
+ * no rate either. A stopped reply never shows a rate, and shows a count only
+ * where the endpoint had already sent one mid-stream.
  */
 internal fun formatTurnFootnote(stats: TurnStats, content: String): String? {
     val parts = buildList {

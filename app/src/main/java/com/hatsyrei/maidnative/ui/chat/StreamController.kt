@@ -196,11 +196,11 @@ internal class StreamController(
      * What the turn cost, for [committedText]'s node. Read from the buffers for
      * the same reason [committedText] is: [cancel] can land mid-cadence.
      *
-     * A stop is recorded rather than inferred. An aborted stream never carries
-     * the server's `usage` chunk (verified against llama.cpp), so a stopped turn
-     * and a turn from an endpoint that reports no usage are indistinguishable by
-     * their token counts alone — and only the first has a duration that must
-     * stay out of the averages.
+     * A stop is recorded rather than inferred, because whether one leaves a
+     * token count behind is the endpoint's choice: llama.cpp and OpenAI send
+     * `usage` only on a final chunk an abort never reaches, while endpoints that
+     * repeat it on every chunk leave their last one. Both keep a duration that
+     * must stay out of the averages, and only the flag says so.
      */
     fun finalStats(): TurnStats {
         val reported = usage.copy(stopped = stopped, promptChars = promptChars)

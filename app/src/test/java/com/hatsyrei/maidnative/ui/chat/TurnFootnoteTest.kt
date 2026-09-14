@@ -31,12 +31,31 @@ class TurnFootnoteTest {
         assertNull(formatTurnFootnote(TurnStats(), body))
     }
 
-    /** No usage arrives for an aborted stream, so only our own clock is left. */
+    /** llama.cpp sends usage on a final chunk an abort never reaches. */
     @Test
     fun `a stopped reply is labelled so its duration is not read as slowness`() {
         assertEquals(
             "2.0 s · stopped",
             formatTurnFootnote(TurnStats(genMs = 2000L, ttftMs = 300L, stopped = true), ""),
+        )
+    }
+
+    /** Others repeat usage on every chunk, so a stop keeps the last one. */
+    @Test
+    fun `a stopped reply keeps a count the endpoint had already sent`() {
+        val partial = "a".repeat(800)
+        assertEquals(
+            "200 tokens · 2.0 s · stopped",
+            formatTurnFootnote(
+                TurnStats(
+                    completionTokens = 200,
+                    genMs = 2000L,
+                    genTokens = 199,
+                    stopped = true,
+                    chars = 800,
+                ),
+                partial,
+            ),
         )
     }
 
