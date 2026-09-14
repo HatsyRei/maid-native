@@ -373,7 +373,9 @@ internal fun MessageItem(
                 Text(
                     text = footnote,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Dimmer than any body text, so it reads as chrome rather
+                    // than as the tail end of the reply.
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(top = 12.dp),

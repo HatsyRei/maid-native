@@ -211,7 +211,9 @@ internal class StreamController(
             // reports the rate it was actually producing instead of being
             // penalised for however long the socket then sat open — and they
             // therefore cover one token fewer than arrived.
-            genMs = reported.genMs ?: (lastTokenAt - firstTokenAt),
+            // Floored at a tick: a short reply off a fast endpoint can arrive
+            // inside one clock granule, and 0 ms is not a divisible window.
+            genMs = reported.genMs ?: (lastTokenAt - firstTokenAt).coerceAtLeast(1L),
             genTokens = reported.genTokens
                 ?: reported.completionTokens?.minus(1)?.takeIf { it > 0 },
             // Kept out of the generation window, and reported separately: on a

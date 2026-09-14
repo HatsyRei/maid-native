@@ -45,13 +45,14 @@ internal fun ChatPropertiesDialog(
                 StatRow("Average speed", stats.tokensPerSecond.tokensPerSecond())
                 StatRow("Average response", stats.averageResponseMs.duration())
                 StatRow("Time to first token", stats.averageTtftMs.duration())
-                stats.sizeNote()?.let { Note(it) }
-                if (stats.partialSample) {
-                    Note(
-                        "Averages cover ${stats.statsTurns} of " +
-                            "${stats.assistantMessages} replies; the rest were sent " +
-                            "before, or modified after this was measured.",
-                    )
+                val notes = stats.notes()
+                if (notes.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.padding(top = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        notes.forEach { Note(it) }
+                    }
                 }
             }
         },
@@ -85,12 +86,30 @@ private fun StatRow(label: String, value: String) {
 
 @Composable
 private fun Note(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 12.dp),
-    )
+    Row {
+        Text(
+            text = "\u2022",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Everything the figures above need qualified, in the order they appear. */
+private fun ChatStats.notes(): List<String> = buildList {
+    sizeNote()?.let { add(it) }
+    if (partialSample) {
+        add(
+            "Averages cover $statsTurns of $assistantMessages replies; " +
+                "metadata unavailable for the rest.",
+        )
+    }
 }
 
 private fun ChatStats.sizeNote(): String? {
