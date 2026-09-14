@@ -111,6 +111,16 @@ val AddIcon: ImageVector by lazy {
     materialIcon("Add", "M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
 }
 
+/** Material `info_outline` (chat Properties menu entry). */
+val InfoOutlineIcon: ImageVector by lazy {
+    materialIcon(
+        "InfoOutline",
+        "M11,7h2v2h-2V7zM11,11h2v6h-2v-6zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 " +
+            "10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 " +
+            "8,-8 8,3.59 8,8 -3.59,8 -8,8z",
+    )
+}
+
 /** Material `close` (removes a pending attachment chip). */
 val CloseIcon: ImageVector by lazy {
     materialIcon(

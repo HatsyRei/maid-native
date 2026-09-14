@@ -38,6 +38,7 @@ import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.icons.FileDownloadIcon
 import com.hatsyrei.maidnative.ui.icons.FolderOpenIcon
+import com.hatsyrei.maidnative.ui.icons.InfoOutlineIcon
 import com.hatsyrei.maidnative.ui.icons.SaveAltIcon
 
 internal fun chatTitle(node: MessageNode): String =
@@ -113,6 +114,7 @@ internal fun DrawerContent(
     onRename: (String, String) -> Unit,
     onDeleteChat: (String) -> Unit,
     onExport: (String) -> Unit,
+    onProperties: (String, String) -> Unit,
     onImport: () -> Unit,
     onBackupAll: () -> Unit,
 ) {
@@ -166,6 +168,7 @@ internal fun DrawerContent(
                     onRename = { onRename(root.id, title) },
                     onDelete = { onDeleteChat(root.id) },
                     onExport = { onExport(root.id) },
+                    onProperties = { onProperties(root.id, title) },
                 )
             }
         }
@@ -181,6 +184,7 @@ private fun DrawerChatItem(
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onExport: () -> Unit,
+    onProperties: () -> Unit,
 ) {
     val menu = rememberTapMenu(remember(id) { "chat:$id" })
     // Fade the pill between focused and unfocused states (RN parity).
@@ -229,6 +233,11 @@ private fun DrawerChatItem(
                 text = "Export",
                 trailingIcon = { Icon(FileDownloadIcon, contentDescription = null) },
                 onClick = { menu.close(); onExport() },
+            )
+            MenuOption(
+                text = "Properties",
+                trailingIcon = { Icon(InfoOutlineIcon, contentDescription = null) },
+                onClick = { menu.close(); onProperties() },
             )
             MenuOption(
                 text = "Delete",

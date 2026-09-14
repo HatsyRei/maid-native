@@ -44,6 +44,7 @@ internal sealed interface ChatDialog {
     data class SystemPrompt(val initial: String) : ChatDialog
     data class DeleteMessage(val id: String) : ChatDialog
     data class DeleteChat(val id: String) : ChatDialog
+    data class Properties(val id: String, val title: String) : ChatDialog
 }
 
 /**

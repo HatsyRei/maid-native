@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.ChatStats
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.common.TextInputDialog
 import com.hatsyrei.maidnative.ui.common.rememberAvatar
@@ -142,6 +143,7 @@ fun ChatScreen(
                         exportRoot = id
                         exportLauncher.launch(actions.exportFileName(id))
                     },
+                    onProperties = { id, title -> dialog = ChatDialog.Properties(id, title) },
                     onImport = { importLauncher.launch(arrayOf("application/json")) },
                     onBackupAll = { backupLauncher.launch(null) },
                 )
@@ -239,6 +241,20 @@ fun ChatScreen(
                 dismiss()
             },
         )
+
+        is ChatDialog.Properties -> {
+            // Keyed on the tree, so a streamed token (which replaces the state
+            // object but not `mappings`) cannot re-run the scan, and the chat
+            // the user never inspects is never scanned at all.
+            val stats = remember(state.mappings, current.id) {
+                ChatStats.of(MessageTree.getConversation(state.mappings, current.id))
+            }
+            ChatPropertiesDialog(
+                title = current.title,
+                stats = stats,
+                onDismiss = dismiss,
+            )
+        }
     }
 }
 
@@ -367,7 +383,14 @@ private fun ChatScaffold(
                             onEdit = { onDialog(ChatDialog.SystemPrompt(state.systemPrompt)) },
                         )
                     }
-                    items(conversation, key = { it.id }) { node ->
+                    // Roles differ in structure (footnote, reasoning, branch
+                    // controls), so keep their subtrees out of each other's
+                    // reuse pool.
+                    items(
+                        conversation,
+                        key = { it.id },
+                        contentType = { it.role },
+                    ) { node ->
                         val siblings = node.parent?.let { childrenByParent[it] }
                             ?: emptyList()
                         val index = siblings.indexOfFirst { it.id == node.id }
