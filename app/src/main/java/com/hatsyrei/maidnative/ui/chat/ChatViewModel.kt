@@ -787,8 +787,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // persist once (per-token writes were intentionally suppressed above).
         val id = _state.value.streamingId
         val text = stream.committedText()
+        val stats = stream.finalStats()
         val committed = if (id != null) {
-            MessageTree.setContent(_state.value.mappings, id, text)
+            // The anchor the count is read against later: an edit moves the body
+            // away from the length that was counted, and the comparison is all a
+            // qualified figure needs.
+            val counted = stats.copy(chars = text.length)
+            MessageTree.updateContent(_state.value.mappings, id, { text }, counted::writeInto)
         } else {
             _state.value.mappings
         }

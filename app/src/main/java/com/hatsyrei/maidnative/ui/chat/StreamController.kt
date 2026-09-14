@@ -1,7 +1,9 @@
 package com.hatsyrei.maidnative.ui.chat
 
+import android.os.SystemClock
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.domain.Reasoning
+import com.hatsyrei.maidnative.domain.TurnStats
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +45,17 @@ internal class StreamController(
     private var publishedContent = 0
     private var publishedReasoning = 0
 
+    // Whatever the server reported, plus the two durations we time ourselves.
+    // `elapsedRealtime` rather than `currentTimeMillis`: it is monotonic, so an
+    // NTP correction or the user changing the clock mid-reply cannot produce a
+    // negative duration.
+    private var usage = TurnStats()
+    private var promptChars = 0
+    private var startedAt = 0L
+    private var firstTokenAt = 0L
+    private var lastTokenAt = 0L
+    private var stopped = false
+
     private var job: Job? = null
 
     fun start(
@@ -53,6 +66,10 @@ internal class StreamController(
         onFinish: () -> Unit,
     ) {
         reset()
+        // The thread as the endpoint is about to read it, which is what the
+        // prompt count it returns will describe.
+        promptChars = conversation.sumOf { it.content.length }
+        startedAt = SystemClock.elapsedRealtime()
         job = scope.launch {
             // Publishing is demand-driven, never timer-driven: the pump sleeps on
             // `pending` and is woken only by an arriving token. A free-running
@@ -101,6 +118,7 @@ internal class StreamController(
      * since `onFinish` dies with the job.
      */
     fun cancel() {
+        stopped = true
         job?.cancel()
     }
 
@@ -109,6 +127,24 @@ internal class StreamController(
         reasoning.setLength(0)
         publishedContent = 0
         publishedReasoning = 0
+        usage = TurnStats()
+        promptChars = 0
+        startedAt = 0L
+        firstTokenAt = 0L
+        lastTokenAt = 0L
+        stopped = false
+    }
+
+    private fun accept(event: OpenAiClient.StreamEvent) {
+        when (event) {
+            is OpenAiClient.StreamEvent.Usage -> usage = event.stats
+            is OpenAiClient.StreamEvent.Text -> {
+                val now = SystemClock.elapsedRealtime()
+                if (firstTokenAt == 0L) firstTokenAt = now
+                lastTokenAt = now
+                accept(event.chunk)
+            }
+        }
     }
 
     private fun accept(chunk: Reasoning.Chunk) {
@@ -154,6 +190,36 @@ internal class StreamController(
         return buildString(thought.length + reply.length + THINK_WRAPPER_LENGTH) {
             append("<think>\n").append(thought).append("\n</think>\n\n").append(reply)
         }
+    }
+
+    /**
+     * What the turn cost, for [committedText]'s node. Read from the buffers for
+     * the same reason [committedText] is: [cancel] can land mid-cadence.
+     *
+     * A stop is recorded rather than inferred. An aborted stream never carries
+     * the server's `usage` chunk (verified against llama.cpp), so a stopped turn
+     * and a turn from an endpoint that reports no usage are indistinguishable by
+     * their token counts alone — and only the first has a duration that must
+     * stay out of the averages.
+     */
+    fun finalStats(): TurnStats {
+        val reported = usage.copy(stopped = stopped, promptChars = promptChars)
+        if (firstTokenAt == 0L) return reported
+        return reported.copy(
+            // Server timings win where there are any. Ours run between the FIRST
+            // and LAST token rather than to "now", so a reply the user stopped
+            // reports the rate it was actually producing instead of being
+            // penalised for however long the socket then sat open — and they
+            // therefore cover one token fewer than arrived.
+            genMs = reported.genMs ?: (lastTokenAt - firstTokenAt),
+            genTokens = reported.genTokens
+                ?: reported.completionTokens?.minus(1)?.takeIf { it > 0 },
+            // Kept out of the generation window, and reported separately: on a
+            // cold model load this is dominated by prompt evaluation and would
+            // otherwise drag the tokens/sec figure to something that describes
+            // the server's startup, not its throughput.
+            ttftMs = if (startedAt == 0L) null else firstTokenAt - startedAt,
+        )
     }
 
     private companion object {

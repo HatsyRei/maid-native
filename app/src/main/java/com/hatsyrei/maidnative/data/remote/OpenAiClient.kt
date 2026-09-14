@@ -6,6 +6,7 @@ import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.Support
+import com.hatsyrei.maidnative.domain.TurnStats
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,7 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToLong
 
 /**
  * OpenAI-compatible client (models + streaming chat completions). Replaces the
@@ -70,6 +72,18 @@ class OpenAiClient {
     )
 
     data class ModelInfo(val id: String, val modalities: Modalities)
+
+    /**
+     * One thing the stream reported. Reply text and the usage record arrive on
+     * the same socket but are different kinds of fact, so the reasoning
+     * classifier is left to describe only what it is about — text.
+     */
+    sealed interface StreamEvent {
+        data class Text(val chunk: Reasoning.Chunk) : StreamEvent
+
+        /** Token counts and, where the endpoint sends them, its own timings. */
+        data class Usage(val stats: TurnStats) : StreamEvent
+    }
 
     /** GET {base}/models -> the models the endpoint offers. Throws on failure. */
     fun listModels(config: Config): List<ModelInfo> {
@@ -173,7 +187,7 @@ class OpenAiClient {
         config: Config,
         messages: List<MessageNode>,
         parameters: Map<String, Any?> = emptyMap(),
-    ): Flow<Reasoning.Chunk> = callbackFlow {
+    ): Flow<StreamEvent> = callbackFlow {
         val base = normalize(config.baseURL)
         val payload = buildPayload(config, messages, parameters, base in thinkingControl)
         val request = Request.Builder()
@@ -187,32 +201,48 @@ class OpenAiClient {
             // dedicated field has already done this work for us.
             private val scanner = Reasoning.Scanner()
 
+            private fun send(chunk: Reasoning.Chunk) {
+                trySend(StreamEvent.Text(chunk))
+            }
+
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 if (data == "[DONE]") {
-                    scanner.finish { trySend(it) }
+                    scanner.finish { send(it) }
                     close()
                     return
                 }
-                val deltaObj = runCatching {
-                    JSONObject(data)
-                        .optJSONArray("choices")
-                        ?.optJSONObject(0)
-                        ?.optJSONObject("delta")
-                }.getOrNull() ?: return
+                val json = runCatching { JSONObject(data) }.getOrNull() ?: return
+
+                // The usage record rides a chunk of its own, with `choices` set
+                // to an empty array per the OpenAI streaming spec, and llama.cpp
+                // hangs its `timings` off that same chunk. That empty array is
+                // why both have to be read before the delta lookup below gives
+                // up on the chunk.
+                val usage = json.optJSONObject("usage")
+                val timings = json.optJSONObject("timings")
+                if (usage != null || timings != null) {
+                    trySend(StreamEvent.Usage(turnStats(usage, timings)))
+                }
+
+                val deltaObj = json
+                    .optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("delta")
+                    ?: return
 
                 // `reasoning_content` is the DeepSeek / vLLM / llama.cpp
                 // spelling, `reasoning` is OpenRouter's. Without this, models
                 // that stream their trace out-of-band showed no reasoning at all.
                 val reasoning = deltaObj.stringOrNull("reasoning_content")
                     ?: deltaObj.stringOrNull("reasoning")
-                if (reasoning != null) trySend(Reasoning.Chunk.Thought(reasoning))
+                if (reasoning != null) send(Reasoning.Chunk.Thought(reasoning))
 
                 val content = deltaObj.stringOrNull("content")
-                if (content != null) scanner.feed(content) { trySend(it) }
+                if (content != null) scanner.feed(content) { send(it) }
             }
 
             override fun onClosed(eventSource: EventSource) {
-                scanner.finish { trySend(it) }
+                scanner.finish { send(it) }
                 close()
             }
 
@@ -225,6 +255,26 @@ class OpenAiClient {
         val eventSource = EventSources.createFactory(streamClient).newEventSource(request, listener)
         awaitClose { eventSource.cancel() }
     }
+
+    /**
+     * `prompt_tokens` / `completion_tokens` are the OpenAI spec. `timings` is
+     * llama.cpp's own, and is preferred for the generation window because it is
+     * measured server-side across the whole reply — where our clock can only see
+     * the gaps between arriving tokens, and so misses the first one.
+     */
+    private fun turnStats(usage: JSONObject?, timings: JSONObject?) = TurnStats(
+        promptTokens = usage?.intOrNull("prompt_tokens"),
+        completionTokens = usage?.intOrNull("completion_tokens"),
+        genMs = timings?.msOrNull("predicted_ms"),
+        genTokens = timings?.intOrNull("predicted_n"),
+    )
+
+    private fun JSONObject.intOrNull(key: String): Int? =
+        if (has(key) && !isNull(key)) optInt(key) else null
+
+    /** Durations come over as fractional milliseconds. */
+    private fun JSONObject.msOrNull(key: String): Long? =
+        if (has(key) && !isNull(key)) optDouble(key).takeIf { !it.isNaN() }?.roundToLong() else null
 
     private fun buildPayload(
         config: Config,
@@ -268,6 +318,12 @@ class OpenAiClient {
             .put("model", config.model)
             .put("messages", msgArray)
             .put("stream", true)
+            // Asks for the trailing usage chunk that the Properties dialog's
+            // token counts come from. Unlike `chat_template_kwargs` below this
+            // is part of the OpenAI spec proper, so it is sent unconditionally;
+            // a server that ignores it simply never sends the chunk, and the
+            // stats then read as unknown.
+            .put("stream_options", JSONObject().put("include_usage", true))
         // `chat_template_kwargs` is the llama.cpp / vLLM spelling, and is sent
         // in both directions on purpose: a server started with reasoning off (or
         // a models.ini entry that disables it) only turns thinking back on if
