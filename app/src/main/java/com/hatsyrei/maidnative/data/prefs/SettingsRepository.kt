@@ -176,9 +176,17 @@ class SettingsRepository(private val context: Context) {
             val previous = prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL
             prefs[KEY_BASE_URL] = value
             if (prefs[KEY_API_KEY].isNullOrEmpty()) return@edit
+            val stored = prefs[KEY_API_KEY_ORIGIN]
+            // A key entered while no endpoint was configured has never been sent
+            // anywhere, so the endpoint the user is naming now adopts it rather
+            // than the user being made to paste it again.
+            if (stored == null && previous.isBlank()) {
+                prefs[KEY_API_KEY_ORIGIN] = Endpoints.origin(value) ?: ""
+                return@edit
+            }
             // A key written before origins were recorded is adopted by whatever
             // endpoint was configured at the moment it is first moved away from.
-            val bound = prefs[KEY_API_KEY_ORIGIN] ?: Endpoints.origin(previous)
+            val bound = stored ?: Endpoints.origin(previous)
             if (bound != null && bound == Endpoints.origin(value)) return@edit
             prefs.remove(KEY_API_KEY)
             prefs.remove(KEY_API_KEY_ORIGIN)
@@ -315,6 +323,12 @@ class SettingsRepository(private val context: Context) {
             return
         }
         this[KEY_API_KEY] = cipher
+        // With no endpoint to bind to, the key is left unbound for the first one
+        // the user configures; until then it has nowhere to be sent.
+        if (url.isBlank()) {
+            remove(KEY_API_KEY_ORIGIN)
+            return
+        }
         // An unparseable URL gets an origin nothing can match, so the key is
         // dropped rather than sent, the moment the endpoint is corrected.
         this[KEY_API_KEY_ORIGIN] = Endpoints.origin(url) ?: ""
