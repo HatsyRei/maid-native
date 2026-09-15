@@ -2,21 +2,30 @@ package com.hatsyrei.maidnative.ui.chat
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,19 +36,34 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.tree.MessageNode
+import com.hatsyrei.maidnative.ui.icons.AddIcon
 import com.hatsyrei.maidnative.ui.icons.FileDownloadIcon
 import com.hatsyrei.maidnative.ui.icons.FolderOpenIcon
 import com.hatsyrei.maidnative.ui.icons.InfoOutlineIcon
 import com.hatsyrei.maidnative.ui.icons.SaveAltIcon
+
+// The inset is what makes the fade safe: it guarantees the list can always be
+// scrolled far enough for the last entry to clear the gradient, so the two must
+// stay equal — a taller fade would dim that entry permanently.
+private val LIST_BOTTOM_INSET = 48.dp
+private val LIST_FADE_HEIGHT = 48.dp
+
+private val MENU_ITEM_PADDING = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
+private val MENU_ICON_GAP = 8.dp
 
 internal fun chatTitle(node: MessageNode): String =
     (node.metadata["title"] as? String)?.takeIf { it.isNotBlank() } ?: ConversationDefaults.CHAT_TITLE
@@ -124,53 +148,137 @@ internal fun DrawerContent(
             .inertWhile { !settled() },
         drawerContainerColor = Color.Black,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 24.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Chats",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onImport, modifier = Modifier.size(40.dp)) {
-                Icon(FolderOpenIcon, contentDescription = "Import conversations")
-            }
-            IconButton(onClick = onBackupAll, modifier = Modifier.size(40.dp)) {
-                Icon(SaveAltIcon, contentDescription = "Back up all chats")
-            }
-            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = "New chat")
-            }
-        }
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            if (roots.isEmpty()) {
-                item {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = "No conversations yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp),
+                        text = "Chats",
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
+                    DrawerActionChip("New chat", AddIcon, onClick = onNewChat)
+                    DrawerOverflowMenu(onImport = onImport, onBackupAll = onBackupAll)
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = LIST_BOTTOM_INSET),
+                ) {
+                    if (roots.isEmpty()) {
+                        item {
+                            Text(
+                                text = "No chats yet",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(24.dp),
+                            )
+                        }
+                    }
+                    items(roots, key = { it.id }) { root ->
+                        val title = chatTitle(root)
+                        DrawerChatItem(
+                            id = root.id,
+                            title = title,
+                            selected = root.id == activeRoot,
+                            onClick = { onSelect(root.id) },
+                            onRename = { onRename(root.id, title) },
+                            onDelete = { onDeleteChat(root.id) },
+                            onExport = { onExport(root.id) },
+                            onProperties = { onProperties(root.id, title) },
+                        )
+                    }
                 }
             }
-            items(roots, key = { it.id }) { root ->
-                val title = chatTitle(root)
-                DrawerChatItem(
-                    id = root.id,
-                    title = title,
-                    selected = root.id == activeRoot,
-                    onClick = { onSelect(root.id) },
-                    onRename = { onRename(root.id, title) },
-                    onDelete = { onDeleteChat(root.id) },
-                    onExport = { onExport(root.id) },
-                    onProperties = { onProperties(root.id, title) },
-                )
-            }
+
+            // Ramp to the sheet's own colour rather than masking alpha: the
+            // container is literal black, so the two composite identically and
+            // this costs one quad instead of an offscreen layer per frame.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(LIST_FADE_HEIGHT)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black))),
+            )
+        }
+    }
+}
+
+/**
+ * Fully rounded rather than the chip default, so it reads as part of the
+ * drawer's pill language instead of a settings control that wandered in.
+ */
+@Composable
+private fun DrawerActionChip(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(AssistChipDefaults.IconSize),
+            )
+        },
+        shape = RoundedCornerShape(percent = 50),
+    )
+}
+
+/**
+ * Import and export-all are rare next to starting a chat, and spelling all three
+ * out side by side is what made the header wrap. An overflow glyph is honest where
+ * the old bespoke ones were not: it promises only "more here", and the actions
+ * behind it are named in words.
+ */
+@Composable
+private fun DrawerOverflowMenu(onImport: () -> Unit, onBackupAll: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "More chat actions")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Import") },
+                trailingIcon = {
+                    Icon(
+                        FolderOpenIcon,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = MENU_ICON_GAP),
+                    )
+                },
+                contentPadding = MENU_ITEM_PADDING,
+                onClick = {
+                    open = false
+                    onImport()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Export all") },
+                trailingIcon = {
+                    Icon(
+                        SaveAltIcon,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = MENU_ICON_GAP),
+                    )
+                },
+                contentPadding = MENU_ITEM_PADDING,
+                onClick = {
+                    open = false
+                    onBackupAll()
+                },
+            )
         }
     }
 }
