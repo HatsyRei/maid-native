@@ -15,8 +15,8 @@ android {
         applicationId = "com.hatsyrei.maidnative"
         minSdk = 24
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.5.2"
+        versionCode = 17
+        versionName = "1.6.0"
     }
 
     buildTypes {
