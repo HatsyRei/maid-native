@@ -16,9 +16,9 @@ server.
 
 <table align="center">
 <tr>
-<td width="25%"><a href="docs/screenshots/chat-multimodal.png"><img src="docs/screenshots/chat-multimodal.png" width="100%" alt="Chat with an image attachment and Markdown reply" /></a></td>
-<td width="25%"><a href="docs/screenshots/drawer.png"><img src="docs/screenshots/drawer.png" width="100%" alt="Chat drawer with saved conversations" /></a></td>
-<td width="25%"><a href="docs/screenshots/settings-endpoint.png"><img src="docs/screenshots/settings-endpoint.png" width="100%" alt="Endpoint and model settings" /></a></td>
+<td width="25%"><a href="docs/screenshots/chat-multimodal.png"><img src="docs/screenshots/chat-multimodal.png" width="100%" alt="Chat with an image attachment, a Markdown reply and its generation-stats footnote" /></a></td>
+<td width="25%"><a href="docs/screenshots/drawer.png"><img src="docs/screenshots/drawer.png" width="100%" alt="Chat drawer with saved conversations, a New chat action and an overflow menu" /></a></td>
+<td width="25%"><a href="docs/screenshots/settings-endpoint.png"><img src="docs/screenshots/settings-endpoint.png" width="100%" alt="Endpoint, model, sampling and thinking settings" /></a></td>
 <td width="25%"><a href="docs/screenshots/settings-theme.png"><img src="docs/screenshots/settings-theme.png" width="100%" alt="Theme accent, composer background and profile settings" /></a></td>
 </tr>
 <tr>
@@ -52,7 +52,9 @@ server.
 - **Works offline** — history lives in Room, so browsing and reading need no
   network at all.
 - **Collapsible reasoning** — `<think>` output is rendered separately and folds
-  away.
+  away, and a **Thinking** toggle asks the endpoint to turn the model's
+  reasoning trace on or off (endpoints that don't support the request ignore
+  it).
 - **Generation stats** — a footnote under each reply with its token count,
   generation time and tokens/s, plus a per-chat **Properties** dialog
   summarising the active thread: message counts, conversation size, average
