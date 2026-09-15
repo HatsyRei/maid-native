@@ -53,6 +53,16 @@ server.
   network at all.
 - **Collapsible reasoning** — `<think>` output is rendered separately and folds
   away.
+- **Generation stats** — a footnote under each reply with its token count,
+  generation time and tokens/s, plus a per-chat **Properties** dialog
+  summarising the active thread: message counts, conversation size, average
+  speed, response time and time to first token. Counts come from the server's
+  `usage` chunk and llama.cpp `timings`; edited or stopped replies are reported
+  as bounds rather than guessed at.
+- **Sampling and penalty controls** — temperature, top P, top K, min P, and the
+  frequency and presence penalties. Every field is off by default and an off
+  field is left out of the request entirely, so your server's flags and the
+  sampling llama.cpp reads from the model's metadata keep deciding it.
 - **Endpoint presets and a model-picker pill** for switching servers and models
   in a couple of taps.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,
