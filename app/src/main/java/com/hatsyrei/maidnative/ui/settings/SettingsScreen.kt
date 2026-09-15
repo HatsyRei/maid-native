@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
@@ -145,6 +146,14 @@ fun SettingsScreen(
                     label = "Base URL",
                     onCommit = actions.setBaseURL,
                     modifier = Modifier.weight(1f),
+                    // A URL is not prose: autocorrect, suggestions and sentence
+                    // capitalisation only ever corrupt what the user typed.
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        autoCorrectEnabled = false,
+                        capitalization = KeyboardCapitalization.None,
+                        imeAction = ImeAction.Done,
+                    ),
                 )
                 val scanSucceeded = state.foundURL != null && state.settings.baseURL == state.foundURL
                 ScanButton(
@@ -405,6 +414,7 @@ internal fun AutoSaveTextField(
     modifier: Modifier = Modifier,
     secure: Boolean = false,
     caretAtStart: Boolean = false,
+    keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
 ) {
     // Adopt values the store writes behind the field's back (a scan result, a
     // loaded preset). No-op for the round trip of the field's own commit.
@@ -461,7 +471,7 @@ internal fun AutoSaveTextField(
             state = state,
             label = { Text(label) },
             lineLimits = TextFieldLineLimits.SingleLine,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardOptions = keyboardOptions,
             onKeyboardAction = onKeyboardAction,
             modifier = fieldModifier,
         )
