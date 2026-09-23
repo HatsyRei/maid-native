@@ -584,7 +584,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 next
             }
-            if (merged.size != before.size || merged != before) {
+            if (merged != before) {
                 _state.update { it.copy(mappings = merged) }
                 persist()
                 // Re-importing an export replaces its nodes, stranding the
