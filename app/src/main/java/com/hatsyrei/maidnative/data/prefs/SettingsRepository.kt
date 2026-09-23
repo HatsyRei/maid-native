@@ -15,9 +15,12 @@ import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Sampling
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -133,7 +136,7 @@ class SettingsRepository(private val context: Context) {
             scanPrefixLength = (prefs[KEY_SCAN_PREFIX] ?: EndpointScanner.DEFAULT_PREFIX_LENGTH)
                 .takeIf { it in EndpointScanner.PREFIX_CHOICES } ?: EndpointScanner.DEFAULT_PREFIX_LENGTH,
         )
-    }.distinctUntilChanged()
+    }.flowOn(Dispatchers.IO).distinctUntilChanged()
 
     val presets: Flow<List<EndpointPreset>> = context.dataStore.data
         // DataStore re-emits the whole snapshot on every write, including ones
@@ -143,6 +146,7 @@ class SettingsRepository(private val context: Context) {
         .map { it[KEY_PRESETS] }
         .distinctUntilChanged()
         .map { decodePresets(it) }
+        .flowOn(Dispatchers.IO)
 
     /**
      * Root id of the conversation the app was last in, so a relaunch reopens it.
@@ -201,7 +205,7 @@ class SettingsRepository(private val context: Context) {
      * the stored key untouched. Encryption runs before the edit opens so a
      * failure cannot half-write the pair.
      */
-    suspend fun setApiKey(value: String) {
+    suspend fun setApiKey(value: String): Unit = withContext(Dispatchers.IO) {
         val cipher = SecretCipher.encode(value)
         context.dataStore.edit { prefs ->
             prefs.putKey(cipher, prefs[KEY_BASE_URL] ?: DEFAULT_BASE_URL)
@@ -313,7 +317,7 @@ class SettingsRepository(private val context: Context) {
      * @throws SecretUnavailableException if the key cannot be encrypted, in
      * which case neither half is applied.
      */
-    suspend fun applyPreset(preset: EndpointPreset) {
+    suspend fun applyPreset(preset: EndpointPreset): Unit = withContext(Dispatchers.IO) {
         val cipher = preset.storedKey.ifEmpty { SecretCipher.encode(preset.apiKey) }
         context.dataStore.edit {
             it[KEY_BASE_URL] = preset.baseURL
@@ -341,9 +345,12 @@ class SettingsRepository(private val context: Context) {
     }
 
     private suspend fun editPresets(transform: (List<EndpointPreset>) -> List<EndpointPreset>) {
-        context.dataStore.edit { prefs ->
-            val current = decodePresets(prefs[KEY_PRESETS], decrypt = false)
-            prefs[KEY_PRESETS] = encodePresets(transform(current))
+        // DataStore runs the transform, and so the Keystore calls, in the caller's context.
+        withContext(Dispatchers.IO) {
+            context.dataStore.edit { prefs ->
+                val current = decodePresets(prefs[KEY_PRESETS], decrypt = false)
+                prefs[KEY_PRESETS] = encodePresets(transform(current))
+            }
         }
     }
 
