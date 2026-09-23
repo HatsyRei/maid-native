@@ -156,7 +156,7 @@ None of these block the sign-off above; each is either an enhancement beyond RN 
 ./build.sh install               # clean debug build + adb install
 # or drive Gradle directly:
 ./gradlew assembleDebug          # or installDebug with a device attached
-# APK: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+# APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 Requires `ANDROID_HOME` (or a `local.properties` with `sdk.dir`) and JDK 17+ (JDK 21 used locally). See `README.md`.
 

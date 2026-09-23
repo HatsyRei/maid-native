@@ -61,7 +61,7 @@ echo "==> ./gradlew $GRADLE_TASK --no-daemon"
 
 # --- Post-build ------------------------------------------------------------
 if [[ "$TARGET" == "install" ]]; then
-  APK="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+  APK="app/build/outputs/apk/release/app-release.apk"
   echo "==> adb install -r $APK"
   adb install -r "$APK"
 fi

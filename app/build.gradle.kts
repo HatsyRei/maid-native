@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.hatsyrei.maidnative"
-    // 37 is the floor imposed by markdown-renderer 0.43.0. targetSdk stays at 36
+    // 37 is the floor imposed by markdown-renderer since 0.43.0. targetSdk stays at 36
     // deliberately: compiling against newer APIs is independent of opting in to
     // new runtime behavior.
     compileSdk = 37
@@ -39,17 +39,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    // Match the RN app's shipping profile: arm64-v8a only.
-    ndkVersion = "27.1.12297006"
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a")
-            isUniversalApk = false
-        }
     }
 }
 
