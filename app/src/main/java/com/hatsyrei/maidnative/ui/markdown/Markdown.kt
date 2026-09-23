@@ -2,6 +2,7 @@ package com.hatsyrei.maidnative.ui.markdown
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -9,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -30,6 +32,8 @@ import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.model.parseMarkdown
 import com.mikepenz.markdown.model.rememberStreamingMarkdownState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Module-level LRU cache of parsed markdown, keyed by the raw content string.
@@ -168,21 +172,38 @@ fun ProvideChatMarkdownStyle(content: @Composable () -> Unit) {
  * Renders settled (non-streaming) assistant markdown using the
  * multiplatform-markdown-renderer library (Material 3 module).
  *
- * The parse happens inside a single `remember`, so it runs once per content
- * value per composition and the result is shared through [MarkdownParseCache]
- * across scroll re-entry.
+ * Parses once per content value and shares the result through
+ * [MarkdownParseCache] across scroll re-entry. A long message that misses the
+ * cache is parsed on [Dispatchers.Default] so scrolling it into view cannot
+ * stall a frame. [deferParse] off keeps it inline, for a bubble that must not
+ * flash raw text (a reply that has just finished streaming).
  */
 @Composable
 fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
+    deferParse: Boolean = true,
 ) {
     val style = LocalChatMarkdownStyle.current
-    val state = remember(markdown) {
-        MarkdownParseCache.get(markdown)
-            ?: parseMarkdown(markdown).also {
-                if (it is State.Success) MarkdownParseCache.put(markdown, it)
-            }
+    // Only long messages leave the main thread: a short parse is cheaper than
+    // the placeholder swap, which briefly shows the raw text instead.
+    val holder = remember(markdown) {
+        mutableStateOf(
+            MarkdownParseCache.get(markdown)
+                ?: if (!deferParse || markdown.length <= SYNC_PARSE_CHARS) parseCached(markdown) else null,
+        )
+    }
+    val state = holder.value
+    if (state == null) {
+        LaunchedEffect(holder) {
+            holder.value = withContext(Dispatchers.Default) { parseCached(markdown) }
+        }
+        Text(
+            text = markdown,
+            style = style.typography.paragraph,
+            modifier = modifier.fillMaxWidth(),
+        )
+        return
     }
     Markdown(
         state = state,
@@ -192,6 +213,13 @@ fun MarkdownText(
         modifier = modifier.fillMaxWidth(),
     )
 }
+
+private fun parseCached(markdown: String): State =
+    parseMarkdown(markdown).also {
+        if (it is State.Success) MarkdownParseCache.put(markdown, it)
+    }
+
+private const val SYNC_PARSE_CHARS = 8 * 1024
 
 /**
  * Builds an append-only [StreamingMarkdownState] for the reply currently being

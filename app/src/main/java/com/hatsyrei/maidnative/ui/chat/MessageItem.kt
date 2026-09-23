@@ -360,6 +360,7 @@ internal fun MessageItem(
             MarkdownText(
                 markdown = body,
                 modifier = Modifier.padding(top = 8.dp),
+                deferParse = !isLatest,
             )
         }
         // Absent rather than "N/A" when unknown: a label repeated down every
