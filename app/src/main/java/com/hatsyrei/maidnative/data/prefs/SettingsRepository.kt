@@ -94,10 +94,11 @@ class SettingsRepository(private val context: Context) {
         val baseURL: String,
         val apiKey: String,
         /**
-         * The ciphertext as stored. Kept so an entry this device can no longer
-         * decrypt survives edits to its neighbours: every preset write re-encodes
-         * the whole list, and re-encrypting the empty [apiKey] substituted for an
-         * unreadable key would destroy it for good.
+         * The ciphertext as stored, or empty once [apiKey] has been replaced.
+         * Every preset write re-encodes the whole list, so reusing it keeps an
+         * edit from re-encrypting keys it never touched, and keeps an entry this
+         * device can no longer decrypt from being destroyed by re-encrypting the
+         * empty [apiKey] substituted for it.
          */
         val storedKey: String = "",
         val keyReadable: Boolean = true,
@@ -280,7 +281,13 @@ class SettingsRepository(private val context: Context) {
         } else {
             presets.map {
                 if (it.id == existing.id) {
-                    it.copy(name = trimmed, baseURL = baseURL, apiKey = apiKey, keyReadable = true)
+                    it.copy(
+                        name = trimmed,
+                        baseURL = baseURL,
+                        apiKey = apiKey,
+                        storedKey = "",
+                        keyReadable = true,
+                    )
                 } else {
                     it
                 }
@@ -308,7 +315,7 @@ class SettingsRepository(private val context: Context) {
      * which case neither half is applied.
      */
     suspend fun applyPreset(preset: EndpointPreset) {
-        val cipher = SecretCipher.encode(preset.apiKey)
+        val cipher = preset.storedKey.ifEmpty { SecretCipher.encode(preset.apiKey) }
         context.dataStore.edit {
             it[KEY_BASE_URL] = preset.baseURL
             it.putKey(cipher, preset.baseURL)
@@ -336,11 +343,13 @@ class SettingsRepository(private val context: Context) {
 
     private suspend fun editPresets(transform: (List<EndpointPreset>) -> List<EndpointPreset>) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_PRESETS] = encodePresets(transform(decodePresets(prefs[KEY_PRESETS])))
+            val current = decodePresets(prefs[KEY_PRESETS], decrypt = false)
+            prefs[KEY_PRESETS] = encodePresets(transform(current))
         }
     }
 
-    private fun decodePresets(raw: String?): List<EndpointPreset> {
+    /** Without [decrypt], entries carry only their ciphertext, which is all a rewrite needs. */
+    private fun decodePresets(raw: String?, decrypt: Boolean = true): List<EndpointPreset> {
         if (raw.isNullOrEmpty()) return emptyList()
         return runCatching {
             val array = JSONArray(raw)
@@ -348,7 +357,7 @@ class SettingsRepository(private val context: Context) {
                 val entry = array.optJSONObject(i) ?: return@mapNotNull null
                 val id = entry.optString(FIELD_ID).ifEmpty { return@mapNotNull null }
                 val storedKey = entry.optString(FIELD_API_KEY)
-                val apiKey = SecretCipher.decode(storedKey)
+                val apiKey = if (decrypt) SecretCipher.decode(storedKey) else ""
                 EndpointPreset(
                     id = id,
                     name = entry.optString(FIELD_NAME),
@@ -369,10 +378,7 @@ class SettingsRepository(private val context: Context) {
                     .put(FIELD_ID, it.id)
                     .put(FIELD_NAME, it.name)
                     .put(FIELD_BASE_URL, it.baseURL)
-                    .put(
-                        FIELD_API_KEY,
-                        if (it.keyReadable) SecretCipher.encode(it.apiKey) else it.storedKey,
-                    ),
+                    .put(FIELD_API_KEY, it.storedKey.ifEmpty { SecretCipher.encode(it.apiKey) }),
             )
         }
         return array.toString()
