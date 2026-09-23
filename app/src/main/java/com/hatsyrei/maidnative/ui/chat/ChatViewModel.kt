@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -122,9 +123,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    // One upstream subscription, so each DataStore write is decoded once.
+    private val settings = settingsRepo.settings
+        .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
+
     // Kept apart from [state] so the theme (which sits above the whole app) is
     // not recomposed by every streamed token.
-    val theme: StateFlow<ThemeSettings> = settingsRepo.settings
+    val theme: StateFlow<ThemeSettings> = settings
         .map { ThemeSettings(it.accentColor, it.nameplate, it.nameplateStamp) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeSettings())
@@ -194,7 +199,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         viewModelScope.launch {
-            settingsRepo.settings.collect { s ->
+            settings.collect { s ->
                 val changedEndpoint = s.baseURL != _state.value.settings.baseURL ||
                     s.apiKey != _state.value.settings.apiKey
                 _state.update { it.copy(settings = s) }
