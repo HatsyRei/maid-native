@@ -14,7 +14,7 @@ class ConversationFileStore(private val resolver: ContentResolver) {
 
     /** Overwrite the document at [uri] with [json]. */
     fun write(uri: Uri, json: String) {
-        resolver.openOutputStream(uri, "wt")?.use { it.write(json.toByteArray()) }
+        resolver.openOutputStream(uri, "wt")?.writer()?.use { it.write(json) }
             ?: error("Could not open file for writing.")
     }
 
@@ -38,8 +38,10 @@ class ConversationFileStore(private val resolver: ContentResolver) {
     /**
      * Create one JSON document per ([fileName], json) entry inside the tree
      * picked as [treeUri]. Entries whose document can't be created are skipped.
+     * [files] is pulled one entry at a time, so a lazy sequence keeps only one
+     * encoded conversation (with its inlined media) in memory.
      */
-    fun backup(treeUri: Uri, files: List<Pair<String, String>>) {
+    fun backup(treeUri: Uri, files: Sequence<Pair<String, String>>) {
         val dirUri = DocumentsContract.buildDocumentUriUsingTree(
             treeUri, DocumentsContract.getTreeDocumentId(treeUri),
         )
@@ -47,7 +49,7 @@ class ConversationFileStore(private val resolver: ContentResolver) {
             val fileUri = DocumentsContract.createDocument(
                 resolver, dirUri, "application/json", fileName,
             ) ?: continue
-            resolver.openOutputStream(fileUri)?.use { it.write(json.toByteArray()) }
+            resolver.openOutputStream(fileUri)?.writer()?.use { it.write(json) }
         }
     }
 }

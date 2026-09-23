@@ -539,7 +539,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val snapshot = _state.value.mappings
                 val media = _state.value.settings.exportMedia
                 val byRoot = snapshot.values.groupBy { it.root }
-                val files = MessageTree.getRoots(snapshot).map { root ->
+                val files = MessageTree.getRoots(snapshot).asSequence().map { root ->
                     val nodes = byRoot[root.id].orEmpty()
                     exportFileName(root.id) to
                         MessageStore.encodeExport(nodes) { attachmentStore.exportRecord(it, media) }
