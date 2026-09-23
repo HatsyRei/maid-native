@@ -13,8 +13,8 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * One publish tick. A null half did not grow since the last tick, so the caller
@@ -59,6 +59,14 @@ internal class StreamController(
 
     private var job: Job? = null
 
+    // Chunks are accumulated on an IO thread while the main thread publishes and
+    // commits, so every buffer access holds this.
+    private val lock = Any()
+
+    // Bumped by every reset and cancel, so a chunk a superseded collector was
+    // already holding cannot land in the buffers of the stream that follows.
+    private var generation = 0
+
     fun start(
         config: OpenAiClient.Config,
         conversation: List<MessageNode>,
@@ -67,10 +75,13 @@ internal class StreamController(
         onFinish: () -> Unit,
     ) {
         reset()
-        // The thread as the endpoint is about to read it, which is what the
-        // prompt count it returns will describe.
-        promptChars = conversation.sumOf { it.content.length }
-        startedAt = SystemClock.elapsedRealtime()
+        val gen = synchronized(lock) {
+            // The thread as the endpoint is about to read it, which is what the
+            // prompt count it returns will describe.
+            promptChars = conversation.sumOf { it.content.length }
+            startedAt = SystemClock.elapsedRealtime()
+            generation
+        }
         job = scope.launch {
             // Publishing is demand-driven, never timer-driven: the pump sleeps on
             // `pending` and is woken only by an arriving token. A free-running
@@ -90,24 +101,27 @@ internal class StreamController(
                 }
             }
 
-            client.streamChat(config, conversation)
-                // UNLIMITED rather than the default 64-slot buffer: the SSE
-                // listener publishes with `trySend`, which silently drops a
-                // chunk when the channel is full. Losing a token corrupts the
-                // reply, and the buffer operator fuses with the callbackFlow's
-                // own channel, so this just widens that one channel.
-                .buffer(Channel.UNLIMITED)
-                // Building the request reads every attachment off disk and
-                // base64-encodes it, which must not happen on the main thread.
-                // Fuses with the buffer above, so it stays one channel.
-                .flowOn(Dispatchers.IO)
-                .catch { onError(it) }
-                .collect { chunk ->
-                    accept(chunk)
-                    pending.trySend(Unit)
-                }
+            // Collected off the main thread, so a token wakes it only through the
+            // throttled pump rather than once per chunk. IO also covers building
+            // the request, which reads and base64-encodes every attachment.
+            val failure = withContext(Dispatchers.IO) {
+                var caught: Throwable? = null
+                client.streamChat(config, conversation)
+                    // UNLIMITED rather than the default 64-slot buffer: the SSE
+                    // listener publishes with `trySend`, which silently drops a
+                    // chunk when the channel is full. Losing a token corrupts the
+                    // reply, and the buffer operator fuses with the callbackFlow's
+                    // own channel, so this just widens that one channel.
+                    .buffer(Channel.UNLIMITED)
+                    .catch { caught = it }
+                    .collect { chunk ->
+                        if (accept(chunk, gen)) pending.trySend(Unit)
+                    }
+                caught
+            }
 
             pump.cancel()
+            failure?.let(onError)
             onFinish()
         }
     }
@@ -119,11 +133,15 @@ internal class StreamController(
      * since `onFinish` dies with the job.
      */
     fun cancel() {
-        stopped = true
+        synchronized(lock) {
+            stopped = true
+            generation++
+        }
         job?.cancel()
     }
 
-    fun reset() {
+    fun reset() = synchronized(lock) {
+        generation++
         content.setLength(0)
         reasoning.setLength(0)
         publishedContent = 0
@@ -136,7 +154,9 @@ internal class StreamController(
         stopped = false
     }
 
-    private fun accept(event: OpenAiClient.StreamEvent) {
+    /** False when [gen] belongs to a superseded stream and the event was dropped. */
+    private fun accept(event: OpenAiClient.StreamEvent, gen: Int): Boolean = synchronized(lock) {
+        if (gen != generation) return false
         when (event) {
             is OpenAiClient.StreamEvent.Usage -> usage = event.stats
             is OpenAiClient.StreamEvent.Text -> {
@@ -146,6 +166,7 @@ internal class StreamController(
                 accept(event.chunk)
             }
         }
+        true
     }
 
     private fun accept(chunk: Reasoning.Chunk) {
@@ -163,7 +184,7 @@ internal class StreamController(
     }
 
     /** Null when nothing new has arrived since the last tick. */
-    private fun publish(): StreamUpdate? {
+    private fun publish(): StreamUpdate? = synchronized(lock) {
         // Not `>`: a reclassification shrinks the reply and grows the trace.
         val contentChanged = content.length != publishedContent
         val reasoningChanged = reasoning.length != publishedReasoning
@@ -184,7 +205,7 @@ internal class StreamController(
      * Read from the buffers rather than from published state: [cancel] stops the
      * job mid-cadence, so the last publish can lag them by up to one tick.
      */
-    fun committedText(): String {
+    fun committedText(): String = synchronized(lock) {
         val reply = content.toString().trim()
         val thought = reasoning.toString().trim()
         if (thought.isEmpty()) return reply
@@ -203,7 +224,7 @@ internal class StreamController(
      * repeat it on every chunk leave their last one. Both keep a duration that
      * must stay out of the averages, and only the flag says so.
      */
-    fun finalStats(): TurnStats {
+    fun finalStats(): TurnStats = synchronized(lock) {
         val reported = usage.copy(stopped = stopped, promptChars = promptChars)
         if (firstTokenAt == 0L) return reported
         return reported.copy(
