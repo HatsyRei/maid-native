@@ -68,6 +68,8 @@ private enum class Screen { Chat, Settings }
 private fun MaidNativeApp(viewModel: ChatViewModel) {
     // Lifecycle-aware so a reply streaming in the background drives no recomposition.
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Handed down unread, so only the streaming bubble observes each token.
+    val streaming = viewModel.streaming.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(Screen.Chat) }
 
     // Remembered once: the point of the holders is that the screens below see a
@@ -151,7 +153,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
         // Bundle can store.
         screenState.SaveableStateProvider(target.name) {
             when (target) {
-                Screen.Chat -> ChatScreen(state = state, actions = chatActions)
+                Screen.Chat -> ChatScreen(state = state, streaming = streaming, actions = chatActions)
 
                 Screen.Settings -> {
                     BackHandler { screen = Screen.Chat }

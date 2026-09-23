@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -175,21 +176,21 @@ internal fun MessageItem(
     onNextBranch: () -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
     streamingState: StreamingMarkdownState? = null,
-    streamingReasoning: String? = null,
+    streaming: State<StreamingText?>? = null,
 ) {
     val isUser = node.role == "user"
+    // Read here, so a token recomposes this bubble and nothing above it.
+    val live = streaming?.value?.takeIf { it.id == node.id }
     // `Reasoning.split` scans (and for `<think>` bodies, copies) the entire
-    // message. It ran unmemoized on every recomposition, so scrolling a bubble
-    // into view or toggling `busy` re-scanned it for nothing. Keying on the
-    // content means it now runs only when the text actually changes — and while
-    // this bubble is streaming it does not run at all, because the reply and the
-    // trace arrive already separated.
-    val (content, reasoning) = remember(node.content, isUser, streamingReasoning) {
-        when {
-            isUser -> node.content to null
-            streamingReasoning != null -> node.content to streamingReasoning.ifEmpty { null }
-            else -> Reasoning.split(node.content)
-        }
+    // message, so it runs only when the stored text changes. A streaming
+    // bubble skips it: its reply and trace arrive already separated.
+    val settled = remember(node.content, isUser) {
+        if (isUser) node.content to null else Reasoning.split(node.content)
+    }
+    val (content, reasoning) = if (live != null) {
+        live.text to live.reasoning.ifEmpty { null }
+    } else {
+        settled
     }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -243,7 +244,7 @@ internal fun MessageItem(
                         closeMenu()
                         scope.launch {
                             clipboard.setClipEntry(
-                                ClipEntry(ClipData.newPlainText("message", node.content)),
+                                ClipEntry(ClipData.newPlainText("message", live?.text ?: node.content)),
                             )
                         }
                     },

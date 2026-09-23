@@ -37,6 +37,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     state: ChatUiState,
+    streaming: State<StreamingText?>,
     actions: ChatActions,
 ) {
     val listState = rememberLazyListState()
@@ -162,6 +164,7 @@ fun ChatScreen(
             ) {
                 ChatScaffold(
                     state = state,
+                    streaming = streaming,
                     listState = listState,
                     actions = actions,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -262,6 +265,7 @@ fun ChatScreen(
 @Composable
 private fun ChatScaffold(
     state: ChatUiState,
+    streaming: State<StreamingText?>,
     listState: LazyListState,
     actions: ChatActions,
     onOpenDrawer: () -> Unit,
@@ -353,12 +357,15 @@ private fun ChatScaffold(
                 // Hoisted above the list on purpose: `LazyColumn` disposes items
                 // that scroll out of view, and the incremental parser is
                 // append-only, so it cannot be rebuilt from scratch mid-stream.
-                // `streamingText` is already the reply alone — the trace never
+                // `text` is already the reply alone — the trace never
                 // reaches the markdown parser, where a raw `<think>` would be
-                // read as an HTML block and swallow the text after it.
+                // read as an HTML block and swallow the text after it. Read
+                // lazily, so a token does not recompose this scaffold.
                 val streamingId = state.streamingId
                 val streamingMarkdown = if (streamingId != null) {
-                    rememberChatStreamingMarkdownState(streamingId, state.streamingText)
+                    rememberChatStreamingMarkdownState(streamingId) {
+                        streaming.value?.takeIf { it.id == streamingId }?.text.orEmpty()
+                    }
                 } else {
                     null
                 }
@@ -418,9 +425,7 @@ private fun ChatScaffold(
                             onPrevBranch = { node.parent?.let(actions.prevBranch) },
                             onNextBranch = { node.parent?.let(actions.nextBranch) },
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
-                            streamingReasoning = state.streamingReasoning.takeIf {
-                                node.id == streamingId
-                            },
+                            streaming = streaming.takeIf { node.id == streamingId },
                         )
                     }
                     if (conversation.isNotEmpty()) {

@@ -223,7 +223,8 @@ private const val SYNC_PARSE_CHARS = 8 * 1024
 
 /**
  * Builds an append-only [StreamingMarkdownState] for the reply currently being
- * streamed, and keeps it fed from [content] (the accumulated reply text).
+ * streamed, and keeps it fed from [content] (reads the accumulated reply text;
+ * it is observed in a snapshot flow, so the caller never recomposes for it).
  *
  * Only the delta since the last append is handed to the parser, so the parser
  * re-parses just the trailing unfinished block instead of the whole growing
@@ -247,7 +248,7 @@ private const val SYNC_PARSE_CHARS = 8 * 1024
 @Composable
 fun rememberChatStreamingMarkdownState(
     sessionKey: String,
-    content: String,
+    content: () -> String,
 ): StreamingMarkdownState {
     var generation by remember(sessionKey) { mutableIntStateOf(0) }
     return key(sessionKey, generation) {
@@ -259,7 +260,7 @@ fun rememberChatStreamingMarkdownState(
             var appended = ""
             // snapshotFlow conflates, so a burst of tokens arriving faster than
             // the parser collapses into one larger append instead of queueing.
-            snapshotFlow { latestContent.value }.collect { text ->
+            snapshotFlow { latestContent.value() }.collect { text ->
                 when {
                     // Cheap: identity check first, then a length mismatch exits.
                     text == appended -> Unit

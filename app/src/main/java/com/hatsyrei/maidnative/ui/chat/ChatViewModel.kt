@@ -66,27 +66,16 @@ data class ChatUiState(
      * clears [error] on success, cannot wipe it.
      */
     val credentialNotice: String? = null,
+    /** The node a stream is filling; its text is published via [ChatViewModel.streaming]. */
     val streamingId: String? = null,
-    val streamingText: String = "",
-    val streamingReasoning: String = "",
 ) {
     /**
      * Visible conversation = active thread from root, skipping the system node.
-     * While a stream is in flight the growing reply lives in [streamingText]
-     * (not the tree), so overlay it onto the streaming node here. The tree map
-     * itself is left untouched per token and rewritten exactly once when the
-     * stream ends or is stopped.
-     *
-     * [streamingText] is the reply only — the trace is carried separately in
-     * [streamingReasoning] — so nothing downstream has to re-split it per token.
+     * A streaming reply stays empty in the tree until the stream ends or is
+     * stopped, then is written exactly once.
      */
     val conversation: List<MessageNode>
-        get() {
-            val thread = root?.let { MessageTree.getConversation(mappings, it).drop(1) }
-                ?: return emptyList()
-            val id = streamingId ?: return thread
-            return thread.map { if (it.id == id) it.copy(content = streamingText) else it }
-        }
+        get() = root?.let { MessageTree.getConversation(mappings, it).drop(1) } ?: emptyList()
 
     /**
      * The system prompt in force for the active chat: the root node *is* the
@@ -109,6 +98,13 @@ data class ChatUiState(
         get() = modalities[settings.model] ?: Modalities.UNKNOWN
 }
 
+/**
+ * The reply in flight for node [id]. [text] is the reply only; the trace is
+ * carried separately in [reasoning], so nothing has to re-split it per token.
+ */
+@Immutable
+data class StreamingText(val id: String, val text: String = "", val reasoning: String = "")
+
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settingsRepo = SettingsRepository(app)
@@ -122,6 +118,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
+
+    // Apart from [state] so a streamed token recomposes only the bubble it grows.
+    private val _streaming = MutableStateFlow<StreamingText?>(null)
+    val streaming: StateFlow<StreamingText?> = _streaming.asStateFlow()
 
     // One upstream subscription, so each DataStore write is decoded once.
     private val settings = settingsRepo.settings
@@ -758,26 +758,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startStream(rootId: String, responseId: String) {
         val s = _state.value.settings
-        _state.update {
-            it.copy(
-                busy = true,
-                error = null,
-                streamingId = responseId,
-                streamingText = "",
-                streamingReasoning = "",
-            )
-        }
+        _state.update { it.copy(busy = true, error = null, streamingId = responseId) }
+        _streaming.value = StreamingText(responseId)
         persist()
         stream.start(
             config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning, s.sampling),
             conversation = MessageTree.getConversation(_state.value.mappings, rootId),
             onUpdate = { update ->
-                // Guards against a tick from a superseded job.
-                if (_state.value.streamingId == responseId) {
-                    _state.update {
-                        it.copy(
-                            streamingText = update.content ?: it.streamingText,
-                            streamingReasoning = update.reasoning ?: it.streamingReasoning,
+                _streaming.update { live ->
+                    // Guards against a tick from a superseded job.
+                    if (live?.id != responseId) {
+                        live
+                    } else {
+                        live.copy(
+                            text = update.content ?: live.text,
+                            reasoning = update.reasoning ?: live.reasoning,
                         )
                     }
                 }
@@ -809,15 +804,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             _state.value.mappings
         }
-        _state.update {
-            it.copy(
-                mappings = committed,
-                busy = false,
-                streamingId = null,
-                streamingText = "",
-                streamingReasoning = "",
-            )
-        }
+        _state.update { it.copy(mappings = committed, busy = false, streamingId = null) }
+        _streaming.value = null
         stream.reset()
         persist()
     }
