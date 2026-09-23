@@ -736,9 +736,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
      * against everything that survives rather than per node.
      */
     private fun pruneOrphans(before: Mappings, after: Mappings) {
-        val kept = after.values.flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
-        val removable = before.values
+        // Only a node that was removed or replaced can have let go of a file.
+        val candidates = before.values
+            .filter { after[it.id] !== it }
             .flatMap { it.attachments() }
+        if (candidates.isEmpty()) return
+        val kept = after.values.flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
+        val removable = candidates
             .filterNot { it.path in kept }
             .distinctBy { it.path }
         if (removable.isEmpty()) return
