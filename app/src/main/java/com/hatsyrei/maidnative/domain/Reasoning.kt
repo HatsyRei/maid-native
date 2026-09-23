@@ -207,6 +207,11 @@ object Reasoning {
         /** Classifies one delta, emitting zero or more chunks in order. */
         fun feed(text: String, emit: (Chunk) -> Unit) {
             if (text.isEmpty()) return
+            // Nearly every token: no tag can start here and none is held back.
+            if (pending.isEmpty() && text.indexOf('<') < 0) {
+                emitText(text, emit)
+                return
+            }
             pending.append(text)
             val buf = pending.toString()
             pending.setLength(0)
