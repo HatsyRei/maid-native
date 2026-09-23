@@ -111,29 +111,4 @@ class MessageTreeTest {
         assertFalse(MessageTree.hasNode(m, "a"))
         assertNull(MessageTree.getNode(m, "s")!!.child)
     }
-
-    @Test
-    fun makeRoot_detachesAndRewritesRoot() {
-        var m = linear()
-        m = MessageTree.makeRoot(m, "u")
-        val u = MessageTree.getNode(m, "u")!!
-        assertNull(u.parent)
-        assertEquals("u", u.root)
-        // Descendant "a" inherits the new root.
-        assertEquals("u", MessageTree.getNode(m, "a")!!.root)
-        // Old parent no longer points at it.
-        assertNull(MessageTree.getNode(m, "s")!!.child)
-    }
-
-    @Test
-    fun getRootMapping_returnsConnectedSubtreeOnly() {
-        var m = linear()
-        // A second, unrelated root.
-        m = MessageTree.addNode(m, "s2", "system", "other")
-        val sub = MessageTree.getRootMapping(m, "s")
-        assertTrue(sub.containsKey("s"))
-        assertTrue(sub.containsKey("u"))
-        assertTrue(sub.containsKey("a"))
-        assertFalse(sub.containsKey("s2"))
-    }
 }

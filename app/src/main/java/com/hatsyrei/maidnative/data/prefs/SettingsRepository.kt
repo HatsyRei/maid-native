@@ -209,7 +209,6 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setModel(value: String) = edit(KEY_MODEL, value)
-    suspend fun setSystemPrompt(value: String) = edit(KEY_SYSTEM_PROMPT, value)
     suspend fun setUserName(value: String) = edit(KEY_USER_NAME, value.trim())
     suspend fun setAssistantName(value: String) = edit(KEY_ASSISTANT_NAME, value.trim())
     suspend fun setNameplate(value: String) = edit(KEY_NAMEPLATE, value)

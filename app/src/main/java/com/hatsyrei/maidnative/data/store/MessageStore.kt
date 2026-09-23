@@ -41,13 +41,6 @@ object MessageStore {
         metadata = o.optJSONObject("metadata")?.toMap() ?: emptyMap(),
     )
 
-    /** Serialize nodes to a JSON array (the legacy on-disk snapshot shape). */
-    fun encodeNodes(nodes: Collection<MessageNode>): JSONArray {
-        val arr = JSONArray()
-        for (node in nodes) arr.put(nodeToJson(node))
-        return arr
-    }
-
     /** Parse a JSON array of nodes into [MessageNode]s. */
     fun decodeNodes(arr: JSONArray): List<MessageNode> {
         val out = ArrayList<MessageNode>(arr.length())

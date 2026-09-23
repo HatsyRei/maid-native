@@ -82,19 +82,6 @@ object MessageTree {
         return conversation
     }
 
-    /**
-     * Returns a new map containing only [root] and all descendants connected to
-     * it via parent -> child links (branch-aware), excluding unrelated roots.
-     */
-    fun getRootMapping(mappings: Mappings, root: String): Mappings {
-        mappings[root] ?: return emptyMap()
-        val out = LinkedHashMap<String, MessageNode>()
-        for (id in descendants(mappings, root)) {
-            mappings[id]?.let { out[id] = it }
-        }
-        return out
-    }
-
     fun getChildren(mappings: Mappings, id: String): List<MessageNode> =
         mappings.values.filter { it.parent == id }
 
@@ -246,23 +233,4 @@ object MessageTree {
     /** Convenience overload for a plain string replacement. */
     fun setContent(mappings: Mappings, id: String, content: String): Mappings =
         updateContent(mappings, id, { content })
-
-    fun makeRoot(mappings: Mappings, id: String): Mappings {
-        val node0 = mappings[id] ?: return mappings
-        return updateMap(mappings) { draft ->
-            val node = draft[id] ?: return@updateMap
-            if (node.parent != null) {
-                val pId = node.parent
-                val parent = draft[pId]
-                if (parent?.child == id) {
-                    draft[pId] = parent.copy(child = null)
-                }
-                draft[id] = draft.getValue(id).copy(parent = null)
-            }
-            // Rewrite root on this node + all descendants (branch-aware).
-            for (curId in descendants(draft, id)) {
-                draft[curId]?.let { draft[curId] = it.copy(root = id) }
-            }
-        }
-    }
 }

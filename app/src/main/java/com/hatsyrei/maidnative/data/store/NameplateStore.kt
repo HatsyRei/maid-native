@@ -54,10 +54,6 @@ class NameplateStore(private val context: Context) {
         return temp.renameTo(target)
     }
 
-    fun delete() {
-        file.delete()
-    }
-
     fun decode(): Bitmap? = file.takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
 
     /**
