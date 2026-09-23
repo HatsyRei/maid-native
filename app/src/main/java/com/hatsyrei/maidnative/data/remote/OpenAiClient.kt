@@ -1,6 +1,5 @@
 package com.hatsyrei.maidnative.data.remote
 
-import android.util.Base64
 import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
@@ -12,10 +11,9 @@ import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -192,11 +190,11 @@ class OpenAiClient {
         parameters: Map<String, Any?> = emptyMap(),
     ): Flow<StreamEvent> = callbackFlow {
         val base = normalize(config.baseURL)
-        val payload = buildPayload(config, messages, parameters, base in thinkingControl)
+        val body = buildBody(config, messages, parameters, base in thinkingControl)
         val request = Request.Builder()
             .url("$base/chat/completions")
             .applyAuth(config.apiKey)
-            .post(payload.toString().toRequestBody(JSON))
+            .post(body)
             .build()
 
         val listener = object : EventSourceListener() {
@@ -279,12 +277,12 @@ class OpenAiClient {
     private fun JSONObject.msOrNull(key: String): Long? =
         if (has(key) && !isNull(key)) optDouble(key).takeIf { !it.isNaN() }?.roundToLong() else null
 
-    private fun buildPayload(
+    private fun buildBody(
         config: Config,
         messages: List<MessageNode>,
         parameters: Map<String, Any?>,
         thinkingControl: Boolean,
-    ): JSONObject {
+    ): RequestBody {
         // Strip the reasoning trace from assistant turns. It is stored inline in
         // the message so a single content field still round-trips through the
         // tree and the database, but replaying it as assistant *content* burns
@@ -308,18 +306,8 @@ class OpenAiClient {
             history.removeAt(history.size - 1)
         }
 
-        val msgArray = JSONArray()
-        for (turn in history) {
-            msgArray.put(
-                JSONObject()
-                    .put("role", turn.role)
-                    .put("content", contentFor(turn)),
-            )
-        }
-
         val payload = JSONObject()
             .put("model", config.model)
-            .put("messages", msgArray)
             .put("stream", true)
             // Asks for the trailing usage chunk that the Properties dialog's
             // token counts come from. Unlike `chat_template_kwargs` below this
@@ -348,7 +336,17 @@ class OpenAiClient {
         for ((key, value) in parameters) {
             payload.put(key, value ?: JSONObject.NULL)
         }
-        return payload
+
+        // Messages go first and by hand, so their attachments can stream from disk.
+        val body = JsonStreamBody.Builder().json("{\"messages\":[")
+        history.forEachIndexed { index, turn ->
+            if (index > 0) body.json(",")
+            body.json("{\"role\":${JSONObject.quote(turn.role)},\"content\":")
+            writeContent(body, turn)
+            body.json("}")
+        }
+        // `payload` always holds the model, so its opening brace becomes a comma.
+        return body.json("],").json(payload.toString().substring(1)).build()
     }
 
     private fun Request.Builder.applyAuth(apiKey: String): Request.Builder {
@@ -363,53 +361,69 @@ class OpenAiClient {
      * it becomes an OpenAI content-part array. Attachments lead and the typed
      * text follows, matching the ordering every vision chat template expects.
      *
-     * Bytes are read and base64-encoded here, at request time, so the encoded
-     * copy lives only for the length of the call instead of sitting in the
-     * message tree. An attachment whose file has gone missing is skipped rather
-     * than failing the send.
+     * Media bytes are base64-encoded as the body is written, so no encoded copy
+     * is ever held in memory. An attachment whose file has gone missing is
+     * skipped rather than failing the send.
      */
-    private fun contentFor(turn: Turn): Any {
-        if (turn.attachments.isEmpty()) return turn.text
-        val parts = JSONArray()
-        for (attachment in turn.attachments) {
-            val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
-            when (attachment.kind) {
-                Attachment.Kind.IMAGE -> parts.put(
-                    JSONObject()
-                        .put("type", "image_url")
-                        .put(
-                            "image_url",
-                            JSONObject().put("url", "data:${attachment.mime};base64,${base64(bytes)}"),
-                        ),
-                )
-
-                Attachment.Kind.AUDIO -> parts.put(
-                    JSONObject()
-                        .put("type", "input_audio")
-                        .put(
-                            "input_audio",
-                            JSONObject()
-                                .put("data", base64(bytes))
-                                .put("format", audioFormat(attachment.mime)),
-                        ),
-                )
-
-                // No modality is involved: a text file is just prompt text, so
-                // it is inlined with a header naming it.
-                Attachment.Kind.TEXT -> parts.put(
-                    textPart("File: ${attachment.name}\n\n${bytes.toString(Charsets.UTF_8)}"),
-                )
+    private fun writeContent(body: JsonStreamBody.Builder, turn: Turn) {
+        val parts = turn.attachments.mapNotNull(::partFor)
+        if (parts.isEmpty()) {
+            body.json(JSONObject.quote(turn.text))
+            return
+        }
+        body.json("[")
+        parts.forEachIndexed { index, part ->
+            if (index > 0) body.json(",")
+            when (part) {
+                is Part.Inline -> body.json(part.json)
+                is Part.Encoded -> body.json(part.open).encoded(part.file).json(part.close)
             }
         }
-        if (parts.length() == 0) return turn.text
-        if (turn.text.isNotBlank()) parts.put(textPart(turn.text))
-        return parts
+        if (turn.text.isNotBlank()) body.json(",").json(textPart(turn.text).toString())
+        body.json("]")
     }
+
+    private sealed interface Part {
+        class Inline(val json: String) : Part
+
+        /** [file]'s base64 sits between [open] and [close], inside a JSON string. */
+        class Encoded(val open: String, val file: File, val close: String) : Part
+    }
+
+    private fun partFor(attachment: Attachment): Part? {
+        val file = File(attachment.path)
+        return when (attachment.kind) {
+            Attachment.Kind.IMAGE -> file.takeIf { it.isFile }?.let {
+                Part.Encoded(
+                    open = "{\"type\":\"image_url\",\"image_url\":{\"url\":" +
+                        openString("data:${attachment.mime};base64,"),
+                    file = it,
+                    close = "\"}}",
+                )
+            }
+
+            Attachment.Kind.AUDIO -> file.takeIf { it.isFile }?.let {
+                Part.Encoded(
+                    open = "{\"type\":\"input_audio\",\"input_audio\":{\"format\":" +
+                        JSONObject.quote(audioFormat(attachment.mime)) + ",\"data\":\"",
+                    file = it,
+                    close = "\"}}",
+                )
+            }
+
+            // No modality is involved: a text file is just prompt text, so
+            // it is inlined with a header naming it.
+            Attachment.Kind.TEXT -> runCatching { file.readText() }.getOrNull()?.let {
+                Part.Inline(textPart("File: ${attachment.name}\n\n$it").toString())
+            }
+        }
+    }
+
+    /** [text] as a JSON string literal left open, for the base64 that follows. */
+    private fun openString(text: String): String = JSONObject.quote(text).dropLast(1)
 
     private fun textPart(text: String): JSONObject =
         JSONObject().put("type", "text").put("text", text)
-
-    private fun base64(bytes: ByteArray): String = Base64.encodeToString(bytes, Base64.NO_WRAP)
 
     /** llama.cpp accepts only these two spellings; anything else is sent as wav. */
     private fun audioFormat(mime: String): String =
@@ -425,8 +439,6 @@ class OpenAiClient {
     private fun normalize(baseURL: String): String = baseURL.trimEnd('/')
 
     companion object {
-        private val JSON = "application/json; charset=utf-8".toMediaType()
-
         // `owned_by` values of servers that honour
         // `chat_template_kwargs.enable_thinking`. Anything else is treated as a
         // strict OpenAI-compatible endpoint, where the argument would 400.
