@@ -138,7 +138,7 @@ internal fun Composer(
 ) {
     val input = rememberTextFieldState()
     val text = input.text
-    val canSend = enabled && (text.trim().isNotEmpty() || attachments.isNotEmpty())
+    val canSend = enabled && (text.isNotBlank() || attachments.isNotEmpty())
     val active = busy || canSend
 
     // Read here rather than in the scaffold so an IME transition invalidates only
