@@ -344,9 +344,11 @@ private fun ChatScaffold(
                 // was O(nodes^2) per frame in long chats). `state.mappings` is a
                 // new instance only when the tree actually changes (edit, delete,
                 // regenerate), so this stays valid across those and is skipped
-                // during streaming (same instance, reference-equal key).
-                val childrenByParent = remember(state.mappings) {
-                    state.mappings.values.groupBy { it.parent }
+                // during streaming (same instance, reference-equal key). Only the
+                // active chat's nodes are grouped; the others are never looked up.
+                val activeRoot = state.root
+                val childrenByParent = remember(state.mappings, activeRoot) {
+                    state.mappings.values.filter { it.root == activeRoot }.groupBy { it.parent }
                 }
                 // Hoisted above the list on purpose: `LazyColumn` disposes items
                 // that scroll out of view, and the incremental parser is
