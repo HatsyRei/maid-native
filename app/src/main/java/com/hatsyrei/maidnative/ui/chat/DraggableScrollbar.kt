@@ -63,36 +63,52 @@ private val HIDDEN = ThumbMetrics(false, 0f, 0f, 0f)
  * generating.
  */
 private class ItemSizeCache {
-    private val sizes = HashMap<Int, Int>()
-    private var maxIndexRecorded = -1
+    // Index-addressed and unboxed: this is read for every item above the
+    // viewport on each frame, which a HashMap<Int, Int> boxed per lookup.
+    private var sizes = IntArray(16) { UNKNOWN_SIZE }
+    private var limit = 0
 
     var measuredSum = 0L
         private set
 
-    val measuredCount: Int get() = sizes.size
+    var measuredCount = 0
+        private set
 
     fun record(index: Int, size: Int) {
-        val previous = sizes.put(index, size)
-        measuredSum += size - (previous ?: 0)
-        if (index > maxIndexRecorded) maxIndexRecorded = index
+        if (index >= sizes.size) {
+            val old = sizes.size
+            sizes = sizes.copyOf(maxOf(index + 1, old * 2))
+            sizes.fill(UNKNOWN_SIZE, old)
+        }
+        val previous = sizes[index]
+        if (previous == UNKNOWN_SIZE) {
+            measuredCount++
+            measuredSum += size
+        } else {
+            measuredSum += size - previous
+        }
+        sizes[index] = size
+        if (index >= limit) limit = index + 1
     }
 
-    fun sizeAt(index: Int): Int? = sizes[index]
+    /** The measured height, or [UNKNOWN_SIZE]. */
+    fun sizeAt(index: Int): Int = if (index < limit) sizes[index] else UNKNOWN_SIZE
 
     /** Drop entries for indices that no longer exist (e.g. a deleted message). */
     fun trimTo(count: Int) {
-        if (maxIndexRecorded < count) return
-        val iterator = sizes.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (entry.key >= count) {
-                measuredSum -= entry.value
-                iterator.remove()
-            }
+        if (limit <= count) return
+        for (i in count until limit) {
+            val size = sizes[i]
+            if (size == UNKNOWN_SIZE) continue
+            measuredSum -= size
+            measuredCount--
+            sizes[i] = UNKNOWN_SIZE
         }
-        maxIndexRecorded = count - 1
+        limit = count
     }
 }
+
+private const val UNKNOWN_SIZE = -1
 
 // Estimate scroll geometry for a variable-height LazyColumn. Item sizes are
 // cached by index as they are measured so the total-content estimate (and thus
@@ -121,7 +137,8 @@ private fun computeMetrics(
     val avg = if (measured == 0) 0f else cache.measuredSum.toFloat() / measured
     val lastIndex = totalItems - 1
     fun sizeAt(index: Int): Float {
-        cache.sizeAt(index)?.let { return it.toFloat() }
+        val cached = cache.sizeAt(index)
+        if (cached != UNKNOWN_SIZE) return cached.toFloat()
         if (index == lastIndex && trailingSpacerPx > 0f) return trailingSpacerPx
         return avg
     }
@@ -132,7 +149,7 @@ private fun computeMetrics(
     var contentPx = (info.beforeContentPadding + info.afterContentPadding).toFloat()
     contentPx += cache.measuredSum.toFloat()
     var unmeasured = totalItems - measured
-    if (unmeasured > 0 && trailingSpacerPx > 0f && cache.sizeAt(lastIndex) == null) {
+    if (unmeasured > 0 && trailingSpacerPx > 0f && cache.sizeAt(lastIndex) == UNKNOWN_SIZE) {
         contentPx += trailingSpacerPx
         unmeasured--
     }
