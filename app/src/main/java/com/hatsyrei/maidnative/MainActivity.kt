@@ -24,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hatsyrei.maidnative.ui.chat.ChatActions
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
+import com.hatsyrei.maidnative.ui.chat.clearThumbnailCache
 import com.hatsyrei.maidnative.ui.markdown.clearMarkdownParseCache
 import com.hatsyrei.maidnative.ui.settings.SettingsActions
 import com.hatsyrei.maidnative.ui.settings.SettingsScreen
@@ -58,7 +59,10 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) clearMarkdownParseCache()
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) {
+            clearMarkdownParseCache()
+            clearThumbnailCache()
+        }
     }
 }
 

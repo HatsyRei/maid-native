@@ -2,6 +2,7 @@ package com.hatsyrei.maidnative.ui.chat
 
 import android.content.ClipData
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -428,8 +429,10 @@ private fun AttachmentStrip(
  */
 @Composable
 private fun AttachmentThumbnail(attachment: Attachment, onOpen: () -> Unit) {
-    val thumbnail by produceState<ImageBitmap?>(null, attachment.path) {
-        value = withContext(Dispatchers.IO) { decodeThumbnail(attachment.path) }
+    // Seeded from the cache so a row scrolling back into view neither re-decodes nor flashes empty.
+    val thumbnail by produceState(ThumbnailCache[attachment.path], attachment.path) {
+        value = ThumbnailCache[attachment.path]
+            ?: withContext(Dispatchers.IO) { decodeThumbnail(attachment.path) }
     }
     val image = thumbnail
     Box(
@@ -457,10 +460,17 @@ private fun decodeThumbnail(path: String): ImageBitmap? = runCatching {
     var sample = 1
     while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= THUMBNAIL_PX) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    BitmapFactory.decodeFile(path, options)?.asImageBitmap()
+    BitmapFactory.decodeFile(path, options)?.asImageBitmap()?.also { ThumbnailCache.put(path, it) }
 }.getOrNull()
 
 private const val THUMBNAIL_PX = 288
+
+/** Keyed by path, which is unique per stored attachment, so an entry never goes stale. */
+private object ThumbnailCache : LruCache<String, ImageBitmap>(8 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
+}
+
+fun clearThumbnailCache() = ThumbnailCache.evictAll()
 
 /**
  * Role label + branch controls. A `weight(1f)` row would squeeze a long custom
