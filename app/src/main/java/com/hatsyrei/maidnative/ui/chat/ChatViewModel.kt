@@ -303,13 +303,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setApiKey(value: String) = viewModelScope.launch {
-        // A key that cannot be encrypted is not stored at all. Keeping the
-        // plaintext instead would leave the user believing it is protected.
-        runCatching { settingsRepo.setApiKey(value) }
-            .onSuccess { _state.update { it.copy(credentialNotice = null) } }
-            .onFailure { failure -> _state.update { it.copy(credentialNotice = failure.notice()) } }
-    }
+    // A key that cannot be encrypted is not stored at all. Keeping the
+    // plaintext instead would leave the user believing it is protected.
+    fun setApiKey(value: String) =
+        viewModelScope.launch { guardCredentials { settingsRepo.setApiKey(value) } }
 
     /** The settings collector refetches (or blocks) the models once the write lands. */
     fun setAllowCleartext(enabled: Boolean) =
@@ -348,8 +345,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { guardCredentials { settingsRepo.deletePreset(id) } }
 
     /**
-     * Runs a preset write, which re-encrypts the whole list and so fails as a
-     * unit if the Keystore is unavailable. Nothing is persisted in that case.
+     * Runs a credential write, which fails as a unit if the Keystore is
+     * unavailable. Nothing is persisted in that case.
      */
     private suspend fun guardCredentials(block: suspend () -> Unit) {
         runCatching { block() }
