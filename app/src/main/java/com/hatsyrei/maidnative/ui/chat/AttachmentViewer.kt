@@ -51,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.ui.icons.AudiotrackIcon
 import com.hatsyrei.maidnative.ui.icons.CloseIcon
@@ -195,6 +197,12 @@ private fun AudioPane(attachment: Attachment) {
             position = active.currentPosition
             delay(200)
         }
+    }
+
+    // A preview left playing would otherwise keep the decoder and the position poll alive.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        player?.takeIf { it.isPlaying }?.pause()
+        playing = false
     }
 
     val active = player
