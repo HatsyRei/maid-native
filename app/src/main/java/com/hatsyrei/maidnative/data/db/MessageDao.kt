@@ -26,6 +26,9 @@ interface MessageDao {
     @Transaction
     suspend fun applyDiff(upserts: List<MessageEntity>, deletes: List<String>) {
         if (upserts.isNotEmpty()) upsert(upserts)
-        if (deletes.isNotEmpty()) deleteByIds(deletes)
+        // SQLite before API 30 binds at most 999 variables per statement.
+        for (chunk in deletes.chunked(MAX_BIND_ARGS)) deleteByIds(chunk)
     }
 }
+
+private const val MAX_BIND_ARGS = 999
