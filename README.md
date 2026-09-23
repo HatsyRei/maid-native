@@ -111,7 +111,7 @@ local toolchain (falls back to `~/.local/jdks/jdk-21` and `~/android-sdk` if
 ```bash
 ./build.sh            # clean + release APK (same as `./build.sh release`)
 ./build.sh debug      # clean + debug APK -> app/build/outputs/apk/debug/
-./build.sh release    # clean + signed release APK (minified)
+./build.sh release    # clean + signed release APK (arm64-v8a, minified)
 ./build.sh test       # clean + unit tests
 ./build.sh install    # clean + release APK + adb install to a connected device
 ```
@@ -121,7 +121,7 @@ Or drive Gradle directly:
 ```bash
 ./gradlew assembleDebug      # debug APK -> app/build/outputs/apk/debug/
 ./gradlew installDebug       # install to a connected device/emulator
-./gradlew assembleRelease    # release APK (minified)
+./gradlew assembleRelease    # release APK (minified, arm64-v8a only)
 ```
 
 If `ANDROID_HOME` is not exported, create `local.properties`:

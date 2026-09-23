@@ -17,6 +17,11 @@ android {
         targetSdk = 36
         versionCode = 17
         versionName = "1.6.0"
+
+        // androidx.graphics and DataStore ship small native libs; only arm64 devices are targeted.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
