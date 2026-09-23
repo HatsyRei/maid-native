@@ -57,9 +57,8 @@ class MessageRepository(private val dao: MessageDao) {
         if (upserts.isEmpty() && deletes.isEmpty()) return@withContext false
 
         dao.applyDiff(upserts, deletes)
-        // Snapshot the persisted state. Nodes are immutable value types, so
-        // holding references is safe.
-        lastPersisted = LinkedHashMap(current)
+        // Mappings are never mutated once published, so holding the reference is safe.
+        lastPersisted = current
         true
     }
 
