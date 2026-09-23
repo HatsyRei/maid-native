@@ -14,6 +14,7 @@ room = "2.8.4"
 # KSP moved to decoupled versioning at 2.3.0; no longer pinned to the Kotlin version.
 ksp = "2.3.12"
 junit = "4.13.2"
+orgJson = "20250517"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -41,6 +42,8 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "symbol-processing-gradle-plugin", version.ref = "ksp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+# The Android framework's org.json is a stub in JVM unit tests.
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

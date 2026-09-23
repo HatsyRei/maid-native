@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative.domain.tree
 
 import androidx.compose.runtime.Immutable
+import com.hatsyrei.maidnative.domain.Attachment
 
 /**
  * A message node in a conversation tree. Ported from the `message-nodes` npm
@@ -21,6 +22,8 @@ data class MessageNode(
     val parent: String? = null,
     val child: String? = null,
     val metadata: Map<String, Any?> = emptyMap(),
+    /** Parsed once at the storage boundary, so equality and reads are by value. */
+    val attachments: List<Attachment> = emptyList(),
 )
 
 /** A conversation graph keyed by node id. Insertion order is significant. */

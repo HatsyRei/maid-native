@@ -1,6 +1,5 @@
 package com.hatsyrei.maidnative.data.remote
 
-import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Reasoning
@@ -291,7 +290,7 @@ class OpenAiClient {
             Turn(
                 role = m.role,
                 text = if (m.role == "assistant") Reasoning.split(m.content).first.orEmpty() else m.content,
-                attachments = if (m.role == "user") m.attachments() else emptyList(),
+                attachments = if (m.role == "user") m.attachments else emptyList(),
             )
         }.toMutableList()
 

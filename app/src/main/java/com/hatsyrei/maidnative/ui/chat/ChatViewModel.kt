@@ -17,8 +17,6 @@ import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.data.store.NameplateStore
-import com.hatsyrei.maidnative.data.store.attachments
-import com.hatsyrei.maidnative.data.store.withAttachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
@@ -183,7 +181,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 // Pending files are read back from state, not `loaded`: a pick
                 // that beat the load home would otherwise be swept out of it.
                 val referenced = loaded.values
-                    .flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
+                    .flatMapTo(HashSet()) { node -> node.attachments.map { it.path } }
                 _state.value.pendingAttachments.mapTo(referenced) { it.path }
                 attachmentStore.sweep(referenced)
             }
@@ -531,7 +529,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
                 if (nodes.isEmpty()) error("Conversation is empty.")
                 val media = _state.value.settings.exportMedia
-                fileStore.write(uri, MessageStore.encodeExport(nodes.map { attachmentStore.embed(it, media) }))
+                fileStore.write(
+                    uri,
+                    MessageStore.encodeExport(nodes) { attachmentStore.exportRecord(it, media) },
+                )
             }.onFailure { failure ->
                 _state.update { it.copy(error = "Export failed: ${failure.message}") }
             }
@@ -551,7 +552,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val files = MessageTree.getRoots(snapshot).map { root ->
                     val nodes = byRoot[root.id].orEmpty()
                     exportFileName(root.id) to
-                        MessageStore.encodeExport(nodes.map { attachmentStore.embed(it, media) })
+                        MessageStore.encodeExport(nodes) { attachmentStore.exportRecord(it, media) }
                 }
                 fileStore.backup(treeUri, files)
             }.onFailure { failure ->
@@ -576,8 +577,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     runCatching {
                         val text = fileStore.read(uri)
                         val parsed = LinkedHashMap<String, MessageNode>()
-                        for (node in MessageStore.decodeExport(text)) {
-                            parsed[node.id] = attachmentStore.materialize(node)
+                        for (node in MessageStore.decodeExport(text, attachmentStore::importRecord)) {
+                            parsed[node.id] = node
                         }
                         next.putAll(validateMappings(parsed))
                     }
@@ -615,8 +616,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         val userId = UUID.randomUUID().toString()
         next = MessageTree.addNode(
-            next, userId, "user", prompt, rootId, parent, null,
-            withAttachments(emptyMap(), pending),
+            next, userId, "user", prompt, rootId, parent, null, attachments = pending,
         )
 
         val responseId = UUID.randomUUID().toString()
@@ -683,8 +683,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // The branch carries whatever survived the dialog; files it still shares
         // with the original are left alone, since the original still names them.
         var next = MessageTree.branchNode(
-            _state.value.mappings, messageId, userId, text,
-            withAttachments(emptyMap(), attachments),
+            _state.value.mappings, messageId, userId, text, attachments = attachments,
         )
         if (next === _state.value.mappings) return
         val responseId = UUID.randomUUID().toString()
@@ -697,9 +696,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun editMessage(messageId: String, content: String, attachments: List<Attachment>) {
         val before = _state.value.mappings
         mutateTree {
-            MessageTree.updateContent(it, messageId, { content.trim() }) { metadata ->
-                withAttachments(metadata, attachments)
-            }
+            MessageTree.updateContent(it, messageId, { content.trim() }, attachments = attachments)
         }
         pruneOrphans(before, _state.value.mappings)
     }
@@ -740,9 +737,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // Only a node that was removed or replaced can have let go of a file.
         val candidates = before.values
             .filter { after[it.id] !== it }
-            .flatMap { it.attachments() }
+            .flatMap { it.attachments }
         if (candidates.isEmpty()) return
-        val kept = after.values.flatMapTo(HashSet()) { node -> node.attachments().map { it.path } }
+        val kept = after.values.flatMapTo(HashSet()) { node -> node.attachments.map { it.path } }
         val removable = candidates
             .filterNot { it.path in kept }
             .distinctBy { it.path }

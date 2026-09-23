@@ -3,6 +3,8 @@ package com.hatsyrei.maidnative.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import com.hatsyrei.maidnative.data.store.liftAttachments
+import com.hatsyrei.maidnative.data.store.persistedMetadata
 import com.hatsyrei.maidnative.data.toJsonObject
 import com.hatsyrei.maidnative.data.toMap
 import com.hatsyrei.maidnative.domain.tree.MessageNode
@@ -36,7 +38,7 @@ data class MessageEntity(
         parent = parent,
         child = child,
         metadata = MetadataConverter.decode(metadata),
-    )
+    ).liftAttachments()
 
     companion object {
         fun from(node: MessageNode): MessageEntity = MessageEntity(
@@ -46,7 +48,7 @@ data class MessageEntity(
             root = node.root,
             parent = node.parent,
             child = node.child,
-            metadata = MetadataConverter.encode(node.metadata),
+            metadata = MetadataConverter.encode(node.persistedMetadata()),
         )
     }
 }

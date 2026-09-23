@@ -76,65 +76,42 @@ class AttachmentStore(private val context: Context) {
     // ---- export / import -------------------------------------------------
 
     /**
-     * Rewrites [node]'s attachment records to carry their bytes inline, so an
+     * The export record for [attachment], carrying its bytes inline so an
      * export stays readable after an app wipe or on another device. The local
-     * path is dropped on the way out: it means nothing anywhere else.
+     * path is dropped on the way out: it means nothing anywhere else. Null when
+     * the bytes can no longer be read.
      *
      * With [includeMedia] off, images and audio keep their record but lose
      * their bytes — the conversation still shows what was attached, and the
      * file is simply unavailable on the other side.
      */
-    fun embed(node: MessageNode, includeMedia: Boolean = true): MessageNode {
-        val attachments = node.attachments()
-        if (attachments.isEmpty()) return node
-        val array = JSONArray()
-        for (attachment in attachments) {
-            val entry = attachment.toJson()
-            if (includeMedia || attachment.kind == Attachment.Kind.TEXT) {
-                val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: continue
-                entry.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
-            }
-            array.put(entry)
+    fun exportRecord(attachment: Attachment, includeMedia: Boolean): JSONObject? {
+        val entry = attachment.toRecord()
+        if (includeMedia || attachment.kind == Attachment.Kind.TEXT) {
+            val bytes = runCatching { File(attachment.path).readBytes() }.getOrNull() ?: return null
+            entry.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
         }
-        return node.copy(metadata = node.metadata.replacingAttachments(array))
+        return entry
     }
 
     /**
-     * Inverse of [embed]: writes inlined bytes into app storage under a fresh
-     * id and restores a local path. Records without `data` come from an older
-     * export and are passed through, still pointing at whatever the exporting
-     * device called them.
+     * Inverse of [exportRecord]: writes inlined bytes into app storage under a
+     * fresh id and restores a local path. Records without `data` come from an
+     * older export and are passed through, still pointing at whatever the
+     * exporting device called them.
      */
-    fun materialize(node: MessageNode): MessageNode {
-        val raw = node.metadata[METADATA_KEY] as? JSONArray ?: return node
-        val array = JSONArray()
-        for (index in 0 until raw.length()) {
-            val entry = raw.optJSONObject(index) ?: continue
-            val data = entry.optString("data").takeIf { it.isNotEmpty() }
-            if (data == null) {
-                array.put(entry)
-                continue
-            }
-            val bytes = runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrNull() ?: continue
-            if (bytes.isEmpty() || bytes.size > MAX_EMBED_BYTES) continue
-            val id = UUID.randomUUID().toString()
-            val target = File(dir, id + extensionOf(entry.optString("name")))
-            val written = runCatching { target.writeBytes(bytes) }.isSuccess
-            if (!written) {
-                target.delete()
-                continue
-            }
-            array.put(
-                JSONObject()
-                    .put("id", id)
-                    .put("kind", entry.optString("kind"))
-                    .put("name", entry.optString("name"))
-                    .put("mime", entry.optString("mime"))
-                    .put("size", bytes.size.toLong())
-                    .put("path", target.path),
-            )
+    fun importRecord(entry: JSONObject): Attachment? {
+        val record = attachmentFromRecord(entry) ?: return null
+        val data = entry.optString("data").takeIf { it.isNotEmpty() } ?: return record
+        val bytes = runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrNull() ?: return null
+        if (bytes.isEmpty() || bytes.size > MAX_EMBED_BYTES) return null
+        val id = UUID.randomUUID().toString()
+        val target = File(dir, id + extensionOf(record.name))
+        if (runCatching { target.writeBytes(bytes) }.isFailure) {
+            target.delete()
+            return null
         }
-        return node.copy(metadata = node.metadata.replacingAttachments(array))
+        return record.copy(id = id, sizeBytes = bytes.size.toLong(), path = target.path)
     }
 
     // ---- images ----------------------------------------------------------
@@ -334,33 +311,22 @@ class AttachmentStore(private val context: Context) {
 
 private const val METADATA_KEY = "attachments"
 
-/**
- * Attachments ride in [MessageNode.metadata], which Room and the export format
- * both persist as free-form JSON — so this needs no schema migration and old
- * conversations simply carry no such key.
- */
-fun MessageNode.attachments(): List<Attachment> {
-    val raw = metadata[METADATA_KEY] as? JSONArray ?: return emptyList()
-    return (0 until raw.length()).mapNotNull { index ->
-        val entry = raw.optJSONObject(index) ?: return@mapNotNull null
-        val kind = runCatching { Attachment.Kind.valueOf(entry.optString("kind")) }.getOrNull()
-            ?: return@mapNotNull null
-        Attachment(
-            id = entry.optString("id"),
-            kind = kind,
-            name = entry.optString("name"),
-            mime = entry.optString("mime"),
-            sizeBytes = entry.optLong("size"),
-            path = entry.optString("path"),
-        )
-    }
+/** Parses one stored or exported attachment record; null when its kind is unknown. */
+internal fun attachmentFromRecord(entry: JSONObject): Attachment? {
+    val kind = runCatching { Attachment.Kind.valueOf(entry.optString("kind")) }.getOrNull()
+        ?: return null
+    return Attachment(
+        id = entry.optString("id"),
+        kind = kind,
+        name = entry.optString("name"),
+        mime = entry.optString("mime"),
+        sizeBytes = entry.optLong("size"),
+        path = entry.optString("path"),
+    )
 }
 
-/**
- * The stored record, minus location: [embed] replaces it with the bytes, while
- * [withAttachments] adds the local path.
- */
-private fun Attachment.toJson(): JSONObject =
+/** The record minus location: exports replace it with the bytes, storage adds the path. */
+private fun Attachment.toRecord(): JSONObject =
     JSONObject()
         .put("id", id)
         .put("kind", kind.name)
@@ -368,14 +334,28 @@ private fun Attachment.toJson(): JSONObject =
         .put("mime", mime)
         .put("size", sizeBytes)
 
-/** Returns [metadata] carrying [attachments], dropping the key when there are none. */
-fun withAttachments(metadata: Map<String, Any?>, attachments: List<Attachment>): Map<String, Any?> {
-    val array = JSONArray()
-    for (attachment in attachments) {
-        array.put(attachment.toJson().put("path", attachment.path))
-    }
-    return metadata.replacingAttachments(array)
+private fun Attachment.toStoredRecord(): JSONObject = toRecord().put("path", path)
+
+/**
+ * On disk, attachments ride in the metadata JSON, which Room and the export
+ * format both persist free-form — so they need no schema migration and old
+ * conversations simply carry no such key. This lifts them out of a node as read
+ * into [MessageNode.attachments].
+ */
+internal fun MessageNode.liftAttachments(
+    parse: (JSONObject) -> Attachment? = ::attachmentFromRecord,
+): MessageNode {
+    val raw = metadata[METADATA_KEY] as? JSONArray ?: return this
+    val lifted = (0 until raw.length()).mapNotNull { raw.optJSONObject(it)?.let(parse) }
+    return copy(metadata = metadata - METADATA_KEY, attachments = lifted)
 }
 
-private fun Map<String, Any?>.replacingAttachments(array: JSONArray): Map<String, Any?> =
-    if (array.length() == 0) this - METADATA_KEY else this + (METADATA_KEY to array)
+/** Inverse of [liftAttachments]: the metadata to persist, with the records folded back in. */
+internal fun MessageNode.persistedMetadata(
+    record: (Attachment) -> JSONObject? = { it.toStoredRecord() },
+): Map<String, Any?> {
+    if (attachments.isEmpty()) return metadata
+    val array = JSONArray()
+    for (attachment in attachments) record(attachment)?.let(array::put)
+    return if (array.length() == 0) metadata else metadata + (METADATA_KEY to array)
+}

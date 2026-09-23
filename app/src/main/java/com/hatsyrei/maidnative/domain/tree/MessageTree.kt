@@ -1,5 +1,7 @@
 package com.hatsyrei.maidnative.domain.tree
 
+import com.hatsyrei.maidnative.domain.Attachment
+
 /**
  * Pure tree operations ported from the `message-nodes` npm package (dist/index.js).
  *
@@ -156,6 +158,7 @@ object MessageTree {
         parent: String? = null,
         child: String? = null,
         metadata: Map<String, Any?> = emptyMap(),
+        attachments: List<Attachment> = emptyList(),
     ): Mappings {
         if (hasNode(mappings, id)) return mappings
 
@@ -180,6 +183,7 @@ object MessageTree {
                 parent = parent,
                 child = child,
                 metadata = metadata,
+                attachments = attachments,
             )
             if (parent != null) {
                 draft[parent]?.let { p ->
@@ -202,30 +206,37 @@ object MessageTree {
         sibling: String,
         content: String,
         metadata: Map<String, Any?> = emptyMap(),
+        attachments: List<Attachment> = emptyList(),
     ): Mappings {
         val node0 = mappings[id] ?: return mappings
         if (hasNode(mappings, sibling)) return mappings
         if (node0.parent != null && !mappings.containsKey(node0.parent)) return mappings
-        return addNode(mappings, sibling, node0.role, content, node0.root, node0.parent, null, metadata)
+        return addNode(
+            mappings, sibling, node0.role, content, node0.root, node0.parent, null, metadata, attachments,
+        )
     }
 
+    /** A null [metadata] or [attachments] leaves that part of the node as it was. */
     fun updateContent(
         mappings: Mappings,
         id: String,
         content: (String) -> String,
         metadata: ((Map<String, Any?>) -> Map<String, Any?>)? = null,
+        attachments: List<Attachment>? = null,
     ): Mappings {
         val node0 = mappings[id] ?: return mappings
         val newContent = content(node0.content)
         val newMetadata = metadata?.invoke(node0.metadata)
         val contentUnchanged = node0.content == newContent
         val metadataUnchanged = metadata == null || node0.metadata == newMetadata
-        if (contentUnchanged && metadataUnchanged) return mappings
+        val attachmentsUnchanged = attachments == null || node0.attachments == attachments
+        if (contentUnchanged && metadataUnchanged && attachmentsUnchanged) return mappings
         return updateMap(mappings) { draft ->
             val node = draft[id] ?: return@updateMap
             draft[id] = node.copy(
                 content = if (contentUnchanged) node.content else newContent,
                 metadata = if (metadataUnchanged) node.metadata else (newMetadata ?: node.metadata),
+                attachments = attachments ?: node.attachments,
             )
         }
     }

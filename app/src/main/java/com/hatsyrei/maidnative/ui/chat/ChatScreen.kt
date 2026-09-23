@@ -50,7 +50,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.AvatarStore
-import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ChatStats
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -418,7 +417,7 @@ private fun ChatScaffold(
                             onDelete = { onDialog(ChatDialog.DeleteMessage(node.id)) },
                             onRequestEdit = { revise ->
                                 onDialog(
-                                    ChatDialog.Edit(node.id, node.content, revise, node.attachments()),
+                                    ChatDialog.Edit(node.id, node.content, revise, node.attachments),
                                 )
                             },
                             onOpenAttachment = onOpenAttachment,

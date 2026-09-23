@@ -58,7 +58,6 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.hatsyrei.maidnative.data.store.attachments
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.stats
@@ -300,7 +299,7 @@ internal fun MessageItem(
                 }
             },
         )
-        val attachments = remember(node.metadata) { node.attachments() }
+        val attachments = node.attachments
         if (attachments.isNotEmpty()) {
             AttachmentStrip(
                 attachments = attachments,
