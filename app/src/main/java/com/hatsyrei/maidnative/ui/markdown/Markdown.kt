@@ -17,6 +17,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.domain.Reasoning
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -205,10 +206,10 @@ fun MarkdownText(
  * Hoist this above the message list. It must outlive the individual bubble's
  * composition, which `LazyColumn` disposes when scrolled out of view.
  *
- * [content] is normally append-only, but it is derived from the raw stream by
- * `Reasoning.split`, which can retroactively reclassify already-shown text as
- * reasoning (a chat template that omits the opening `<think>` reveals itself
- * only when `</think>` arrives). An append-only parser cannot be patched
+ * [content] is normally append-only, but [Reasoning.Scanner] can retroactively
+ * reclassify already-shown text as reasoning (a chat template that omits the
+ * opening `<think>` reveals itself only when `</think>` arrives), which empties
+ * the reply. An append-only parser cannot be patched
  * backwards, so when [content] stops extending what was already fed, the state
  * is discarded and rebuilt from scratch. That costs one full re-parse, and only
  * on the token that rewrites history.

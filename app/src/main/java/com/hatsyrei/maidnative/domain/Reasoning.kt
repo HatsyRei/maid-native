@@ -81,8 +81,8 @@ object Reasoning {
     )
 
     fun split(raw: String): Pair<String?, String?> {
-        // Two gates before the copying path below, because `split` re-runs over
-        // the whole accumulated reply on every streaming tick. Neither allocates:
+        // Two gates before the copying path below, because `split` runs on every
+        // settled assistant bubble as it is composed. Neither allocates:
         // a reply with no '<' is handed straight back, and one that merely
         // *contains* a '<' (generics, `a < b`, an HTML sample) still skips the
         // buffers — `stripPartialTag` returns its receiver unless it trims.
