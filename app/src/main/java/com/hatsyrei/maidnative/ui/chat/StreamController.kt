@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.catch
@@ -79,7 +80,7 @@ internal class StreamController(
             val pending = Channel<Unit>(Channel.CONFLATED)
 
             val pump = launch {
-                for (signal in pending) {
+                pending.consumeEach {
                     publish()?.let(onUpdate)
                     // Trailing throttle. Tokens arriving inside this window
                     // collapse into the single conflated signal that follows it,
