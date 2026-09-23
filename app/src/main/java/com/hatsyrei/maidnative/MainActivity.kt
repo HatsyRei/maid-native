@@ -15,12 +15,12 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hatsyrei.maidnative.ui.chat.ChatActions
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val theme by viewModel.theme.collectAsState()
+            val theme by viewModel.theme.collectAsStateWithLifecycle()
             MaidNativeTheme(theme) {
                 CompositionLocalProvider(LocalNameplate provides rememberNameplate(theme)) {
                     MaidNativeApp(viewModel)
@@ -66,7 +66,8 @@ private enum class Screen { Chat, Settings }
 
 @Composable
 private fun MaidNativeApp(viewModel: ChatViewModel) {
-    val state by viewModel.state.collectAsState()
+    // Lifecycle-aware so a reply streaming in the background drives no recomposition.
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(Screen.Chat) }
 
     // Remembered once: the point of the holders is that the screens below see a
@@ -154,7 +155,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
 
                 Screen.Settings -> {
                     BackHandler { screen = Screen.Chat }
-                    val presets by viewModel.presets.collectAsState()
+                    val presets by viewModel.presets.collectAsStateWithLifecycle()
                     SettingsScreen(
                         state = state,
                         presets = presets,
