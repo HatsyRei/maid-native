@@ -207,20 +207,14 @@ internal fun MessageItem(
                 touchOffset = menu.touchOffset,
                 onDismiss = closeMenu,
             ) {
+                // Regenerate/Revise both kick off a new completion, so they
+                // need a usable model on top of an idle stream.
                 if (node.role == "assistant") {
-                    // Regenerate/Revise both kick off a new completion, so they
-                    // need a usable model on top of an idle stream.
                     MenuOption(
                         text = "Regenerate",
                         trailingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                         enabled = !busy && ready,
                         onClick = { closeMenu(); onRegenerate() },
-                    )
-                    MenuOption(
-                        text = "Modify",
-                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                        enabled = !busy,
-                        onClick = { closeMenu(); onRequestEdit(false) },
                     )
                 } else {
                     MenuOption(
@@ -229,13 +223,13 @@ internal fun MessageItem(
                         enabled = !busy && ready,
                         onClick = { closeMenu(); onRequestEdit(true) },
                     )
-                    MenuOption(
-                        text = "Modify",
-                        trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                        enabled = !busy,
-                        onClick = { closeMenu(); onRequestEdit(false) },
-                    )
                 }
+                MenuOption(
+                    text = "Modify",
+                    trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    enabled = !busy,
+                    onClick = { closeMenu(); onRequestEdit(false) },
+                )
                 MenuOption(
                     text = "Copy",
                     trailingIcon = { Icon(ContentCopyIcon, contentDescription = null) },
@@ -313,7 +307,8 @@ internal fun MessageItem(
                 modifier = Modifier
                     .padding(top = 10.dp)
                     .clickable { reasoningExpanded = !reasoningExpanded },
-            ) {                Icon(
+            ) {
+                Icon(
                     imageVector = if (reasoningExpanded) {
                         Icons.Filled.KeyboardArrowUp
                     } else {
@@ -471,7 +466,8 @@ private const val THUMBNAIL_PX = 288
  * Role label + branch controls. A `weight(1f)` row would squeeze a long custom
  * name against the chevrons, so the name is measured against the full width
  * first and the controls drop to a line of their own when the two don't fit.
- */@Composable
+ */
+@Composable
 private fun MessageHeader(
     name: String,
     avatar: Painter?,
