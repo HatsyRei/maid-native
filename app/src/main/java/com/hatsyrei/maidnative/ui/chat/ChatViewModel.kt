@@ -198,8 +198,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             settings.collect { s ->
-                val changedEndpoint = s.baseURL != _state.value.settings.baseURL ||
-                    s.apiKey != _state.value.settings.apiKey
+                val prev = _state.value.settings
+                // Toggling HTTP re-opens or closes a cleartext endpoint, so it
+                // counts as a change for one; refreshModels then fetches or blocks.
+                val changedEndpoint = s.baseURL != prev.baseURL || s.apiKey != prev.apiKey ||
+                    (s.allowCleartext != prev.allowCleartext && Endpoints.isCleartext(s.baseURL))
                 _state.update { it.copy(settings = s) }
                 // Fetch models once on launch, and again only when the endpoint
                 // actually changes. Never auto-retry after a failure: doing so
@@ -308,22 +311,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { failure -> _state.update { it.copy(credentialNotice = failure.notice()) } }
     }
 
-    /**
-     * Allowing HTTP re-opens the endpoint; withdrawing it has to drop the loaded
-     * model list too, or the composer would stay enabled for an endpoint that is
-     * now off limits.
-     */
-    fun setAllowCleartext(enabled: Boolean) = viewModelScope.launch {
-        settingsRepo.setAllowCleartext(enabled)
-        if (!Endpoints.isCleartext(_state.value.settings.baseURL)) return@launch
-        if (enabled) {
-            refreshModels()
-        } else {
-            _state.update {
-                it.copy(models = emptyList(), modalities = emptyMap(), error = CLEARTEXT_BLOCKED)
-            }
-        }
-    }
+    /** The settings collector refetches (or blocks) the models once the write lands. */
+    fun setAllowCleartext(enabled: Boolean) =
+        viewModelScope.launch { settingsRepo.setAllowCleartext(enabled) }
 
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
