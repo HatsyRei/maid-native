@@ -368,11 +368,12 @@ private fun ChatScaffold(
                 } else {
                     null
                 }
-                // `conversation` is a computed getter that walks the thread and
-                // allocates a fresh list; read it exactly once per recomposition
-                // instead of once per use site.
-                val conversation = state.conversation
+                // `conversation` walks the thread and allocates a fresh list, so
+                // it is keyed on the tree rather than re-run by every busy,
+                // error or model-refresh flip.
+                val conversation = remember(state.mappings, activeRoot) { state.conversation }
                 val latestId = conversation.lastOrNull()?.id
+                val ready = state.ready
                 // Decoded here rather than per bubble: every row would otherwise
                 // hold its own copy of the same two bitmaps.
                 val userAvatar = rememberAvatar(AvatarStore.Role.USER, state.settings.userAvatar)
@@ -407,7 +408,7 @@ private fun ChatScaffold(
                             siblingIndex = index,
                             siblingCount = siblings.size,
                             busy = state.busy,
-                            ready = state.ready,
+                            ready = ready,
                             isLatest = node.id == latestId,
                             userName = state.settings.userName,
                             assistantName = state.settings.assistantName,
