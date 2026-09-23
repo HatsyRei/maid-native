@@ -3,12 +3,9 @@ package com.hatsyrei.maidnative.data.store
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import java.io.File
-import java.io.InputStream
 import kotlin.math.min
 
 /**
@@ -40,14 +37,14 @@ class AvatarStore(private val context: Context) {
 
         // BitmapFactory ignores the EXIF orientation flag, so a portrait phone
         // photo would be cropped — and shown — sideways.
-        val rotation = resolver.openInputStream(uri)?.use { exifRotation(it) } ?: 0
+        val rotation = resolver.exifRotation(uri)
         val options = BitmapFactory.Options().apply {
             inSampleSize = sampleSize(min(bounds.outWidth, bounds.outHeight))
         }
         val source = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
             ?: return false
 
-        val oriented = rotate(source, rotation)
+        val oriented = source.rotated(rotation)
         val square = crop(oriented)
 
         val temp = File(context.filesDir, "${role.fileName}.tmp")
@@ -96,22 +93,6 @@ class AvatarStore(private val context: Context) {
         while (side / (sample * 2) >= TARGET_PX) sample *= 2
         return sample
     }
-
-    private fun rotate(source: Bitmap, degrees: Int): Bitmap {
-        if (degrees == 0) return source
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-    }
-
-    private fun exifRotation(stream: InputStream): Int =
-        runCatching {
-            when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, 0)) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270
-                else -> 0
-            }
-        }.getOrDefault(0)
 
     private fun format(): Bitmap.CompressFormat =
         // Lossy WebP would flatten a transparent PNG's alpha onto a background.

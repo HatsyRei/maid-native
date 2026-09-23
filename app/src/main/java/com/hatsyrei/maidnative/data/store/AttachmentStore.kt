@@ -3,8 +3,6 @@ package com.hatsyrei.maidnative.data.store
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -13,7 +11,6 @@ import com.hatsyrei.maidnative.domain.tree.MessageNode
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.InputStream
 import java.util.UUID
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -128,9 +125,8 @@ class AttachmentStore(private val context: Context) {
         }
 
         // Neither BitmapFactory nor llama.cpp's stb_image honours the EXIF
-        // orientation flag, so a portrait phone photo arrives sideways unless
-        // the rotation is baked into the pixels here.
-        val rotation = resolver.openInputStream(uri)?.use { exifRotation(it) } ?: 0
+        // orientation flag, so the rotation is baked into the pixels here.
+        val rotation = resolver.exifRotation(uri)
         val pixels = bounds.outWidth.toLong() * bounds.outHeight
 
         // A screenshot is already small and re-encoding it to JPEG would only
@@ -147,7 +143,7 @@ class AttachmentStore(private val context: Context) {
         val decoded = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
             ?: return ImportResult.Failure(unreadable(source.name))
         val capped = scaleToCap(decoded)
-        val oriented = rotate(capped, rotation)
+        val oriented = capped.rotated(rotation)
 
         val id = UUID.randomUUID().toString()
         val target = File(dir, "$id.jpg")
@@ -191,22 +187,6 @@ class AttachmentStore(private val context: Context) {
             true,
         )
     }
-
-    private fun rotate(source: Bitmap, degrees: Int): Bitmap {
-        if (degrees == 0) return source
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-    }
-
-    private fun exifRotation(stream: InputStream): Int =
-        runCatching {
-            when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, 0)) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270
-                else -> 0
-            }
-        }.getOrDefault(0)
 
     // ---- verbatim copies -------------------------------------------------
 
