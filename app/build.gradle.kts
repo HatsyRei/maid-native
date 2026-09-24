@@ -45,6 +45,9 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Needed to strip the dependencies' native libs; must be an installed NDK.
+    ndkVersion = "27.1.12297006"
 }
 
 kotlin {
