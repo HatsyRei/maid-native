@@ -78,6 +78,39 @@ class ToolRequestTest {
     }
 
     @Test
+    fun `a call's extra_content is replayed verbatim`() {
+        val signed = mapOf("1" to calls.getValue("1").copy(extra = "{\"google\":{\"thought_signature\":\"sig\"}}"))
+        val json = request(
+            listOf(MessageNode("u", "user", "time?", "r")),
+            pendingText = "{{tool:1}}\n\n",
+            pendingCalls = signed,
+        )
+        val call = json.getJSONArray("messages").getJSONObject(1).getJSONArray("tool_calls").getJSONObject(0)
+        assertEquals("sig", call.getJSONObject("extra_content").getJSONObject("google").getString("thought_signature"))
+    }
+
+    @Test
+    fun `a call without extra sends no extra_content`() {
+        val json = request(listOf(MessageNode("u", "user", "time?", "r")), "{{tool:1}}\n\n", calls)
+        val call = json.getJSONArray("messages").getJSONObject(1).getJSONArray("tool_calls").getJSONObject(0)
+        assertFalse(call.has("extra_content"))
+    }
+
+    @Test
+    fun `extra_content stays off calls before the last user message`() {
+        val signed = mapOf("1" to calls.getValue("1").copy(extra = "{\"google\":{\"thought_signature\":\"sig\"}}"))
+        val answer = MessageNode(
+            "a", "assistant", "{{tool:1}}\n\nIt is 2026.", "r",
+            parent = "u",
+            metadata = ToolCallStore.writeInto(signed, emptyMap()),
+        )
+        val json = request(
+            listOf(MessageNode("u", "user", "time?", "r"), answer, MessageNode("u2", "user", "thanks", "r")),
+        )
+        assertFalse(json.toString().contains("extra_content"))
+    }
+
+    @Test
     fun `markers split a stored reply into turns, never sent as text`() {
         val answer = MessageNode(
             "a", "assistant", "<think>\nhm\n</think>\n\nLet me see.\n\n{{tool:1}}\n\nIt is 2026.", "r",

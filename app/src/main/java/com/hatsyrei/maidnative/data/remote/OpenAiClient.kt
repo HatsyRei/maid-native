@@ -95,6 +95,7 @@ class OpenAiClient {
             val id: String?,
             val name: String?,
             val arguments: String?,
+            val extra: String? = null,
         ) : StreamEvent
     }
 
@@ -267,6 +268,7 @@ class OpenAiClient {
                             id = call.stringOrNull("id"),
                             name = function?.stringOrNull("name"),
                             arguments = function?.stringOrNull("arguments"),
+                            extra = call.optJSONObject("extra_content")?.toString(),
                         ),
                     )
                 }
@@ -381,6 +383,9 @@ class OpenAiClient {
 
         // Messages go first and by hand, so their attachments can stream from disk.
         val body = JsonStreamBody.Builder().json("{\"messages\":[")
+        // Calls since the last user message came from this endpoint and model; older ones may not have.
+        // Gemini docs recommend replaying every signature, not just this turn's (it only enforces this turn).
+        val turnStart = history.indexOfLast { it.role == "user" }
         history.forEachIndexed { index, turn ->
             if (index > 0) body.json(",")
             body.json("{\"role\":${JSONObject.quote(turn.role)}")
@@ -388,7 +393,7 @@ class OpenAiClient {
             body.json(",\"content\":")
             writeContent(body, turn)
             if (turn.toolCalls.isNotEmpty()) {
-                body.json(",\"tool_calls\":").json(toolCallsJson(turn.toolCalls).toString())
+                body.json(",\"tool_calls\":").json(toolCallsJson(turn.toolCalls, extra = index > turnStart).toString())
             }
             body.json("}")
         }
@@ -440,13 +445,20 @@ class OpenAiClient {
                 .put("parameters", tool.parameters()),
         )
 
-    private fun toolCallsJson(calls: List<ToolCall>): JSONArray = JSONArray().apply {
+    private fun toolCallsJson(calls: List<ToolCall>, extra: Boolean): JSONArray = JSONArray().apply {
         for (call in calls) {
             put(
                 JSONObject()
                     .put("id", call.id)
                     .put("type", "function")
-                    .put("function", JSONObject().put("name", call.name).put("arguments", call.arguments)),
+                    .put("function", JSONObject().put("name", call.name).put("arguments", call.arguments))
+                    // Gemini 3 rejects a replayed call without the thought_signature it sent here.
+                    .apply {
+                        if (extra) {
+                            call.extra?.let { runCatching { JSONObject(it) }.getOrNull() }
+                                ?.let { put("extra_content", it) }
+                        }
+                    },
             )
         }
     }

@@ -18,6 +18,8 @@ data class ToolCall(
     /** The model's arguments, as the raw JSON text it produced. */
     val arguments: String,
     val result: String? = null,
+    /** The call's `extra_content` as raw JSON, echoed back verbatim (Gemini's thought_signature). */
+    val extra: String? = null,
 )
 
 /**
@@ -48,7 +50,8 @@ object ToolCallStore {
                     .put("id", call.id)
                     .put("name", call.name)
                     .put("arguments", call.arguments)
-                    .put("result", call.result ?: JSONObject.NULL),
+                    .put("result", call.result ?: JSONObject.NULL)
+                    .apply { call.extra?.let { put("extra", it) } },
             )
         }
         return array.toString()
@@ -68,6 +71,7 @@ object ToolCallStore {
                 name = name,
                 arguments = entry.optString("arguments", "{}"),
                 result = if (entry.isNull("result")) null else entry.optString("result"),
+                extra = if (entry.isNull("extra")) null else entry.optString("extra"),
             )
         }
         return out

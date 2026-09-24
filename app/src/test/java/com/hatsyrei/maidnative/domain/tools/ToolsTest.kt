@@ -26,6 +26,13 @@ class ToolsTest {
     }
 
     @Test
+    fun `provider extra round trips through metadata`() {
+        val signed = mapOf("1" to call("a").copy(extra = "{\"google\":{\"thought_signature\":\"sig\"}}"))
+        val node = MessageNode("a", "assistant", "x", "r", metadata = ToolCallStore.writeInto(signed, emptyMap()))
+        assertEquals(signed, node.toolCalls())
+    }
+
+    @Test
     fun `no calls leaves no key behind`() {
         val metadata = ToolCallStore.writeInto(calls, emptyMap())
         assertTrue(ToolCallStore.writeInto(emptyMap(), metadata).isEmpty())

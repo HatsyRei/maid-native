@@ -192,6 +192,7 @@ internal class StreamController(
                 id = call.id.ifEmpty { "call_${rounds}_$index" },
                 name = call.name,
                 arguments = call.arguments.toString().ifBlank { "{}" },
+                extra = call.extra,
             )
         }.map { call -> (calls.size + 1).toString().also { calls[it] = call } to call }
         deltas.clear()
@@ -261,6 +262,7 @@ internal class StreamController(
                 if (call.id.isEmpty() && event.id != null) call.id = event.id
                 if (call.name.isEmpty() && event.name != null) call.name = event.name
                 event.arguments?.let(call.arguments::append)
+                if (call.extra == null && event.extra != null) call.extra = event.extra
             }
         }
         true
@@ -359,6 +361,7 @@ internal class StreamController(
         var id = ""
         var name = ""
         val arguments = StringBuilder()
+        var extra: String? = null
     }
 
     private companion object {
