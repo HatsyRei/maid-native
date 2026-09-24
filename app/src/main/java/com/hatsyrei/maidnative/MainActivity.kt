@@ -113,6 +113,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             refreshModels = viewModel::refreshModels,
             setReasoning = viewModel::setReasoning,
             setSampling = viewModel::setSampling,
+            setEnabledTools = viewModel::setEnabledTools,
             scan = viewModel::scanEndpoint,
             resetScan = viewModel::resetScan,
             savePreset = viewModel::savePreset,

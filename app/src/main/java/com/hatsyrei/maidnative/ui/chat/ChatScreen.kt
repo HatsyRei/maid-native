@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ChatStats
+import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageTree
 import com.hatsyrei.maidnative.ui.common.TextInputDialog
 import com.hatsyrei.maidnative.ui.common.rememberAvatar
@@ -189,12 +191,13 @@ fun ChatScreen(
             initial = current.initial,
             revise = current.revise,
             initialAttachments = current.attachments,
+            initialCalls = current.calls,
             onDismiss = dismiss,
-            onConfirm = { text, attachments ->
+            onConfirm = { text, attachments, calls ->
                 if (current.revise) {
                     actions.revise(current.id, text, attachments)
                 } else {
-                    actions.edit(current.id, text, attachments)
+                    actions.edit(current.id, text, attachments, calls)
                 }
                 dismiss()
             },
@@ -363,7 +366,9 @@ private fun ChatScaffold(
                 val streamingId = state.streamingId
                 val streamingMarkdown = if (streamingId != null) {
                     rememberChatStreamingMarkdownState(streamingId) {
-                        streaming.value?.takeIf { it.id == streamingId }?.text.orEmpty()
+                        val live = streaming.value?.takeIf { it.id == streamingId }
+                        // Text before the last tool marker renders as settled segments.
+                        live?.text?.let { it.substring(ToolText.tailStart(it, live.calls)) }.orEmpty()
                     }
                 } else {
                     null
@@ -418,7 +423,13 @@ private fun ChatScaffold(
                             onDelete = { onDialog(ChatDialog.DeleteMessage(node.id)) },
                             onRequestEdit = { revise ->
                                 onDialog(
-                                    ChatDialog.Edit(node.id, node.content, revise, node.attachments),
+                                    ChatDialog.Edit(
+                                        node.id,
+                                        node.content,
+                                        revise,
+                                        node.attachments,
+                                        calls = node.toolCalls().takeIf { node.role == "assistant" },
+                                    ),
                                 )
                             },
                             onOpenAttachment = onOpenAttachment,

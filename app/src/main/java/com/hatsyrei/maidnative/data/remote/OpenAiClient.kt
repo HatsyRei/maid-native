@@ -6,6 +6,11 @@ import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.Support
 import com.hatsyrei.maidnative.domain.TurnStats
+import com.hatsyrei.maidnative.domain.tools.Tool
+import com.hatsyrei.maidnative.domain.tools.ToolCall
+import com.hatsyrei.maidnative.domain.tools.ToolCalls
+import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +88,14 @@ class OpenAiClient {
 
         /** Token counts and, where the endpoint sends them, its own timings. */
         data class Usage(val stats: TurnStats) : StreamEvent
+
+        /** A fragment of the tool call at [index]; arguments arrive split across many. */
+        data class ToolCallDelta(
+            val index: Int,
+            val id: String?,
+            val name: String?,
+            val arguments: String?,
+        ) : StreamEvent
     }
 
     /** GET {base}/models -> the models the endpoint offers. Throws on failure. */
@@ -186,10 +199,14 @@ class OpenAiClient {
     fun streamChat(
         config: Config,
         messages: List<MessageNode>,
+        tools: List<Tool> = emptyList(),
+        /** The reply in flight so far (markers and all) and its finished calls, sent after [messages]. */
+        pendingText: String = "",
+        pendingCalls: ToolCalls = emptyMap(),
         parameters: Map<String, Any?> = emptyMap(),
     ): Flow<StreamEvent> = callbackFlow {
         val base = normalize(config.baseURL)
-        val body = buildBody(config, messages, parameters, base in thinkingControl)
+        val body = buildBody(config, messages, tools, pendingText, pendingCalls, parameters, base in thinkingControl)
         val request = Request.Builder()
             .url("$base/chat/completions")
             .applyAuth(config.apiKey)
@@ -239,6 +256,20 @@ class OpenAiClient {
 
                 val content = deltaObj.stringOrNull("content")
                 if (content != null) scanner.feed(content) { send(it) }
+
+                val calls = deltaObj.optJSONArray("tool_calls") ?: return
+                for (i in 0 until calls.length()) {
+                    val call = calls.optJSONObject(i) ?: continue
+                    val function = call.optJSONObject("function")
+                    trySend(
+                        StreamEvent.ToolCallDelta(
+                            index = call.optInt("index", i),
+                            id = call.stringOrNull("id"),
+                            name = function?.stringOrNull("name"),
+                            arguments = function?.stringOrNull("arguments"),
+                        ),
+                    )
+                }
             }
 
             override fun onClosed(eventSource: EventSource) {
@@ -276,23 +307,29 @@ class OpenAiClient {
     private fun JSONObject.msOrNull(key: String): Long? =
         if (has(key) && !isNull(key)) optDouble(key).takeIf { !it.isNaN() }?.roundToLong() else null
 
-    private fun buildBody(
+    internal fun buildBody(
         config: Config,
         messages: List<MessageNode>,
+        tools: List<Tool>,
+        pendingText: String,
+        pendingCalls: ToolCalls,
         parameters: Map<String, Any?>,
         thinkingControl: Boolean,
     ): RequestBody {
-        // Strip the reasoning trace from assistant turns. It is stored inline in
-        // the message so a single content field still round-trips through the
-        // tree and the database, but replaying it as assistant *content* burns
-        // context and invites the model to continue its own old thought.
-        val history = messages.map { m ->
-            Turn(
-                role = m.role,
-                text = if (m.role == "assistant") Reasoning.split(m.content).first.orEmpty() else m.content,
-                attachments = if (m.role == "user") m.attachments else emptyList(),
-            )
-        }.toMutableList()
+        val history = ArrayList<Turn>(messages.size)
+        for (m in messages) {
+            if (m.role != "assistant") {
+                history += Turn(m.role, m.content, if (m.role == "user") m.attachments else emptyList())
+                continue
+            }
+            // Strip the reasoning trace from assistant turns. It is stored inline in
+            // the message so a single content field still round-trips through the
+            // tree and the database, but replaying it as assistant *content* burns
+            // context and invites the model to continue its own old thought.
+            val reply = Reasoning.split(m.content).first.orEmpty()
+            val answer = history.addCalls(reply, m.toolCalls())
+            history += Turn("assistant", answer)
+        }
 
         // Drop trailing empty assistant placeholder(s): sending
         // {"role":"assistant","content":""} makes llama.cpp-style backends treat
@@ -300,10 +337,13 @@ class OpenAiClient {
         // still thinking is empty only after the strip above, so this runs after.
         while (history.isNotEmpty() &&
             history.last().role == "assistant" &&
+            history.last().toolCalls.isEmpty() &&
             history.last().text.isBlank()
         ) {
             history.removeAt(history.size - 1)
         }
+        // The reply in flight ends on its markers, so it leaves no answer text yet.
+        history.addCalls(pendingText, pendingCalls)
 
         val payload = JSONObject()
             .put("model", config.model)
@@ -332,6 +372,9 @@ class OpenAiClient {
         for ((key, value) in config.sampling.parameters()) {
             payload.put(key, value)
         }
+        // Left out entirely when none are enabled, so an endpoint without tool
+        // support sees exactly the request it always did.
+        if (tools.isNotEmpty()) payload.put("tools", JSONArray(tools.map(::definition)))
         for ((key, value) in parameters) {
             payload.put(key, value ?: JSONObject.NULL)
         }
@@ -340,8 +383,13 @@ class OpenAiClient {
         val body = JsonStreamBody.Builder().json("{\"messages\":[")
         history.forEachIndexed { index, turn ->
             if (index > 0) body.json(",")
-            body.json("{\"role\":${JSONObject.quote(turn.role)},\"content\":")
+            body.json("{\"role\":${JSONObject.quote(turn.role)}")
+            turn.toolCallId?.let { body.json(",\"tool_call_id\":${JSONObject.quote(it)}") }
+            body.json(",\"content\":")
             writeContent(body, turn)
+            if (turn.toolCalls.isNotEmpty()) {
+                body.json(",\"tool_calls\":").json(toolCallsJson(turn.toolCalls).toString())
+            }
             body.json("}")
         }
         // `payload` always holds the model, so its opening brace becomes a comma.
@@ -353,7 +401,55 @@ class OpenAiClient {
         return header("Authorization", "Bearer $key")
     }
 
-    private class Turn(val role: String, val text: String, val attachments: List<Attachment>)
+    private class Turn(
+        val role: String,
+        val text: String,
+        val attachments: List<Attachment> = emptyList(),
+        val toolCalls: List<ToolCall> = emptyList(),
+        val toolCallId: String? = null,
+    )
+
+    /**
+     * Adds each run of calls in [text] as an assistant turn carrying them, led by
+     * the text before it, then one tool turn per result. Returns the text after
+     * the last run: the answer, which the caller adds as it sees fit.
+     */
+    private fun MutableList<Turn>.addCalls(text: String, calls: ToolCalls): String {
+        if (calls.isEmpty()) return text
+        var pending = ""
+        for (segment in ToolText.parse(text, calls)) {
+            when (segment) {
+                is ToolText.Segment.Text -> pending = segment.text
+                is ToolText.Segment.Calls -> {
+                    add(Turn("assistant", pending, toolCalls = segment.calls))
+                    for (call in segment.calls) add(Turn("tool", call.result.orEmpty(), toolCallId = call.id))
+                    pending = ""
+                }
+            }
+        }
+        return pending
+    }
+
+    private fun definition(tool: Tool): JSONObject = JSONObject()
+        .put("type", "function")
+        .put(
+            "function",
+            JSONObject()
+                .put("name", tool.name)
+                .put("description", tool.description)
+                .put("parameters", tool.parameters()),
+        )
+
+    private fun toolCallsJson(calls: List<ToolCall>): JSONArray = JSONArray().apply {
+        for (call in calls) {
+            put(
+                JSONObject()
+                    .put("id", call.id)
+                    .put("type", "function")
+                    .put("function", JSONObject().put("name", call.name).put("arguments", call.arguments)),
+            )
+        }
+    }
 
     /**
      * Plain string content unless the turn carries attachments, in which case

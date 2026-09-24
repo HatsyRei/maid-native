@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.ui.chat
 import android.net.Uri
 import androidx.compose.runtime.Stable
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.tools.ToolCalls
 
 /**
  * Everything the chat screen can ask the view model to do.
@@ -23,7 +24,7 @@ class ChatActions(
     val openSettings: () -> Unit,
     val regenerate: (String) -> Unit,
     val deleteMessage: (String) -> Unit,
-    val edit: (String, String, List<Attachment>) -> Unit,
+    val edit: (String, String, List<Attachment>, ToolCalls?) -> Unit,
     val revise: (String, String, List<Attachment>) -> Unit,
     val prevBranch: (String) -> Unit,
     val nextBranch: (String) -> Unit,

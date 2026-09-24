@@ -78,6 +78,7 @@ fun SettingsScreen(
     var showPresets by remember { mutableStateOf(false) }
     var showScanOptions by remember { mutableStateOf(false) }
     var showSampling by remember { mutableStateOf(false) }
+    var showTools by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
     var savingNew by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EndpointPreset?>(null) }
@@ -252,6 +253,14 @@ fun SettingsScreen(
                         showSampling = true
                     },
                 )
+
+                ToolsChip(
+                    enabled = state.settings.enabledTools,
+                    onClick = {
+                        focusManager.clearFocus()
+                        showTools = true
+                    },
+                )
             }
 
             Row(
@@ -339,6 +348,17 @@ fun SettingsScreen(
             onConfirm = {
                 showSampling = false
                 actions.setSampling(it)
+            },
+        )
+    }
+
+    if (showTools) {
+        ToolsDialog(
+            enabled = state.settings.enabledTools,
+            onDismiss = { showTools = false },
+            onConfirm = {
+                showTools = false
+                actions.setEnabledTools(it)
             },
         )
     }

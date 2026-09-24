@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.tools.ToolCalls
+import com.hatsyrei.maidnative.domain.tools.ToolText
 
 /** The (mutually exclusive) modal dialogs [ChatScreen] can show. */
 internal sealed interface ChatDialog {
@@ -38,6 +41,8 @@ internal sealed interface ChatDialog {
         val initial: String,
         val revise: Boolean,
         val attachments: List<Attachment>,
+        /** An assistant reply's tool calls; null for a message that cannot have any. */
+        val calls: ToolCalls? = null,
     ) : ChatDialog
 
     data class Rename(val id: String, val initial: String) : ChatDialog
@@ -64,11 +69,13 @@ internal fun EditDialog(
     initial: String,
     revise: Boolean,
     initialAttachments: List<Attachment>,
+    initialCalls: ToolCalls?,
     onDismiss: () -> Unit,
-    onConfirm: (String, List<Attachment>) -> Unit,
+    onConfirm: (String, List<Attachment>, ToolCalls?) -> Unit,
 ) {
     val text = rememberTextFieldState(initial)
     var attachments by remember { mutableStateOf(initialAttachments) }
+    var calls by remember { mutableStateOf(initialCalls) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -116,6 +123,18 @@ internal fun EditDialog(
                             modifier = Modifier.padding(top = 12.dp),
                         )
                     }
+                    calls?.takeIf { it.isNotEmpty() }?.let { current ->
+                        ToolCallChips(
+                            calls = current,
+                            text = text.text,
+                            onEdit = { key, call -> calls = current + (key to call) },
+                            onRemove = { key ->
+                                calls = current - key
+                                text.setTextAndPlaceCursorAtEnd(ToolText.strip(text.text.toString(), setOf(key)))
+                            },
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -124,7 +143,7 @@ internal fun EditDialog(
                     ) {
                         TextButton(onClick = onDismiss) { Text("Cancel") }
                         TextButton(
-                            onClick = { onConfirm(text.text.toString(), attachments) },
+                            onClick = { onConfirm(text.text.toString(), attachments, calls) },
                             enabled = text.text.isNotBlank() || attachments.isNotEmpty(),
                         ) {
                             Text(if (revise) "Send" else "Save")

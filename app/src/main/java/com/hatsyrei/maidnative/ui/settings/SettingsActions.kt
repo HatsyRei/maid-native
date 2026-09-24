@@ -20,6 +20,7 @@ class SettingsActions(
     val refreshModels: () -> Unit,
     val setReasoning: (Boolean) -> Unit,
     val setSampling: (Sampling) -> Unit,
+    val setEnabledTools: (Set<String>) -> Unit,
     val scan: (port: Int, prefixLength: Int) -> Unit,
     val resetScan: () -> Unit,
     val savePreset: (name: String, baseURL: String, apiKey: String) -> Unit,

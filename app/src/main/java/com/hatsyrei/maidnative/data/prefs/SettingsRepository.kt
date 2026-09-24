@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.Endpoints
@@ -60,6 +61,11 @@ class SettingsRepository(private val context: Context) {
          * the model's own recommended settings) still decide it.
          */
         val sampling: Sampling = Sampling(),
+        /**
+         * Names of the tools the model may call. Empty by default: an endpoint
+         * without tool support may reject a request that lists any.
+         */
+        val enabledTools: Set<String> = emptySet(),
         /**
          * Whether exports inline image and audio bytes. Off keeps the JSON
          * small, at the cost of those attachments not surviving the round trip.
@@ -122,6 +128,7 @@ class SettingsRepository(private val context: Context) {
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
             sampling = Sampling.decode(prefs[KEY_SAMPLING]),
+            enabledTools = prefs[KEY_ENABLED_TOOLS] ?: emptySet(),
             exportMedia = prefs[KEY_EXPORT_MEDIA] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
             // A cleared field falls back to the default rather than a blank label.
@@ -225,6 +232,12 @@ class SettingsRepository(private val context: Context) {
         val encoded = value.encode()
         context.dataStore.edit {
             if (encoded.isEmpty()) it.remove(KEY_SAMPLING) else it[KEY_SAMPLING] = encoded
+        }
+    }
+
+    suspend fun setEnabledTools(names: Set<String>) {
+        context.dataStore.edit {
+            if (names.isEmpty()) it.remove(KEY_ENABLED_TOOLS) else it[KEY_ENABLED_TOOLS] = names
         }
     }
 
@@ -414,6 +427,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system-prompt")
         private val KEY_REASONING = booleanPreferencesKey("reasoning-enabled")
         private val KEY_SAMPLING = stringPreferencesKey("sampling")
+        private val KEY_ENABLED_TOOLS = stringSetPreferencesKey("enabled-tools")
         private val KEY_EXPORT_MEDIA = booleanPreferencesKey("export-media")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")

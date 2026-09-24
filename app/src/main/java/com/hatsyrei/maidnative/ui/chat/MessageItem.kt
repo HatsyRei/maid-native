@@ -62,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.stats
+import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.common.Avatar
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
@@ -192,6 +194,10 @@ internal fun MessageItem(
     } else {
         settled
     }
+    val settledCalls = remember(node.metadata, isUser) {
+        if (isUser) emptyMap() else node.toolCalls()
+    }
+    val calls = live?.calls ?: settledCalls
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val menu = rememberTapMenu(remember(node.id) { "message:${node.id}" })
@@ -238,7 +244,12 @@ internal fun MessageItem(
                         closeMenu()
                         scope.launch {
                             clipboard.setClipEntry(
-                                ClipEntry(ClipData.newPlainText("message", live?.text ?: node.content)),
+                                ClipEntry(
+                                    ClipData.newPlainText(
+                                        "message",
+                                        ToolText.strip(live?.text ?: node.content, calls.keys),
+                                    ),
+                                ),
                             )
                         }
                     },
@@ -335,7 +346,31 @@ internal fun MessageItem(
             }
         }
         val body = content ?: ""
-        if (node.role == "assistant" && body.isBlank() && busy && isLatest) {
+        // A streaming reply shows everything up to its last marker as settled
+        // segments; only the text after it is still growing.
+        val cut = if (live != null) ToolText.tailStart(body, calls) else body.length
+        val segments = remember(if (live != null) cut else body, calls) {
+            ToolText.parse(body.substring(0, cut), calls)
+        }
+        for (segment in segments) {
+            when (segment) {
+                is ToolText.Segment.Text -> MarkdownText(
+                    markdown = segment.text,
+                    modifier = Modifier.padding(top = 8.dp),
+                    deferParse = !isLatest,
+                )
+                is ToolText.Segment.Calls -> ToolCallsBlock(
+                    calls = segment.calls,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+        val tailBlank = if (live != null) {
+            (cut until body.length).all { body[it].isWhitespace() }
+        } else {
+            body.isBlank()
+        }
+        if (node.role == "assistant" && tailBlank && busy && isLatest) {
             // Placeholder shown only on the newest assistant bubble while waiting
             // on the endpoint / first tokens. Gated on `busy` so it clears if the
             // stream ends or errors before any tokens arrive.
@@ -351,12 +386,6 @@ internal fun MessageItem(
             StreamingMarkdownText(
                 state = streamingState,
                 modifier = Modifier.padding(top = 8.dp),
-            )
-        } else if (body.isNotEmpty()) {
-            MarkdownText(
-                markdown = body,
-                modifier = Modifier.padding(top = 8.dp),
-                deferParse = !isLatest,
             )
         }
         // Absent rather than "N/A" when unknown: a label repeated down every

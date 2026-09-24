@@ -21,6 +21,10 @@ import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Sampling
+import com.hatsyrei.maidnative.domain.tools.ToolCallStore
+import com.hatsyrei.maidnative.domain.tools.ToolCalls
+import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.Tools
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -101,7 +105,12 @@ data class ChatUiState(
  * carried separately in [reasoning], so nothing has to re-split it per token.
  */
 @Immutable
-data class StreamingText(val id: String, val text: String = "", val reasoning: String = "")
+data class StreamingText(
+    val id: String,
+    val text: String = "",
+    val reasoning: String = "",
+    val calls: ToolCalls = emptyMap(),
+)
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -315,6 +324,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setModel(value: String) = viewModelScope.launch { settingsRepo.setModel(value) }
     fun setReasoning(enabled: Boolean) = viewModelScope.launch { settingsRepo.setReasoning(enabled) }
     fun setSampling(value: Sampling) = viewModelScope.launch { settingsRepo.setSampling(value) }
+    fun setEnabledTools(names: Set<String>) = viewModelScope.launch { settingsRepo.setEnabledTools(names) }
 
     fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
@@ -679,11 +689,28 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         startStream(node.root, responseId)
     }
 
-    /** Edit a message's content and attachments in place without regenerating. */
-    fun editMessage(messageId: String, content: String, attachments: List<Attachment>) {
+    /**
+     * Edit a message's content and attachments in place without regenerating.
+     * [calls] replaces an assistant reply's tool calls, keeping only those whose
+     * markers survived the edit; null leaves them be.
+     */
+    fun editMessage(
+        messageId: String,
+        content: String,
+        attachments: List<Attachment>,
+        calls: ToolCalls?,
+    ) {
         val before = _state.value.mappings
+        val text = content.trim()
+        val kept = calls?.let { ToolText.retain(it, text) }
         mutateTree {
-            MessageTree.updateContent(it, messageId, { content.trim() }, attachments = attachments)
+            MessageTree.updateContent(
+                it,
+                messageId,
+                { text },
+                metadata = kept?.let { k -> { m -> ToolCallStore.writeInto(k, m) } },
+                attachments = attachments,
+            )
         }
         pruneOrphans(before, _state.value.mappings)
     }
@@ -748,6 +775,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         stream.start(
             config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning, s.sampling),
             conversation = MessageTree.getConversation(_state.value.mappings, rootId),
+            tools = Tools.enabled(s.enabledTools),
             onUpdate = { update ->
                 _streaming.update { live ->
                     // Guards against a tick from a superseded job.
@@ -757,6 +785,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         live.copy(
                             text = update.content ?: live.text,
                             reasoning = update.reasoning ?: live.reasoning,
+                            calls = update.calls ?: live.calls,
                         )
                     }
                 }
@@ -779,12 +808,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val id = _state.value.streamingId
         val text = stream.committedText()
         val stats = stream.finalStats()
+        val calls = stream.committedCalls()
         val committed = if (id != null) {
             // The anchor the count is read against later: an edit moves the body
             // away from the length that was counted, and the comparison is all a
             // qualified figure needs.
             val counted = stats.copy(chars = text.length)
-            MessageTree.updateContent(_state.value.mappings, id, { text }, counted::writeInto)
+            MessageTree.updateContent(_state.value.mappings, id, { text }, metadata = {
+                counted.writeInto(ToolCallStore.writeInto(calls, it))
+            })
         } else {
             _state.value.mappings
         }
