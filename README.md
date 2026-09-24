@@ -65,6 +65,11 @@ server.
   frequency and presence penalties. Every field is off by default and an off
   field is left out of the request entirely, so your server's flags and the
   sampling llama.cpp reads from the model's metadata keep deciding it.
+- **Tool calling** — opt-in, on-device tools the model can call mid-reply:
+  **Date & time** (the phone's local time, weekday and zone) and a **Dice
+  roller** (`2d6`, `1d20+5`, …) for tabletop sessions. Calls show inline as
+  collapsible rows, and **Modify** can edit or remove a call's arguments and
+  result. Needs a model and endpoint with tool-call support.
 - **Endpoint presets and a model-picker pill** for switching servers and models
   in a couple of taps.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,

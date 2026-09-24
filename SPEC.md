@@ -106,6 +106,7 @@ com.hatsyrei.maidnative
 │   └── remote      (OpenAI client: models list, streaming completions, endpoint scan)
 ├── domain
 │   ├── tree        (MessageNode + branching ops, ported from message-nodes)
+│   ├── tools       (on-device tools, tool-call storage + `{{tool:N}}` marker parsing)
 │   └── model       (domain types)
 ├── ui
 │   ├── theme       (Color, Theme, Type — M3)
@@ -139,8 +140,10 @@ None of these block the sign-off above; each is either an enhancement beyond RN 
 1. Persist partial replies so a mid-stream force-close does not lose the in-flight response (§4.4). Matches RN behaviour today — the RN app loses it too — so it is an improvement, not a regression.
 2. Markdown images (Coil) — the one RN markdown rule not ported; no assistant reply we exercise emits images against a local endpoint.
 3. Composer font parity and a dynamic-theming pass (§4.5, §10 Composer).
+4. Server-side tools: list and run llama-server's own tools (`--tools`, `--mcp-servers-config`) through its `/tools` endpoint, reusing the tool-call loop (§10 Deferred enhancements → Tool calling).
+5. Remote MCP servers (Streamable HTTP, bearer/header auth only) as another tool source, with per-tool toggles in the Tools dialog.
 
-*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash, on-device verification of the §11.2 rework, scroll-position-after-Settings fix, menu/drawer gesture arbitration, customizable display names. Dropped: custom headers/params editors, retry parity.)*
+*(Done: Markdown renderer swap, Room persistence, endpoint scan, export/import, model-selector pill, draggable scroll thumb, real launcher icon, collapsible reasoning, Android 12 splash, on-device verification of the §11.2 rework, scroll-position-after-Settings fix, menu/drawer gesture arbitration, customizable display names, on-device tool calling. Dropped: custom headers/params editors, retry parity.)*
 
 ## 8. Risks
 
@@ -220,6 +223,13 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype on-dev
 
 ### Deferred enhancements (post-parity, not RN parity items)
 - **Customizable user / assistant display names — done 2026-08-11.** Role labels were hardcoded (`You` / `Assistant`); they now render `settings.userName` / `settings.assistantName` in the same `titleMedium` label, edited in a **Chat** section under Theme in Settings and stored in DataStore (`user-name` / `assistant-name`, defaults `User` / `Assistant`, a blank entry falling back to the default). Kept per-app rather than per-conversation, and deliberately *not* written into the message tree or sent to the model, so the RN-compatible export/import format is untouched.
+- **On-device tool calling — done 2026-09-24 (1.7.0).** The model can call tools mid-reply; each call runs on the device and its result is fed back until the model answers.
+  - **Opt-in.** A **Tools** chip beside Sampling opens a dialog of per-tool switches, stored as a string set (`enabled-tools`, empty by default). With nothing enabled no `tools` field is sent, so endpoints without tool support see the exact request they always did.
+  - **Tools.** `get_datetime` returns the device's local ISO-8601 time with offset, weekday and IANA zone (the weekday because models derive it unreliably). `roll_dice` takes `count` (1–100), `sides` (2–1000) and `modifier` (±1000) and returns each roll plus the total. Bad arguments come back as `{"error": …}` so the model can retry; numbers are accepted as `20`, `20.0` or `"20"`.
+  - **Loop.** `StreamController` accumulates `delta.tool_calls` by index, runs the calls on IO, and streams again. Requests past 8 tool rounds are offered no tools, which forces an answer. Stop cancels a running tool; a call cut short is dropped with its marker.
+  - **Storage: one assistant node per reply.** `content` holds the reply text with a `{{tool:N}}` line where each call ran; `metadata.toolCalls` holds the call data (id, name, arguments, result) keyed by `N`, as a JSON-array string so it survives Room, export and import unchanged and compares by value in the diff. A line counts as a marker only on its own line, for a known key, and once; anything else is text. Markers with only blank lines between them are one round. `OpenAiClient.buildBody` splits them back into `assistant{content, tool_calls}` + `tool{tool_call_id}` messages, so the model never sees a real marker. No Room migration.
+  - **UI.** The bubble renders text segments as Markdown and each round as collapsible tool rows; while streaming, only the text after the last marker goes through `StreamingMarkdownState`. Long-press keeps the normal menu, and Copy strips markers. **Modify** shows the whole reply, markers included; chips (`N · name`) edit a call's arguments (validated as a JSON object) and result, × removes a call with its marker, and a call whose marker was deleted by hand is dimmed and dropped on save. The chips collapse when the keyboard opens.
+  - **Known trade-offs.** Reasoning from every round is merged into one `<think>` block at the top. Exports open in the RN app with the marker lines as literal text. A marker-shaped line that is not a live marker (e.g. typed during Modify) is sent to the model as ordinary text; judged too unlikely to matter.
 
 ### Dependencies / tech debt
 - [x] **Dependency refresh to current stable — 1.4.3 (2026-08-25).** Everything moved to its latest *stable* release: Gradle `9.5.0` → `9.7.1`, AGP `9.3.1` → `9.3.2`, KSP `2.3.10` → `2.3.11`, Compose BOM `2026.06.01` → `2026.08.00`, coroutines `1.9.0` → `1.11.0`, DataStore `1.1.1` → `1.2.1`, OkHttp `4.12.0` → `5.5.0`, markdown-renderer `0.43.0` → `0.44.0`. Kotlin `2.4.10`, Room `2.8.4`, `core-ktx 1.19.0`, `lifecycle 2.11.0`, `activity-compose 1.13.0` were already current. Nothing prerelease was taken, which is why AGP stays on `9.3.x` (`9.4.0-rc01`/`9.5.0-alpha` exist), material3 on `1.4.0` (`1.5.0` is alpha-only) and DataStore on `1.2.x` (`1.3.0` is alpha-only).
