@@ -77,7 +77,7 @@ fun SettingsScreen(
     val apiKey = rememberTextFieldState(state.settings.apiKey)
     var showPresets by remember { mutableStateOf(false) }
     var showScanOptions by remember { mutableStateOf(false) }
-    var showSampling by remember { mutableStateOf(false) }
+    var editingSampling by remember { mutableStateOf<SamplingGroup?>(null) }
     var showTools by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<EndpointPreset?>(null) }
     var savingNew by remember { mutableStateOf(false) }
@@ -246,13 +246,16 @@ fun SettingsScreen(
                     },
                 )
 
-                SamplingChip(
-                    sampling = state.settings.sampling,
-                    onClick = {
-                        focusManager.clearFocus()
-                        showSampling = true
-                    },
-                )
+                SamplingGroup.entries.forEach { group ->
+                    SamplingChip(
+                        group = group,
+                        sampling = state.settings.sampling,
+                        onClick = {
+                            focusManager.clearFocus()
+                            editingSampling = group
+                        },
+                    )
+                }
 
                 ToolsChip(
                     enabled = state.settings.enabledTools,
@@ -341,12 +344,13 @@ fun SettingsScreen(
         )
     }
 
-    if (showSampling) {
+    editingSampling?.let { group ->
         SamplingDialog(
+            group = group,
             sampling = state.settings.sampling,
-            onDismiss = { showSampling = false },
+            onDismiss = { editingSampling = null },
             onConfirm = {
-                showSampling = false
+                editingSampling = null
                 actions.setSampling(it)
             },
         )

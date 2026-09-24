@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -26,33 +25,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.SamplingParam
+import com.hatsyrei.maidnative.ui.icons.RepeatIcon
 import com.hatsyrei.maidnative.ui.icons.TuneIcon
 
-private val TRUNCATION = listOf(
-    SamplingParam.TEMPERATURE,
-    SamplingParam.TOP_P,
-    SamplingParam.TOP_K,
-    SamplingParam.MIN_P,
-)
+internal enum class SamplingGroup(
+    val title: String,
+    val icon: ImageVector,
+    val params: List<SamplingParam>,
+) {
+    SAMPLING(
+        "Sampling",
+        TuneIcon,
+        listOf(SamplingParam.TEMPERATURE, SamplingParam.TOP_P, SamplingParam.TOP_K, SamplingParam.MIN_P),
+    ),
+    PENALTIES(
+        "Penalties",
+        RepeatIcon,
+        listOf(SamplingParam.FREQUENCY_PENALTY, SamplingParam.PRESENCE_PENALTY),
+    ),
+}
 
-private val PENALTIES = listOf(
-    SamplingParam.FREQUENCY_PENALTY,
-    SamplingParam.PRESENCE_PENALTY,
-)
-
-/** Opens the sampling dialog, and carries how many fields are currently overridden. */
+/** Opens [group]'s dialog, and carries how many of its fields are currently overridden. */
 @Composable
-internal fun SamplingChip(sampling: Sampling, onClick: () -> Unit) {
-    val overrides = sampling.overrides
+internal fun SamplingChip(group: SamplingGroup, sampling: Sampling, onClick: () -> Unit) {
+    val overrides = group.params.count { sampling[it] != null }
     val active = overrides > 0
     AssistChip(
         onClick = onClick,
-        label = { Text(if (active) "Sampling · $overrides" else "Sampling") },
-        leadingIcon = { Icon(TuneIcon, contentDescription = null) },
+        label = { Text(if (active) "${group.title} · $overrides" else group.title) },
+        leadingIcon = { Icon(group.icon, contentDescription = null) },
         // Filled when something is overridden, so the screen says at a glance
         // whether requests carry anything beyond the endpoint's own settings.
         // Same fill as the model pill and the selected chat entry.
@@ -76,6 +82,7 @@ internal fun SamplingChip(sampling: Sampling, onClick: () -> Unit) {
  */
 @Composable
 internal fun SamplingDialog(
+    group: SamplingGroup,
     sampling: Sampling,
     onDismiss: () -> Unit,
     onConfirm: (Sampling) -> Unit,
@@ -85,20 +92,13 @@ internal fun SamplingDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        title = { Text("Sampling") },
+        title = { Text(group.title) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TRUNCATION.forEach { param ->
-                    SamplingRow(param, draft[param]) { draft = draft.with(param, it) }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Text("Penalties", style = MaterialTheme.typography.titleSmall)
-                PENALTIES.forEach { param ->
+                group.params.forEach { param ->
                     SamplingRow(param, draft[param]) { draft = draft.with(param, it) }
                 }
             }
