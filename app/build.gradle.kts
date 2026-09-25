@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hatsyrei.maidnative"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 19
         versionName = "1.7.1"
@@ -72,6 +72,8 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.javascriptengine)
+    implementation(libs.androidx.concurrent.futures.ktx)
     implementation(libs.markdown.renderer)
     implementation(libs.markdown.renderer.m3)
     implementation(libs.androidx.room.runtime)

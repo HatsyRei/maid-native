@@ -47,7 +47,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 
 ### Toolchain (prototype, verified locally)
 - JDK 21 (`~/.local/jdks/jdk-21`), compiling to JVM 17 bytecode (no separate toolchain provisioning).
-- Android SDK: compileSdk **37**, targetSdk **36**, minSdk **24** (matches the RN app's minSdk). compileSdk is the floor imposed by markdown-renderer `0.45.0`; targetSdk is held at 36 deliberately, since compiling against newer APIs is independent of opting in to new runtime behaviour.
+- Android SDK: compileSdk **37**, targetSdk **36**, minSdk **26** (the floor of `androidx.javascriptengine`, used by the JavaScript tool). compileSdk is the floor imposed by markdown-renderer `0.45.0`; targetSdk is held at 36 deliberately, since compiling against newer APIs is independent of opting in to new runtime behaviour.
 - Gradle **9.7.1**, AGP **9.4.1**, Kotlin **2.4.20**, KSP **2.3.12**, Compose BOM **2026.08.00**, Room **2.8.4**, OkHttp **5.5.0**.
 - AGP 9 supplies **built-in Kotlin**, so `org.jetbrains.kotlin.android` is no longer applied (it is incompatible with AGP 9's new DSL). AGP pins KGP/KSP to its own baseline, so our higher versions are declared on the root `buildscript` classpath (`kotlin-gradle-plugin`, `symbol-processing-gradle-plugin`).
 - `androidx.compose.material:material-icons-core` is now an explicit dependency; recent `material3` no longer brings it in transitively.
@@ -94,7 +94,7 @@ Derived from the current RN app. Each item is a parity target for the native app
 - [~] Navigation drawer: conversation list, rename, delete (with confirm dialog), constrained width (right sliver), keyboard dismissed on open. *(Export (per-chat), import (multi-file), and backup-all done via SAF; RN-compatible JSON format.)*
 - [x] Custom scroll thumb. *(`ui/chat/DraggableScrollbar.kt`: draggable scroll thumb for the conversation view.)*
 - [x] Edge-to-edge with correct status/nav bar insets. *(Fixed keyboard double-inset via `windowSoftInputMode=adjustResize`. Auto-scroll removed 2026-07-27; instead a bottom spacer (`viewport − 96dp`, a trailing `Spacer` item under `BoxWithConstraints`) lets the user scroll the last message up near the top and scroll ahead to watch streaming text — mirrors RN commit `dd8fb76`.)*
-- [x] App icon + Android 12 splash. *(Real adaptive launcher icon — Maid Ai monogram foreground with padding. The splash is the **platform-generated** one: API 31+ builds it automatically from the adaptive icon plus the theme's `windowBackground`, which `Theme.MaidNative` sets to `@color/ic_launcher_background` so the two match and the transition reads as deliberate. No `androidx.core:core-splashscreen` and no `windowSplashScreenAnimatedIcon`/`postSplashScreenTheme` — API 24–30 therefore gets a plain coloured window rather than an icon splash, which is accepted.)*
+- [x] App icon + Android 12 splash. *(Real adaptive launcher icon — Maid Ai monogram foreground with padding. The splash is the **platform-generated** one: API 31+ builds it automatically from the adaptive icon plus the theme's `windowBackground`, which `Theme.MaidNative` sets to `@color/ic_launcher_background` so the two match and the transition reads as deliberate. No `androidx.core:core-splashscreen` and no `windowSplashScreenAnimatedIcon`/`postSplashScreenTheme` — API 26–30 therefore gets a plain coloured window rather than an icon splash, which is accepted.)*
 
 ## 5. Architecture (native)
 

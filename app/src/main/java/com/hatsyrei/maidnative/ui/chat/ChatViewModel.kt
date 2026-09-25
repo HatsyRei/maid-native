@@ -21,6 +21,7 @@ import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Sampling
+import com.hatsyrei.maidnative.domain.tools.RunJavaScript
 import com.hatsyrei.maidnative.domain.tools.ToolCallStore
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
@@ -178,6 +179,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        RunJavaScript.attach(app)
         viewModelScope.launch {
             val loaded = repo.load(legacyFile)
             val roots = MessageTree.getRoots(loaded)
