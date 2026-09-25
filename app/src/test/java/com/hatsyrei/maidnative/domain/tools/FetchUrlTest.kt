@@ -24,14 +24,16 @@ class FetchUrlTest {
         .body(body.toResponseBody(type?.toMediaType()))
         .build()
 
-    private fun read(body: String, type: String?) = JSONObject(FetchUrl.read(response(body, type)) { "[$it]" })
+    private fun read(body: String, type: String?, start: Int = 0, maxChars: Int = FetchUrl.DEFAULT_CHARS) =
+        JSONObject(FetchUrl.read(response(body, type), start, maxChars) { "[$it]" })
 
     @Test
     fun `plain text comes back as is`() {
         val result = read("line one\nline two", "text/plain; charset=utf-8")
         assertEquals("line one\nline two", result.getString("content"))
         assertEquals("http://192.168.1.2:8080/page", result.getString("url"))
-        assertFalse(result.has("truncated"))
+        assertEquals(17, result.getInt("total_chars"))
+        assertFalse(result.has("download_capped"))
     }
 
     @Test
@@ -49,16 +51,26 @@ class FetchUrlTest {
     }
 
     @Test
-    fun `long content is truncated`() {
-        val result = read("a".repeat(30_000), "application/json")
-        assertEquals(20_000, result.getString("content").length)
-        assertTrue(result.getBoolean("truncated"))
+    fun `long content is paged by start and max_chars`() {
+        val body = "a".repeat(10_000) + "b".repeat(20_000)
+        val first = read(body, "application/json")
+        assertEquals("a".repeat(FetchUrl.DEFAULT_CHARS), first.getString("content"))
+        assertEquals(30_000, first.getInt("total_chars"))
+
+        val middle = read(body, "application/json", start = 9_998, maxChars = 4)
+        assertEquals("aabb", middle.getString("content"))
+        assertEquals(9_998, middle.getInt("start"))
+
+        assertEquals("b".repeat(5), read(body, "application/json", start = 29_995).getString("content"))
+        val past = read(body, "application/json", start = 40_000)
+        assertEquals("", past.getString("content"))
+        assertEquals(30_000, past.getInt("start"))
     }
 
     @Test
     fun `binary content and error statuses are refused`() {
-        assertThrows(IllegalArgumentException::class.java) { FetchUrl.read(response("x", "image/png")) { it } }
-        assertThrows(IOException::class.java) { FetchUrl.read(response("x", "text/plain", 404)) { it } }
+        assertThrows(IllegalArgumentException::class.java) { FetchUrl.read(response("x", "image/png"), 0, 10) { it } }
+        assertThrows(IOException::class.java) { FetchUrl.read(response("x", "text/plain", 404), 0, 10) { it } }
     }
 
     @Test
@@ -67,8 +79,11 @@ class FetchUrlTest {
     }
 
     @Test
-    fun `non http urls come back as errors`() = runBlocking {
-        for (args in listOf("{}", """{"url":"file:///etc/hosts"}""", """{"url":"ftp://x"}""")) {
+    fun `non http urls and bad ranges come back as errors`() = runBlocking {
+        for (args in listOf(
+            "{}", """{"url":"file:///etc/hosts"}""", """{"url":"ftp://x"}""",
+            """{"url":"http://x","start":-1}""", """{"url":"http://x","max_chars":0}""",
+        )) {
             val result = JSONObject(Tools.run(ToolCall("1", "fetch_url", args), listOf(FetchUrl)))
             assertTrue(args, result.has("error"))
         }

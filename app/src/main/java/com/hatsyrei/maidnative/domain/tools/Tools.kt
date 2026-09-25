@@ -194,3 +194,16 @@ object Tools {
 
     private fun error(message: String): String = JSONObject().put("error", message).toString()
 }
+
+/** Models send numbers as `20`, `20.0` or `"20"`; all mean the same. */
+internal fun JSONObject.int(key: String, default: Int?, range: IntRange): Int {
+    val raw = opt(key)
+    val value = when {
+        raw == null || raw == JSONObject.NULL -> default ?: throw IllegalArgumentException("\"$key\" is required")
+        raw is Number && raw.toDouble() == Math.floor(raw.toDouble()) -> raw.toDouble().toInt()
+        raw is String -> raw.trim().toIntOrNull()
+        else -> null
+    } ?: throw IllegalArgumentException("\"$key\" must be a whole number")
+    require(value in range) { "\"$key\" must be between ${range.first} and ${range.last}" }
+    return value
+}

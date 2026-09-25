@@ -66,10 +66,14 @@ server.
   field is left out of the request entirely, so your server's flags and the
   sampling llama.cpp reads from the model's metadata keep deciding it.
 - **Tool calling** — opt-in, on-device tools the model can call mid-reply:
-  **Date & time** (the phone's local time, weekday and zone) and a **Dice
-  roller** (`2d6`, `1d20+5`, …) for tabletop sessions. Calls show inline as
-  collapsible rows, and **Modify** can edit or remove a call's arguments and
-  result. Needs a model and endpoint with tool-call support.
+  **Date & time** (the phone's local time, weekday and zone), a **Dice
+  roller** (`2d6`, `1d20+5`, …) for tabletop sessions, **Fetch URL** (reads a
+  web page or text file as plain text, local network included; the model
+  pages through long content 8k characters at a time by default, choosing its
+  own offset and length) and **JavaScript** (runs code in a sandbox for exact
+  math and data work). Calls show inline as collapsible rows, and **Modify**
+  can edit or remove a call's arguments and result. Needs a model and endpoint
+  with tool-call support.
 - **Endpoint presets and a model-picker pill** for switching servers and models
   in a couple of taps.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,

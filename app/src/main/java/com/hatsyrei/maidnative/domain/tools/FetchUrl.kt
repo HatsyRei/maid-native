@@ -22,10 +22,14 @@ object FetchUrl : Tool {
     override val description =
         "Fetch a URL with an HTTP GET request and return its content as text; web pages are " +
             "converted to plain text. Use it to read a page the user mentions or to check a source. " +
-            "Localhost and local network addresses work too. Long content is cut off."
+            "Localhost and local network addresses work too. Returns up to max_chars characters " +
+            "of the text beginning at start, plus total_chars, the length of the whole text; if " +
+            "start + the returned length is below total_chars and you need more, call again " +
+            "with a later start."
 
     private const val MAX_BYTES = 2L * 1024 * 1024
-    private const val MAX_CHARS = 20_000
+    internal const val DEFAULT_CHARS = 8_000
+    private const val MAX_CHARS = 50_000
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android) MaidNative"
 
     private val client by lazy {
@@ -40,10 +44,18 @@ object FetchUrl : Tool {
         .put("type", "object")
         .put(
             "properties",
-            JSONObject().put(
-                "url",
-                JSONObject().put("type", "string").put("description", "The http or https URL to fetch."),
-            ),
+            JSONObject()
+                .put("url", JSONObject().put("type", "string").put("description", "The http or https URL to fetch."))
+                .put(
+                    "start",
+                    JSONObject().put("type", "integer").put("minimum", 0)
+                        .put("description", "Character offset in the text to begin at. Defaults to 0."),
+                )
+                .put(
+                    "max_chars",
+                    JSONObject().put("type", "integer").put("minimum", 1).put("maximum", MAX_CHARS)
+                        .put("description", "Most characters to return. Defaults to $DEFAULT_CHARS."),
+                ),
         )
         .put("required", JSONArray().put("url"))
 
@@ -52,6 +64,8 @@ object FetchUrl : Tool {
         require(!raw.isNullOrEmpty()) { "\"url\" is required" }
         val url = (if ("://" in raw) raw else "https://$raw").toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Not an http or https URL: $raw")
+        val start = arguments.int("start", default = 0, range = 0..Int.MAX_VALUE)
+        val maxChars = arguments.int("max_chars", default = DEFAULT_CHARS, range = 1..MAX_CHARS)
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", USER_AGENT)
@@ -64,13 +78,13 @@ object FetchUrl : Tool {
                 override fun onFailure(call: Call, e: IOException) = cont.resumeWith(Result.failure(e))
 
                 override fun onResponse(call: Call, response: Response) =
-                    cont.resumeWith(runCatching { response.use { read(it, ::htmlToText) } })
+                    cont.resumeWith(runCatching { response.use { read(it, start, maxChars, ::htmlToText) } })
             })
         }
     }
 
     /** [toText] turns an HTML page into readable text; a parameter because android.text.Html is a stub in unit tests. */
-    internal fun read(response: Response, toText: (String) -> String): String {
+    internal fun read(response: Response, start: Int, maxChars: Int, toText: (String) -> String): String {
         if (!response.isSuccessful) throw IOException("HTTP ${response.code} ${response.message}".trim())
         val body = response.body
         val type = body.contentType()
@@ -83,8 +97,12 @@ object FetchUrl : Tool {
         val out = JSONObject().put("url", response.request.url.toString())
         if (html) title(raw)?.let { out.put("title", toText(it)) }
         val content = if (html) toText(stripHidden(raw)) else raw
-        out.put("content", content.take(MAX_CHARS))
-        if (cut || content.length > MAX_CHARS) out.put("truncated", true)
+        val from = minOf(start, content.length)
+        out.put("start", from)
+        out.put("content", content.substring(from, from + minOf(maxChars, content.length - from)))
+        out.put("total_chars", content.length)
+        // Only the first MAX_BYTES were read, so total_chars undercounts and the rest is out of reach.
+        if (cut) out.put("download_capped", true)
         return out.toString()
     }
 
