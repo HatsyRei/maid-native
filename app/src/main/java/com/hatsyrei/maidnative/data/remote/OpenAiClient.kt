@@ -218,6 +218,7 @@ class OpenAiClient {
             // Only the inline-tag path needs scanning; a backend that fills the
             // dedicated field has already done this work for us.
             private val scanner = Reasoning.Scanner()
+            private val toolCallIndex = ToolCallIndex()
 
             private fun send(chunk: Reasoning.Chunk) {
                 trySend(StreamEvent.Text(chunk))
@@ -264,7 +265,7 @@ class OpenAiClient {
                     val function = call.optJSONObject("function")
                     trySend(
                         StreamEvent.ToolCallDelta(
-                            index = call.optInt("index", i),
+                            index = toolCallIndex.of(call),
                             id = call.stringOrNull("id"),
                             name = function?.stringOrNull("name"),
                             arguments = function?.stringOrNull("arguments"),
@@ -287,6 +288,28 @@ class OpenAiClient {
 
         val eventSource = EventSources.createFactory(streamClient).newEventSource(request, listener)
         awaitClose { eventSource.cancel() }
+    }
+
+    /**
+     * Which call a streamed `tool_calls` fragment belongs to, for one response.
+     * Gemini leaves `index` out and sends each call whole in its own chunk, so
+     * there a new id is what starts the next call.
+     */
+    internal class ToolCallIndex {
+        private var last = -1
+        private var lastId: String? = null
+
+        fun of(call: JSONObject): Int {
+            val id = if (call.isNull("id")) null else call.optString("id").ifEmpty { null }
+            val index = when {
+                call.has("index") -> call.optInt("index")
+                last < 0 || (id != null && id != lastId) -> last + 1
+                else -> last
+            }
+            last = index
+            if (id != null) lastId = id
+            return index
+        }
     }
 
     /**
