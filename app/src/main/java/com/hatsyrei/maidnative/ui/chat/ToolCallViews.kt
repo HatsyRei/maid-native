@@ -43,12 +43,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.ToolCall
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
 import com.hatsyrei.maidnative.ui.common.DialogOverIme
 import com.hatsyrei.maidnative.ui.common.liftAboveIme
 import com.hatsyrei.maidnative.ui.icons.CloseIcon
+import com.hatsyrei.maidnative.ui.icons.DescriptionIcon
 import org.json.JSONObject
 
 /** Calls the model made together, each collapsed to its name. */
@@ -127,6 +129,56 @@ private fun ToolDetail(label: String, text: String) {
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** Files linked on a message, in the tool rows' style: tap to view, × to unlink. */
+@Composable
+internal fun LinkedFileRows(
+    files: List<LinkedFile>,
+    onOpen: (LinkedFile) -> Unit,
+    onUnlink: (LinkedFile) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (file in files) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                onClick = { onOpen(file) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        DescriptionIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = file.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onUnlink(file) }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            CloseIcon,
+                            contentDescription = "Unlink ${file.name}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**

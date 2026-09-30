@@ -18,7 +18,7 @@ import org.json.JSONObject
 object RunJavaScript : Tool {
     override val name = "run_javascript"
     override val label = "JavaScript"
-    override val summary = "Run code in a sandbox for exact math and data work."
+    override val summary = "Run code in a sandbox."
     override val description =
         "Run JavaScript in an isolated sandbox and return the value of the last expression, plus " +
             "anything printed with console.log. Use it for arithmetic, unit conversions, date math, " +

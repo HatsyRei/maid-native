@@ -42,7 +42,11 @@ import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -79,11 +84,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupPositionProvider
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
+import com.hatsyrei.maidnative.domain.TextFiles
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.ui.icons.AddIcon
 import com.hatsyrei.maidnative.ui.icons.ArrowUpwardIcon
 import com.hatsyrei.maidnative.ui.icons.AudiotrackIcon
 import com.hatsyrei.maidnative.ui.icons.CloseIcon
 import com.hatsyrei.maidnative.ui.icons.DescriptionIcon
+import com.hatsyrei.maidnative.ui.icons.FolderOpenIcon
 import com.hatsyrei.maidnative.ui.icons.ImageIcon
 import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 
@@ -128,9 +136,13 @@ internal fun Composer(
     busy: Boolean,
     focus: ComposerFocus,
     attachments: List<Attachment>,
+    files: List<LinkedFile>,
+    fileTools: Boolean,
     modalities: Modalities,
     onAttach: (Uri, Attachment.Kind) -> Unit,
     onRemoveAttachment: (Attachment) -> Unit,
+    onLinkFile: (uri: Uri, created: Boolean) -> Unit,
+    onRemoveFile: (LinkedFile) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
     onSubmit: (String) -> Unit,
     onStop: () -> Unit,
@@ -138,7 +150,7 @@ internal fun Composer(
 ) {
     val input = rememberTextFieldState()
     val text = input.text
-    val canSend = enabled && (text.isNotBlank() || attachments.isNotEmpty())
+    val canSend = enabled && (text.isNotBlank() || attachments.isNotEmpty() || files.isNotEmpty())
     val active = busy || canSend
 
     // Read here rather than in the scaffold so an IME transition invalidates only
@@ -151,8 +163,9 @@ internal fun Composer(
     // with it (focus, or any text present). The second factor fades it back IN
     // when the painter resolves, so the stored art arriving (settings load, or a
     // custom image finishing its off-thread decode) eases in instead of popping.
+    val hasChips = attachments.isNotEmpty() || files.isNotEmpty()
     val engagementAlpha by animateFloatAsState(
-        targetValue = if (focused || text.isNotEmpty() || attachments.isNotEmpty()) 0f else 1f,
+        targetValue = if (focused || text.isNotEmpty() || hasChips) 0f else 1f,
         animationSpec = tween(700),
         label = "nameplateAlpha",
     )
@@ -188,19 +201,27 @@ internal fun Composer(
                 .fillMaxWidth()
                 .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         ) {
-            if (attachments.isNotEmpty()) {
+            if (hasChips) {
                 AttachmentChips(
                     attachments = attachments,
                     onRemove = onRemoveAttachment,
                     modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 2.dp),
                     onOpen = onOpenAttachment,
+                    files = files,
+                    onRemoveFile = onRemoveFile,
                 )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                AttachButton(enabled = enabled, modalities = modalities, onPick = onAttach)
+                AttachButton(
+                    enabled = enabled,
+                    modalities = modalities,
+                    fileTools = fileTools,
+                    onPick = onAttach,
+                    onLink = onLinkFile,
+                )
                 BasicTextField(
                     state = input,
                     modifier = Modifier
@@ -333,13 +354,17 @@ private fun rememberImageReceiver(
  * take that modality. Silence leaves it live: most OpenAI-compatible servers
  * describe nothing at all, and a rejected request is a better outcome than a
  * button that can never be pressed. Text files are always offered because they
- * are inlined as prompt text and need no modality at all.
+ * are inlined as prompt text and need no modality at all. Linked files are
+ * not copied: the model reaches them through tools, reading and editing the
+ * user's own file for the rest of the thread.
  */
 @Composable
 private fun AttachButton(
     enabled: Boolean,
     modalities: Modalities,
+    fileTools: Boolean,
     onPick: (Uri, Attachment.Kind) -> Unit,
+    onLink: (uri: Uri, created: Boolean) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
 
@@ -351,6 +376,15 @@ private fun AttachButton(
     }
     val textPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { onPick(it, Attachment.Kind.TEXT) }
+    }
+    val linkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { onLink(it, false) }
+    }
+    // octet-stream, so the provider keeps whatever name and extension the user types.
+    val newFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        uri?.let { onLink(it, true) }
     }
 
     Box {
@@ -395,9 +429,28 @@ private fun AttachButton(
                 trailingIcon = { Icon(DescriptionIcon, contentDescription = null) },
                 onClick = {
                     open = false
-                    textPicker.launch(TEXT_MIME_TYPES)
+                    textPicker.launch(TextFiles.PICKER_TYPES)
                 },
             )
+            if (fileTools) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                MenuOption(
+                    text = "Link file",
+                    trailingIcon = { Icon(FolderOpenIcon, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        linkPicker.launch(TextFiles.PICKER_TYPES)
+                    },
+                )
+                MenuOption(
+                    text = "New file",
+                    trailingIcon = { Icon(Icons.Filled.Create, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        newFile.launch("notes.md")
+                    },
+                )
+            }
         }
     }
 }
@@ -408,49 +461,79 @@ internal fun AttachmentChips(
     onRemove: (Attachment) -> Unit,
     modifier: Modifier = Modifier,
     onOpen: ((Attachment) -> Unit)? = null,
+    files: List<LinkedFile> = emptyList(),
+    onRemoveFile: (LinkedFile) -> Unit = {},
 ) {
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Tinted apart from attachments: the model gets to edit the user's own file, not a copy.
+        for (file in files) {
+            RemovableChip(
+                label = file.name,
+                removeDescription = "Remove ${file.name}",
+                onRemove = { onRemoveFile(file) },
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                leadingIcon = Icons.Filled.Edit,
+            )
+        }
         for (attachment in attachments) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            RemovableChip(
+                label = attachment.name,
+                removeDescription = "Remove ${attachment.name}",
+                onRemove = { onRemove(attachment) },
+                onOpen = onOpen?.let { { it(attachment) } },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RemovableChip(
+    label: String,
+    removeDescription: String,
+    onRemove: () -> Unit,
+    onOpen: (() -> Unit)? = null,
+    color: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    leadingIcon: ImageVector? = null,
+) {
+    Surface(shape = RoundedCornerShape(12.dp), color = color) {
+        Row(
+            modifier = Modifier.padding(start = 10.dp, end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.padding(end = 4.dp).size(14.dp),
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = 140.dp)
+                    .then(if (onOpen == null) Modifier else Modifier.clickable(onClick = onOpen)),
+            )
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(32.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(start = 10.dp, end = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = attachment.name,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .widthIn(max = 140.dp)
-                            .then(
-                                if (onOpen == null) {
-                                    Modifier
-                                } else {
-                                    Modifier.clickable { onOpen(attachment) }
-                                },
-                            ),
-                    )
-                    IconButton(
-                        onClick = { onRemove(attachment) },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            CloseIcon,
-                            contentDescription = "Remove ${attachment.name}",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
+                Icon(
+                    CloseIcon,
+                    contentDescription = removeDescription,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
             }
         }
     }
@@ -473,4 +556,3 @@ private class AboveAnchorPositionProvider(private val gap: Int) : PopupPositionP
 // llama.cpp decodes only wav and mp3, so offering anything else guarantees a
 // rejected request. Providers disagree on the wav spelling, hence both.
 private val AUDIO_MIME_TYPES = arrayOf("audio/wav", "audio/x-wav", "audio/mpeg")
-private val TEXT_MIME_TYPES = arrayOf("text/*", "application/json")

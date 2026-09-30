@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,9 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.ChatStats
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 
 /**
- * Read-only statistics for one conversation.
+ * Statistics and linked files for one conversation.
  *
  * Takes an already-computed [ChatStats] rather than the tree: every parameter
  * is then stable, so while a reply streams behind the dialog this skips instead
@@ -27,6 +30,9 @@ import com.hatsyrei.maidnative.domain.ChatStats
 internal fun ChatPropertiesDialog(
     title: String,
     stats: ChatStats,
+    files: List<LinkedFile>,
+    onOpenFile: (LinkedFile) -> Unit,
+    onUnlinkFile: (LinkedFile) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -34,10 +40,7 @@ internal fun ChatPropertiesDialog(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text(title, maxLines = 2) },
         text = {
-            Column {
-                StatRow("Messages", stats.messages.formatted())
-                StatRow("From you", stats.userMessages.formatted())
-                StatRow("Replies", stats.assistantMessages.formatted())
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 StatRow(
                     "Conversation size",
                     stats.conversationTokens.tokens(stats.sizeAccuracy),
@@ -53,6 +56,15 @@ internal fun ChatPropertiesDialog(
                     ) {
                         notes.forEach { Note(it) }
                     }
+                }
+                if (files.isNotEmpty()) {
+                    Text(
+                        text = "Linked files",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+                    )
+                    LinkedFileRows(files = files, onOpen = onOpenFile, onUnlink = onUnlinkFile)
                 }
             }
         },

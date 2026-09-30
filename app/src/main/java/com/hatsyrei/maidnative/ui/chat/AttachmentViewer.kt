@@ -54,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.ui.icons.AudiotrackIcon
 import com.hatsyrei.maidnative.ui.icons.CloseIcon
 import com.hatsyrei.maidnative.ui.icons.PauseIcon
@@ -87,6 +88,49 @@ internal fun AttachmentViewer(
         ActivityResultContracts.CreateDocument(attachment.mime),
     ) { uri -> uri?.let(onSave) }
 
+    ViewerDialog(
+        name = attachment.name,
+        dark = isImage,
+        onDismiss = onDismiss,
+        actions = {
+            IconButton(
+                onClick = { saveLauncher.launch(attachment.name) },
+                enabled = available,
+            ) {
+                Icon(SaveAltIcon, contentDescription = "Save a copy")
+            }
+        },
+    ) {
+        when (attachment.kind) {
+            Attachment.Kind.IMAGE -> ImagePane(attachment)
+            Attachment.Kind.AUDIO -> AudioPane(attachment)
+            Attachment.Kind.TEXT -> TextPane(attachment.path) {
+                withContext(Dispatchers.IO) { readCapped(attachment.path) }
+            }
+        }
+    }
+}
+
+/** A linked file as it is now, read through its grant; the user's own copy, so there is nothing to save. */
+@Composable
+internal fun LinkedFileViewer(
+    file: LinkedFile,
+    load: suspend () -> String?,
+    onDismiss: () -> Unit,
+) {
+    ViewerDialog(name = file.name, dark = false, onDismiss = onDismiss) {
+        TextPane(file.uri, load)
+    }
+}
+
+@Composable
+private fun ViewerDialog(
+    name: String,
+    dark: Boolean,
+    onDismiss: () -> Unit,
+    actions: @Composable () -> Unit = {},
+    content: @Composable () -> Unit,
+) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -97,18 +141,12 @@ internal fun AttachmentViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    if (isImage) Color.Black else MaterialTheme.colorScheme.surface,
-                ),
+                .background(if (dark) Color.Black else MaterialTheme.colorScheme.surface),
         ) {
-            when (attachment.kind) {
-                Attachment.Kind.IMAGE -> ImagePane(attachment)
-                Attachment.Kind.AUDIO -> AudioPane(attachment)
-                Attachment.Kind.TEXT -> TextPane(attachment)
-            }
+            content()
             CompositionLocalProvider(
                 LocalContentColor provides
-                    if (isImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                    if (dark) Color.White else MaterialTheme.colorScheme.onSurface,
             ) {
                 Row(
                     modifier = Modifier
@@ -119,7 +157,7 @@ internal fun AttachmentViewer(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        text = attachment.name,
+                        text = name,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -127,12 +165,7 @@ internal fun AttachmentViewer(
                             .weight(1f)
                             .padding(start = 8.dp),
                     )
-                    IconButton(
-                        onClick = { saveLauncher.launch(attachment.name) },
-                        enabled = available,
-                    ) {
-                        Icon(SaveAltIcon, contentDescription = "Save a copy")
-                    }
+                    actions()
                     IconButton(onClick = onDismiss) {
                         Icon(CloseIcon, contentDescription = "Close")
                     }
@@ -277,15 +310,16 @@ private fun clock(millis: Int): String {
 }
 
 @Composable
-private fun TextPane(attachment: Attachment) {
-    val text by produceState<String?>(null, attachment.path) {
-        value = withContext(Dispatchers.IO) { readCapped(attachment.path) }
+private fun TextPane(key: String, load: suspend () -> String?) {
+    // Loaded-or-not apart from the text, so a slow provider does not flash "no longer available".
+    val loaded by produceState<Pair<Boolean, String?>>(false to null, key) {
+        value = true to load()
     }
-    val body = text
+    val (done, body) = loaded
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (body == null) {
+        if (done && body == null) {
             Missing()
-        } else {
+        } else if (body != null) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()

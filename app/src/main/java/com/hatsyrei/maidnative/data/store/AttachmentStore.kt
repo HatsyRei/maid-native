@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.TextFiles
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import org.json.JSONArray
 import org.json.JSONObject
@@ -46,7 +47,9 @@ class AttachmentStore(private val context: Context) {
                 importImage(uri, source)
             } else {
                 val ceiling = if (kind == Attachment.Kind.AUDIO) MAX_AUDIO_BYTES else MAX_TEXT_BYTES
-                if (source.size > ceiling) {
+                if (kind == Attachment.Kind.TEXT && !TextFiles.isText(source.name, source.mime)) {
+                    ImportResult.Failure("\"${source.name}\" is not a supported text file.")
+                } else if (source.size > ceiling) {
                     ImportResult.Failure(tooLarge(source.name, ceiling))
                 } else {
                     copyVerbatim(uri, source, ceiling)
@@ -222,6 +225,7 @@ class AttachmentStore(private val context: Context) {
     }
 
     private fun unreadable(name: String) = "Could not read \"$name\"."
+
 
     private fun tooLarge(name: String, ceiling: Long) =
         "\"$name\" is too large (limit ${ceiling / 1024} KB)."

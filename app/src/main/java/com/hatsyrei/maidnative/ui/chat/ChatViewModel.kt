@@ -15,17 +15,22 @@ import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.AttachmentStore
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.data.store.ConversationFileStore
+import com.hatsyrei.maidnative.data.store.LinkedDocuments
 import com.hatsyrei.maidnative.data.store.MessageStore
 import com.hatsyrei.maidnative.data.store.NameplateStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.Sampling
+import com.hatsyrei.maidnative.domain.tools.FileTools
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
+import com.hatsyrei.maidnative.domain.tools.LinkedFileStore
 import com.hatsyrei.maidnative.domain.tools.RunJavaScript
 import com.hatsyrei.maidnative.domain.tools.ToolCallStore
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
 import com.hatsyrei.maidnative.domain.tools.Tools
+import com.hatsyrei.maidnative.domain.tools.linkedFiles
 import com.hatsyrei.maidnative.domain.tree.Mappings
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -56,6 +61,8 @@ data class ChatUiState(
     val models: List<String> = emptyList(),
     val modalities: Map<String, Modalities> = emptyMap(),
     val pendingAttachments: List<Attachment> = emptyList(),
+    /** Linked on the next message; the grant is already held. */
+    val pendingFiles: List<LinkedFile> = emptyList(),
     val settings: SettingsRepository.Settings = SettingsRepository.Settings(),
     val busy: Boolean = false,
     val scanning: Boolean = false,
@@ -92,6 +99,9 @@ data class ChatUiState(
     val ready: Boolean
         get() = settings.model.isNotEmpty() && models.contains(settings.model)
 
+    val fileTools: Boolean
+        get() = FileTools.name in settings.enabledTools
+
     /**
      * Capabilities of the model that would receive the next message. Absent
      * from the map means the endpoint never described it, which stays UNKNOWN
@@ -122,6 +132,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val nameplateStore = NameplateStore(app)
     private val avatarStore = AvatarStore(app)
     private val attachmentStore = AttachmentStore(app)
+    private val documents = LinkedDocuments(app.contentResolver)
     private val legacyFile = File(app.filesDir, "messages.json")
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -196,6 +207,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value.pendingAttachments.mapTo(referenced) { it.path }
                 attachmentStore.sweep(referenced)
             }
+            releaseUnlinked()
             // Recorded here rather than at each call site that moves the active
             // root (new/select/delete/first submit).
             _state.map { it.root }
@@ -598,7 +610,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun submit(text: String) {
         val prompt = text.trim()
         val pending = _state.value.pendingAttachments
-        if ((prompt.isEmpty() && pending.isEmpty()) || _state.value.busy) return
+        val files = _state.value.pendingFiles
+        if ((prompt.isEmpty() && pending.isEmpty() && files.isEmpty()) || _state.value.busy) return
 
         var next = _state.value.mappings
         val existingRoot = _state.value.root
@@ -615,7 +628,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         val userId = UUID.randomUUID().toString()
         next = MessageTree.addNode(
-            next, userId, "user", prompt, rootId, parent, null, attachments = pending,
+            next, userId, "user", prompt, rootId, parent, null,
+            metadata = LinkedFileStore.writeInto(files, emptyMap()),
+            attachments = pending,
         )
 
         val responseId = UUID.randomUUID().toString()
@@ -623,7 +638,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
         // The attachments now belong to the message, so the composer lets go of
         // them without deleting the files.
-        _state.update { it.copy(mappings = next, root = rootId, pendingAttachments = emptyList()) }
+        _state.update {
+            it.copy(mappings = next, root = rootId, pendingAttachments = emptyList(), pendingFiles = emptyList())
+        }
         startStream(rootId, responseId)
     }
 
@@ -644,6 +661,63 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun removeAttachment(attachment: Attachment) {
         _state.update { it.copy(pendingAttachments = it.pendingAttachments - attachment) }
         viewModelScope.launch(Dispatchers.IO) { attachmentStore.delete(listOf(attachment)) }
+    }
+
+    /** Keep access to a picked document and stage it on the next message. */
+    fun linkFile(uri: Uri, created: Boolean) {
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) { runCatching { documents.link(uri, created) } }.getOrElse { failure ->
+                _state.update { it.copy(error = "That file could not be linked: ${failure.message}") }
+                return@launch
+            }
+            _state.update { s ->
+                if (s.pendingFiles.any { it.uri == file.uri }) s else s.copy(pendingFiles = s.pendingFiles + file, error = null)
+            }
+        }
+    }
+
+    fun removePendingFile(file: LinkedFile) {
+        _state.update { it.copy(pendingFiles = it.pendingFiles - file) }
+        releaseUnlinked()
+    }
+
+    /**
+     * Take [file] off every message of chat [rootId], all branches, so the model
+     * cannot reach it; the file itself is left alone. Allowed mid-reply: the
+     * stream only ever writes its own node.
+     */
+    fun unlinkFile(rootId: String, file: LinkedFile) {
+        val current = _state.value.mappings
+        var next = current
+        for (node in current.values) {
+            if (node.root != rootId) continue
+            val files = node.linkedFiles()
+            if (files.none { it.uri == file.uri }) continue
+            next = MessageTree.updateContent(next, node.id, { it }, metadata = { m ->
+                LinkedFileStore.writeInto(files.filterNot { it.uri == file.uri }, m)
+            })
+        }
+        if (next === current) return
+        _state.update { it.copy(mappings = next) }
+        persist()
+        releaseUnlinked()
+    }
+
+    /** For the built-in viewer; null when the file cannot be read. */
+    suspend fun readFile(file: LinkedFile): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = documents.read(file.uri, PREVIEW_BYTES)
+            val body = String(bytes, 0, minOf(bytes.size, PREVIEW_BYTES), Charsets.UTF_8)
+            if (bytes.size > PREVIEW_BYTES) "$body\n\n… truncated" else body
+        }.getOrNull()
+    }
+
+    /** Persisted grants are capped per app, so a file nothing links gives its grant back. */
+    private fun releaseUnlinked() {
+        val s = _state.value
+        val kept = s.mappings.values.flatMapTo(HashSet()) { node -> node.linkedFiles().map { it.uri } }
+        s.pendingFiles.mapTo(kept) { it.uri }
+        viewModelScope.launch(Dispatchers.IO) { runCatching { documents.releaseExcept(kept) } }
     }
 
     /** Copy a stored attachment out to a user-picked [uri]. */
@@ -676,13 +750,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Revise a user message: branch a new version and regenerate the reply. */
     fun revise(messageId: String, content: String, attachments: List<Attachment>) {
         val text = content.trim()
-        if (_state.value.busy || (text.isEmpty() && attachments.isEmpty())) return
         val node = _state.value.mappings[messageId] ?: return
+        val files = node.linkedFiles()
+        if (_state.value.busy || (text.isEmpty() && attachments.isEmpty() && files.isEmpty())) return
         val userId = UUID.randomUUID().toString()
         // The branch carries whatever survived the dialog; files it still shares
         // with the original are left alone, since the original still names them.
         var next = MessageTree.branchNode(
-            _state.value.mappings, messageId, userId, text, attachments = attachments,
+            _state.value.mappings, messageId, userId, text,
+            metadata = LinkedFileStore.writeInto(files, emptyMap()),
+            attachments = attachments,
         )
         if (next === _state.value.mappings) return
         val responseId = UUID.randomUUID().toString()
@@ -741,6 +818,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(mappings = next, root = root) }
         persist()
+        releaseUnlinked()
     }
 
     /**
@@ -774,10 +852,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(busy = true, error = null, streamingId = responseId) }
         _streaming.value = StreamingText(responseId)
         persist()
+        val conversation = MessageTree.getConversation(_state.value.mappings, rootId)
         stream.start(
             config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning, s.sampling),
-            conversation = MessageTree.getConversation(_state.value.mappings, rootId),
-            tools = Tools.enabled(s.enabledTools),
+            conversation = conversation,
+            tools = Tools.enabled(s.enabledTools) + if (FileTools.name in s.enabledTools) {
+                FileTools.of(LinkedFileStore.inThread(conversation), documents)
+            } else {
+                emptyList()
+            },
             onUpdate = { update ->
                 _streaming.update { live ->
                     // Guards against a tick from a superseded job.
@@ -836,6 +919,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
+        const val PREVIEW_BYTES = 256 * 1024
         const val CLEARTEXT_BLOCKED =
             "Blocked: this endpoint uses plain HTTP. " +
                 "Turn on \"Allow HTTP endpoints\" in Settings to use it."

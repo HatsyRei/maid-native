@@ -3,6 +3,7 @@ package com.hatsyrei.maidnative.ui.chat
 import android.net.Uri
 import androidx.compose.runtime.Stable
 import com.hatsyrei.maidnative.domain.Attachment
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 
 /**
@@ -20,6 +21,10 @@ class ChatActions(
     val attach: (Uri, Attachment.Kind) -> Unit,
     val removeAttachment: (Attachment) -> Unit,
     val saveAttachment: (Attachment, Uri) -> Unit,
+    val linkFile: (uri: Uri, created: Boolean) -> Unit,
+    val removePendingFile: (LinkedFile) -> Unit,
+    val unlinkFile: (rootId: String, file: LinkedFile) -> Unit,
+    val readFile: suspend (LinkedFile) -> String?,
     val newChat: () -> Unit,
     val openSettings: () -> Unit,
     val regenerate: (String) -> Unit,

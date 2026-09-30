@@ -30,7 +30,7 @@ import com.hatsyrei.maidnative.domain.tools.Tools
 /** Opens the tools dialog, and carries how many tools are currently enabled. */
 @Composable
 internal fun ToolsChip(enabled: Set<String>, onClick: () -> Unit) {
-    val count = Tools.all.count { it.name in enabled }
+    val count = Tools.switches.count { it.name in enabled }
     val active = count > 0
     AssistChip(
         onClick = onClick,
@@ -58,7 +58,7 @@ internal fun ToolsDialog(
     onConfirm: (Set<String>) -> Unit,
 ) {
     // Names of tools this build no longer has are dropped on save.
-    var draft by remember { mutableStateOf(enabled.filter { name -> Tools.all.any { it.name == name } }.toSet()) }
+    var draft by remember { mutableStateOf(enabled.filter { name -> Tools.switches.any { it.name == name } }.toSet()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -69,7 +69,7 @@ internal fun ToolsDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Tools.all.forEach { tool ->
+                Tools.switches.forEach { tool ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

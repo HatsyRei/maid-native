@@ -57,10 +57,10 @@ server.
   it).
 - **Generation stats** — a footnote under each reply with its token count,
   generation time and tokens/s, plus a per-chat **Properties** dialog
-  summarising the active thread: message counts, conversation size, average
-  speed, response time and time to first token. Counts come from the server's
-  `usage` chunk and llama.cpp `timings`; edited or stopped replies are reported
-  as bounds rather than guessed at.
+  summarising the active thread: conversation size, average speed, response
+  time and time to first token, plus the thread's linked files. Counts come
+  from the server's `usage` chunk and llama.cpp `timings`; edited or stopped
+  replies are reported as bounds rather than guessed at.
 - **Sampling and penalty controls** — temperature, top P, top K, min P, and the
   frequency and presence penalties. Every field is off by default and an off
   field is left out of the request entirely, so your server's flags and the
@@ -74,6 +74,13 @@ server.
   math and data work). Calls show inline as collapsible rows, and **Modify**
   can edit or remove a call's arguments and result. Needs a model and endpoint
   with tool-call support.
+- **Linked files** — with **File operations** on, the `+` menu can link an
+  existing text file or create a new one (any extension) to send with a
+  message. The model can then read it by line, search it, append to it or make
+  targeted edits in place for the rest of the thread — handy for document work
+  or a running notes file. Uses the system file picker, so the app needs no
+  storage permission and only ever sees the files you pick. Linked files show
+  on their message and in **Properties**; tap one to view it, or unlink it.
 - **Endpoint presets and a model-picker pill** for switching servers and models
   in a couple of taps.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,

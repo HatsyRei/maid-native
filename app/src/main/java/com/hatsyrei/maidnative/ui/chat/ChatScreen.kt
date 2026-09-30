@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ChatStats
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
+import com.hatsyrei.maidnative.domain.tools.LinkedFileStore
 import com.hatsyrei.maidnative.domain.tools.ToolText
 import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageTree
@@ -75,6 +77,7 @@ fun ChatScreen(
     var dialog by remember { mutableStateOf<ChatDialog?>(null) }
     var exportRoot by remember { mutableStateOf<String?>(null) }
     var viewing by remember { mutableStateOf<Attachment?>(null) }
+    var viewingFile by remember { mutableStateOf<LinkedFile?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -170,6 +173,7 @@ fun ChatScreen(
                     actions = actions,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     onOpenAttachment = { viewing = it },
+                    onOpenFile = { viewingFile = it },
                     onDialog = { dialog = it },
                 )
             }
@@ -254,12 +258,26 @@ fun ChatScreen(
             val stats = remember(state.mappings, current.id) {
                 ChatStats.of(MessageTree.getConversation(state.mappings, current.id))
             }
+            val files = remember(state.mappings, current.id) {
+                LinkedFileStore.inThread(MessageTree.getConversation(state.mappings, current.id))
+            }
             ChatPropertiesDialog(
                 title = current.title,
                 stats = stats,
+                files = files,
+                onOpenFile = { viewingFile = it },
+                onUnlinkFile = { actions.unlinkFile(current.id, it) },
                 onDismiss = dismiss,
             )
         }
+    }
+    // After the dialogs, so a file opened from Properties shows above it.
+    viewingFile?.let { file ->
+        LinkedFileViewer(
+            file = file,
+            load = { actions.readFile(file) },
+            onDismiss = { viewingFile = null },
+        )
     }
 }
 
@@ -272,6 +290,7 @@ private fun ChatScaffold(
     actions: ChatActions,
     onOpenDrawer: () -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
+    onOpenFile: (LinkedFile) -> Unit,
     onDialog: (ChatDialog) -> Unit,
 ) {
     // A dismissed keyboard leaves the pill focused (blinking cursor); the next
@@ -433,6 +452,8 @@ private fun ChatScaffold(
                                 )
                             },
                             onOpenAttachment = onOpenAttachment,
+                            onOpenFile = onOpenFile,
+                            onUnlinkFile = { actions.unlinkFile(node.root, it) },
                             onPrevBranch = { node.parent?.let(actions.prevBranch) },
                             onNextBranch = { node.parent?.let(actions.nextBranch) },
                             streamingState = streamingMarkdown.takeIf { node.id == streamingId },
@@ -465,9 +486,13 @@ private fun ChatScaffold(
                 busy = state.busy,
                 focus = composerFocus,
                 attachments = state.pendingAttachments,
+                files = state.pendingFiles,
+                fileTools = state.fileTools,
                 modalities = state.activeModalities,
                 onAttach = actions.attach,
                 onRemoveAttachment = actions.removeAttachment,
+                onLinkFile = actions.linkFile,
+                onRemoveFile = actions.removePendingFile,
                 onOpenAttachment = onOpenAttachment,
                 onSubmit = actions.submit,
                 onStop = actions.stop,

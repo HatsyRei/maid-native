@@ -1,6 +1,8 @@
 package com.hatsyrei.maidnative.data.remote
 
 import com.hatsyrei.maidnative.domain.tools.GetDatetime
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
+import com.hatsyrei.maidnative.domain.tools.LinkedFileStore
 import com.hatsyrei.maidnative.domain.tools.ToolCall
 import com.hatsyrei.maidnative.domain.tools.ToolCallStore
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
@@ -55,6 +57,14 @@ class ToolRequestTest {
     fun `no tools means no tools field`() {
         val json = request(listOf(MessageNode("u", "user", "hi", "r")), tools = false)
         assertFalse(json.has("tools"))
+    }
+
+    @Test
+    fun `a user turn names the files linked on it`() {
+        val metadata = LinkedFileStore.writeInto(listOf(LinkedFile("content://a", "notes.md")), emptyMap())
+        val json = request(listOf(MessageNode("u", "user", "Tidy this.", "r", metadata = metadata)))
+        val content = json.getJSONArray("messages").getJSONObject(0).getString("content")
+        assertEquals("Tidy this.\n\n[Linked file: notes.md]", content)
     }
 
     @Test

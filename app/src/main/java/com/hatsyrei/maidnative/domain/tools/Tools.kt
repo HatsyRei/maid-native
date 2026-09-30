@@ -156,13 +156,17 @@ object ToolText {
     private val BLANK_RUN = Regex("""\n[ \t]*\n(?:[ \t]*\n)+""")
 }
 
-/** A function the model may call, executed on the device. */
-interface Tool {
+/** One switch in the Tools dialog. */
+interface ToolSwitch {
     val name: String
     val label: String
 
-    /** Shown in Settings; [description] is what the model reads. */
+    /** Shown in Settings; a tool's description is what the model reads. */
     val summary: String
+}
+
+/** A function the model may call, executed on the device. */
+interface Tool : ToolSwitch {
     val description: String
 
     /** JSON Schema of the arguments object. */
@@ -174,6 +178,9 @@ interface Tool {
 
 object Tools {
     val all: List<Tool> = listOf(GetDatetime, RollDice, FetchUrl, RunJavaScript)
+
+    /** File tools are built per chat, so they share one switch. */
+    val switches: List<ToolSwitch> = all + FileTools
 
     fun enabled(names: Set<String>): List<Tool> = all.filter { it.name in names }
 

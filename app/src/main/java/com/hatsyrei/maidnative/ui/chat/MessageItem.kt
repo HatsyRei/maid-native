@@ -62,7 +62,9 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.stats
+import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.linkedFiles
 import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.common.Avatar
@@ -177,6 +179,8 @@ internal fun MessageItem(
     onPrevBranch: () -> Unit,
     onNextBranch: () -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
+    onOpenFile: (LinkedFile) -> Unit,
+    onUnlinkFile: (LinkedFile) -> Unit,
     streamingState: StreamingMarkdownState? = null,
     streaming: State<StreamingText?>? = null,
 ) {
@@ -310,6 +314,15 @@ internal fun MessageItem(
             AttachmentStrip(
                 attachments = attachments,
                 onOpen = onOpenAttachment,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+        val files = remember(node.metadata) { node.linkedFiles() }
+        if (files.isNotEmpty()) {
+            LinkedFileRows(
+                files = files,
+                onOpen = onOpenFile,
+                onUnlink = onUnlinkFile,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }

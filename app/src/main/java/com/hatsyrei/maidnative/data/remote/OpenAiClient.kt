@@ -10,6 +10,7 @@ import com.hatsyrei.maidnative.domain.tools.Tool
 import com.hatsyrei.maidnative.domain.tools.ToolCall
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
+import com.hatsyrei.maidnative.domain.tools.linkedFiles
 import com.hatsyrei.maidnative.domain.tools.toolCalls
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
@@ -344,7 +345,13 @@ class OpenAiClient {
         val history = ArrayList<Turn>(messages.size)
         for (m in messages) {
             if (m.role != "assistant") {
-                history += Turn(m.role, m.content, if (m.role == "user") m.attachments else emptyList())
+                history += if (m.role == "user") {
+                    // The model learns which message a file came with, not just that one exists.
+                    val notes = m.linkedFiles().map { "[Linked file: ${it.name}]" }
+                    Turn(m.role, (listOf(m.content) + notes).filter { it.isNotBlank() }.joinToString("\n\n"), m.attachments)
+                } else {
+                    Turn(m.role, m.content)
+                }
                 continue
             }
             // Strip the reasoning trace from assistant turns. It is stored inline in

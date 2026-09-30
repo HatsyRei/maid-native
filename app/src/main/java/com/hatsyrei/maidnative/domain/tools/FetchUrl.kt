@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 object FetchUrl : Tool {
     override val name = "fetch_url"
     override val label = "Fetch URL"
-    override val summary = "Read a web page or text file, local network included."
+    override val summary = "Fetch a web page by URL."
     override val description =
         "Fetch a URL with an HTTP GET request and return its content as text; web pages are " +
             "converted to plain text. Use it to read a page the user mentions or to check a source. " +
