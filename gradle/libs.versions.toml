@@ -10,6 +10,8 @@ datastore = "1.2.1"
 okhttp = "5.5.0"
 coroutines = "1.11.0"
 markdownRenderer = "0.45.0"
+# Match the Coil that markdown-renderer-coil3 resolves to.
+coil = "3.6.0"
 room = "2.8.4"
 # KSP moved to decoupled versioning at 2.3.0; no longer pinned to the Kotlin version.
 ksp = "2.3.12"
@@ -42,6 +44,9 @@ androidx-javascriptengine = { group = "androidx.javascriptengine", name = "javas
 androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
 markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
 markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+markdown-renderer-coil3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-coil3", version.ref = "markdownRenderer" }
+# Coil 3 has no network fetcher by default; this one reuses the OkHttp already shipped.
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }

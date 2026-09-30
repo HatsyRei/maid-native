@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.Reasoning
+import com.mikepenz.markdown.coil3.Coil3ImageTransformerImpl
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -210,6 +211,7 @@ fun MarkdownText(
         typography = style.typography,
         padding = style.padding,
         annotator = style.annotator,
+        imageTransformer = Coil3ImageTransformerImpl,
         modifier = modifier.fillMaxWidth(),
     )
 }
@@ -296,6 +298,7 @@ fun StreamingMarkdownText(
         typography = style.typography,
         padding = style.padding,
         annotator = style.annotator,
+        imageTransformer = Coil3ImageTransformerImpl,
         modifier = modifier.fillMaxWidth(),
     )
 }

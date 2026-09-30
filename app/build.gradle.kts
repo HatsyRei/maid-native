@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.concurrent.futures.ktx)
     implementation(libs.markdown.renderer)
     implementation(libs.markdown.renderer.m3)
+    implementation(libs.markdown.renderer.coil3)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
