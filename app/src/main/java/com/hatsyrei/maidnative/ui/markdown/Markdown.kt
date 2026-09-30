@@ -21,6 +21,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.mikepenz.markdown.coil3.Coil3ImageTransformerImpl
+import com.mikepenz.markdown.compose.LocalMarkdownComponents
+import com.mikepenz.markdown.compose.MarkdownElement
+import com.mikepenz.markdown.compose.components.MarkdownComponents
+import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownText as PlainMarkdownText
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -35,6 +40,9 @@ import com.mikepenz.markdown.model.parseMarkdown
 import com.mikepenz.markdown.model.rememberStreamingMarkdownState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.intellij.markdown.MarkdownElementTypes
+import org.intellij.markdown.MarkdownTokenTypes
+import org.intellij.markdown.ast.getTextInNode
 
 /**
  * Module-level LRU cache of parsed markdown, keyed by the raw content string.
@@ -113,6 +121,23 @@ private val LocalChatMarkdownStyle = staticCompositionLocalOf<ChatMarkdownStyle>
     error("ChatMarkdownStyle not provided; wrap the content in ProvideChatMarkdownStyle.")
 }
 
+// The renderer has no HTML support and silently drops HTML blocks; show their source instead.
+private val chatComponents: MarkdownComponents = markdownComponents(
+    custom = { type, model ->
+        if (type == MarkdownElementTypes.HTML_BLOCK) {
+            PlainMarkdownText(
+                content = model.node.getTextInNode(model.content).toString().trimEnd(),
+                node = model.node,
+                style = model.typography.paragraph,
+            )
+        } else {
+            // A non-null `custom` marks every unknown node handled; keep the default descent.
+            val components = LocalMarkdownComponents.current
+            model.node.children.forEach { MarkdownElement(it, components, model.content) }
+        }
+    },
+)
+
 /**
  * Builds the chat markdown style **once** for the whole app and publishes it via
  * a composition local.
@@ -162,7 +187,17 @@ fun ProvideChatMarkdownStyle(content: @Composable () -> Unit) {
     // Render a single newline (EOL) as a line break instead of collapsing it to a
     // space (the library's CommonMark-correct default). Matches the RN markdown
     // display, which keeps single newlines as breaks.
-    val annotator = remember { markdownAnnotator(config = markdownAnnotatorConfig(eolAsNewLine = true)) }
+    val annotator = remember {
+        markdownAnnotator(config = markdownAnnotatorConfig(eolAsNewLine = true)) { content, child ->
+            // Inline HTML is otherwise dropped, taking `List<String>`-style prose with it.
+            if (child.type == MarkdownTokenTypes.HTML_TAG) {
+                append(child.getTextInNode(content))
+                true
+            } else {
+                false
+            }
+        }
+    }
     val style = remember(typography, padding, annotator) {
         ChatMarkdownStyle(typography, padding, annotator)
     }
@@ -211,6 +246,7 @@ fun MarkdownText(
         typography = style.typography,
         padding = style.padding,
         annotator = style.annotator,
+        components = chatComponents,
         imageTransformer = Coil3ImageTransformerImpl,
         modifier = modifier.fillMaxWidth(),
     )
@@ -298,6 +334,7 @@ fun StreamingMarkdownText(
         typography = style.typography,
         padding = style.padding,
         annotator = style.annotator,
+        components = chatComponents,
         imageTransformer = Coil3ImageTransformerImpl,
         modifier = modifier.fillMaxWidth(),
     )
