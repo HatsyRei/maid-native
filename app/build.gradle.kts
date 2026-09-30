@@ -46,6 +46,25 @@ android {
         compose = true
     }
 
+    androidResources {
+        // The app is English-only; drops the AndroidX libraries' translations from resources.arsc.
+        localeFilters += "en"
+        // OkHttp reads this only to parse cookies, and no client here has a CookieJar.
+        ignoreAssetsPatterns += "!PublicSuffixDatabase.list"
+    }
+
+    packaging {
+        resources {
+            // Coroutines debug agent, kotlin-reflect metadata and library version stamps: unused at runtime.
+            excludes += listOf(
+                "DebugProbesKt.bin",
+                "kotlin/**.kotlin_builtins",
+                "META-INF/*.version",
+                "META-INF/version-control-info.textproto",
+            )
+        }
+    }
+
     // Needed to strip the dependencies' native libs; must be an installed NDK.
     ndkVersion = "27.1.12297006"
 }
