@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative.ui.chat
 
 import android.net.Uri
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +21,7 @@ import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.content.hasMediaType
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,9 +55,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -219,6 +223,7 @@ internal fun Composer(
             ) {
                 AttachButton(
                     enabled = enabled,
+                    keyboardVisible = keyboardVisible,
                     modalities = modalities,
                     fileTools = fileTools,
                     onPick = onAttach,
@@ -363,12 +368,25 @@ private fun rememberImageReceiver(
 @Composable
 private fun AttachButton(
     enabled: Boolean,
+    keyboardVisible: Boolean,
     modalities: Modalities,
     fileTools: Boolean,
     onPick: (Uri, Attachment.Kind) -> Unit,
     onLink: (uri: Uri, created: Boolean) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    // Opened over the keyboard, the menu must not take focus: the IME would
+    // close and the menu would ride it down to the bottom of the screen.
+    var overKeyboard by remember { mutableStateOf(false) }
+    // A non-focusable menu sees a tap on `+` as an outside touch and dismisses
+    // on the down; the click that follows on the up must not reopen it.
+    var pressedAt by remember { mutableLongStateOf(0L) }
+    var dismissedAt by remember { mutableLongStateOf(0L) }
+
+    // Back (or anything else) closing the keyboard takes the menu with it.
+    LaunchedEffect(keyboardVisible) {
+        if (!keyboardVisible && overKeyboard) open = false
+    }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { onPick(it, Attachment.Kind.IMAGE) }
@@ -390,7 +408,27 @@ private fun AttachButton(
     }
 
     Box {
-        IconButton(onClick = { open = true }, enabled = enabled) {
+        IconButton(
+            onClick = {
+                // `pressedAt` is 0 for non-touch clicks, e.g. accessibility actions.
+                if (pressedAt == 0L || dismissedAt < pressedAt) {
+                    overKeyboard = keyboardVisible
+                    open = true
+                }
+            },
+            enabled = enabled,
+            modifier = Modifier.pointerInput(Unit) {
+                awaitEachGesture {
+                    pressedAt = awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = PointerEventPass.Initial,
+                    ).uptimeMillis
+                    // Final pass: the click has already run on the up by now.
+                    waitForUpOrCancellation(pass = PointerEventPass.Final)
+                    pressedAt = 0L
+                }
+            },
+        ) {
             Icon(
                 AddIcon,
                 contentDescription = stringResource(R.string.chat_add_attachment),
@@ -403,8 +441,12 @@ private fun AttachButton(
             expanded = open,
             popupPositionProvider = provider,
             transformOrigin = TransformOrigin(0f, 1f),
-            onDismissRequest = { open = false },
+            onDismissRequest = {
+                open = false
+                dismissedAt = SystemClock.uptimeMillis()
+            },
             modifier = Modifier.widthIn(min = 148.dp, max = 176.dp),
+            focusable = !overKeyboard,
         ) {
             MenuOption(
                 text = stringResource(R.string.chat_attach_image),

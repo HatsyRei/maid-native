@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.ui.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -260,6 +261,10 @@ internal fun TapContextMenu(
  *
  * [transformOrigin] is fixed per call site instead of derived from the anchor,
  * so the position providers' clamping stays untouched.
+ *
+ * A [focusable] popup takes window focus, which hides an open keyboard. Pass
+ * `false` to leave the keyboard alone: outside touches still dismiss the menu
+ * but also reach the window beneath it, and Back goes through [BackHandler].
  */
 @Composable
 internal fun MenuPopup(
@@ -268,9 +273,12 @@ internal fun MenuPopup(
     transformOrigin: TransformOrigin,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    focusable: Boolean = true,
     header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    BackHandler(enabled = expanded && !focusable, onBack = onDismissRequest)
+
     val visibility = remember { MutableTransitionState(false) }
     visibility.targetState = expanded
     // The window has to outlive `expanded` or the exit has nothing to play in.
@@ -279,7 +287,7 @@ internal fun MenuPopup(
     Popup(
         popupPositionProvider = popupPositionProvider,
         onDismissRequest = onDismissRequest,
-        properties = PopupProperties(focusable = true),
+        properties = PopupProperties(focusable = focusable),
     ) {
         AnimatedVisibility(
             visibleState = visibility,
