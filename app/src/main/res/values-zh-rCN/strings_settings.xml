@@ -1,0 +1,69 @@
+<resources>
+    <!-- Settings screen -->
+    <string name="settings_endpoint">接口</string>
+    <string name="settings_saved_endpoints">已保存的接口</string>
+    <string name="settings_base_url">接口地址</string>
+    <string name="settings_api_key_label">API 密钥（本地接口可不填）</string>
+    <string name="settings_api_key_unreadable">保存的 API 密钥已无法在此设备上解密，请重新输入以替换。</string>
+    <string name="settings_allow_http">允许 HTTP 接口</string>
+    <string name="settings_allow_http_summary">HTTP 不加密，仅在可信网络中开启。本地服务器可能需要此选项。</string>
+    <string name="settings_model">模型</string>
+    <string name="settings_no_models">尚未加载模型。请点击扫描按钮，或刷新以获取 /models。</string>
+    <string name="settings_refresh_models">刷新模型</string>
+    <string name="settings_thinking">思考模式</string>
+    <string name="settings_thinking_summary">请求接口开启或关闭模型的思考过程。不支持此选项的接口会忽略该请求。</string>
+
+    <!-- Chat section -->
+    <string name="settings_chat">聊天</string>
+    <string name="settings_your_avatar">你的头像</string>
+    <string name="settings_your_name">你的名称</string>
+    <string name="settings_assistant_avatar">助手头像</string>
+    <string name="settings_assistant_name">助手名称</string>
+    <string name="settings_export_media">导出媒体附件</string>
+    <string name="settings_export_media_summary">导出会话时包含附加的图片和音频。</string>
+    <string name="settings_avatar_select_image">选择图片</string>
+    <string name="settings_avatar_change_image">更换图片</string>
+
+    <!-- Endpoint presets -->
+    <string name="preset_save_title">保存接口</string>
+    <string name="preset_rename_title">重命名预设</string>
+    <string name="preset_delete_title">删除预设</string>
+    <string name="preset_delete_message">将从此设备删除“%1$s”及其保存的 API 密钥。</string>
+    <string name="preset_save_current">保存当前接口</string>
+    <string name="preset_empty">暂无预设。预设会一起保存接口地址和 API 密钥，方便一键切换接口。</string>
+    <string name="preset_key_unreadable">密钥无法解密，请重新保存</string>
+    <string name="preset_in_use">使用中</string>
+    <string name="preset_options">预设选项</string>
+    <string name="preset_name_label">预设名称</string>
+    <string name="preset_replaces_existing">将替换已有预设</string>
+    <string name="preset_no_api_key">未设置 API 密钥</string>
+
+    <!-- Endpoint scan -->
+    <string name="scan_for_endpoint">扫描接口</string>
+    <string name="scan_endpoint_found">已找到接口</string>
+    <string name="scan_options_title">扫描选项</string>
+    <string name="scan_options_summary">使用此端口在本地子网探测兼容 OpenAI 协议的接口。</string>
+    <string name="scan_port">端口</string>
+    <string name="scan_port_invalid">请输入 1 至 65535 之间的端口号</string>
+    <string name="scan_subnet">子网</string>
+    <plurals name="scan_addresses_probed">
+        <item quantity="other">将探测 %1$d 个地址</item>
+    </plurals>
+    <string name="scan_action">扫描</string>
+
+    <!-- Theme -->
+    <string name="settings_app">应用</string>
+    <string name="theme_accent">主题色</string>
+    <string name="theme_composer_background">输入框背景</string>
+    <string name="theme_nameplate_none">无</string>
+    <string name="theme_nameplate_blossom">花语</string>
+    <string name="theme_nameplate_twilight">暮光</string>
+    <string name="theme_choose">选择</string>
+    <string name="theme_choose_image">选择图片</string>
+    <string name="theme_composer_hint">输入时逐渐淡出。图片会裁剪以适应输入框，并复制到应用内保存。</string>
+
+    <!-- Colour picker -->
+    <string name="color_selected">已选择</string>
+    <string name="color_picker_title">主题颜色</string>
+    <string name="color_select">选择</string>
+</resources>

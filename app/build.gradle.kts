@@ -46,9 +46,12 @@ android {
         compose = true
     }
 
+    // The in-app language switch needs every language in the install, not just the device's.
+    bundle { language { enableSplit = false } }
+
     androidResources {
-        // The app is English-only; drops the AndroidX libraries' translations from resources.arsc.
-        localeFilters += "en"
+        // Only the app's own languages; drops the AndroidX libraries' other translations from resources.arsc.
+        localeFilters += listOf("en", "zh-rCN")
         // OkHttp reads this only to parse cookies, and no client here has a CookieJar.
         ignoreAssetsPatterns += "!PublicSuffixDatabase.list"
     }

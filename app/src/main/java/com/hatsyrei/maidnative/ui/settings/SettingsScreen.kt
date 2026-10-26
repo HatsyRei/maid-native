@@ -53,11 +53,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 import com.hatsyrei.maidnative.domain.tools.McpServer
 import com.hatsyrei.maidnative.ui.chat.ChatUiState
@@ -93,10 +95,13 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
@@ -124,7 +129,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Endpoint", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.settings_endpoint), style = MaterialTheme.typography.titleMedium)
                 // Matches the scan button's width so the two icons share a centre line.
                 IconButton(
                     onClick = {
@@ -135,7 +140,7 @@ fun SettingsScreen(
                     },
                     modifier = Modifier.size(56.dp),
                 ) {
-                    Icon(BookmarksIcon, contentDescription = "Saved endpoints")
+                    Icon(BookmarksIcon, contentDescription = stringResource(R.string.settings_saved_endpoints))
                 }
             }
 
@@ -147,7 +152,7 @@ fun SettingsScreen(
                 AutoSaveTextField(
                     state = baseURL,
                     committed = state.settings.baseURL,
-                    label = "Base URL",
+                    label = stringResource(R.string.settings_base_url),
                     onCommit = actions.setBaseURL,
                     modifier = Modifier.weight(1f),
                     // A URL is not prose: autocorrect, suggestions and sentence
@@ -173,7 +178,7 @@ fun SettingsScreen(
             AutoSaveTextField(
                 state = apiKey,
                 committed = state.settings.apiKey,
-                label = "API key (optional for local endpoints)",
+                label = stringResource(R.string.settings_api_key_label),
                 onCommit = actions.setApiKey,
                 modifier = Modifier.fillMaxWidth(),
                 secure = true,
@@ -183,8 +188,7 @@ fun SettingsScreen(
             // sent anywhere else, so both of these want fixing where it is typed.
             if (state.settings.apiKeyUnreadable) {
                 Text(
-                    "The stored API key can no longer be decrypted on this device. " +
-                        "Enter it again to replace it.",
+                    stringResource(R.string.settings_api_key_unreadable),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -199,10 +203,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Allow HTTP endpoints", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_allow_http), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Unencrypted HTTP. Only enable on trusted networks. " +
-                            "Local servers may need this.",
+                        stringResource(R.string.settings_allow_http_summary),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -215,13 +218,13 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            Text("Model", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_model), style = MaterialTheme.typography.titleMedium)
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             if (state.models.isEmpty()) {
                 Text(
-                    "No models loaded. Tap the scan button or refresh to fetch /models.",
+                    stringResource(R.string.settings_no_models),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -236,7 +239,7 @@ fun SettingsScreen(
                 AssistChip(
                     onClick = actions.refreshModels,
                     enabled = !state.refreshingModels,
-                    label = { Text("Refresh models") },
+                    label = { Text(stringResource(R.string.settings_refresh_models)) },
                     leadingIcon = {
                         if (state.refreshingModels) {
                             CircularProgressIndicator(
@@ -283,10 +286,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Thinking", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_thinking), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Asks the endpoint to enable or disable the model's reasoning " +
-                            "trace. Endpoints that don't support the request ignore it.",
+                        stringResource(R.string.settings_thinking_summary),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -299,7 +301,7 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            ThemeSection(
+            AppSection(
                 accentColor = state.settings.accentColor,
                 nameplate = state.settings.nameplate,
                 actions = actions,
@@ -390,8 +392,8 @@ fun SettingsScreen(
 
     if (savingNew) {
         PresetNameDialog(
-            title = "Save endpoint",
-            confirmLabel = "Save",
+            title = stringResource(R.string.preset_save_title),
+            confirmLabel = stringResource(R.string.action_save),
             initial = defaultPresetName(baseURL.text.toString()),
             takenNames = presets.map { it.name },
             onDismiss = { savingNew = false },
@@ -404,8 +406,8 @@ fun SettingsScreen(
 
     naming?.let { preset ->
         PresetNameDialog(
-            title = "Rename preset",
-            confirmLabel = "Rename",
+            title = stringResource(R.string.preset_rename_title),
+            confirmLabel = stringResource(R.string.action_rename),
             initial = preset.name,
             takenNames = presets.filter { it.id != preset.id }.map { it.name },
             onDismiss = { naming = null },
@@ -418,8 +420,8 @@ fun SettingsScreen(
 
     deleting?.let { preset ->
         ConfirmDialog(
-            title = "Delete preset",
-            message = "\"${preset.name}\" and its stored API key will be removed from this device.",
+            title = stringResource(R.string.preset_delete_title),
+            message = stringResource(R.string.preset_delete_message, preset.name),
             onDismiss = { deleting = null },
             onConfirm = {
                 deleting = null

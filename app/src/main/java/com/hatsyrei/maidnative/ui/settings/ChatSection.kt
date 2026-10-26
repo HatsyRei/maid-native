@@ -28,10 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.ui.chat.MenuOption
@@ -56,7 +58,7 @@ internal fun ChatSection(
     val user = rememberTextFieldState(userName, TextRange.Zero)
     val assistant = rememberTextFieldState(assistantName, TextRange.Zero)
 
-    Text("Chat", style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.settings_chat), style = MaterialTheme.typography.titleMedium)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -69,13 +71,13 @@ internal fun ChatSection(
             role = AvatarStore.Role.USER,
             stamp = userAvatar,
             name = user.text.toString(),
-            label = "Your profile picture",
+            label = stringResource(R.string.settings_your_avatar),
             actions = actions,
         )
         AutoSaveTextField(
             state = user,
             committed = userName,
-            label = "Your name",
+            label = stringResource(R.string.settings_your_name),
             onCommit = { value ->
                 // Normalise locally too: the stored value falls back to the default
                 // when blank, and an unchanged fallback wouldn't re-key the field.
@@ -97,13 +99,13 @@ internal fun ChatSection(
             role = AvatarStore.Role.ASSISTANT,
             stamp = assistantAvatar,
             name = assistant.text.toString(),
-            label = "Assistant profile picture",
+            label = stringResource(R.string.settings_assistant_avatar),
             actions = actions,
         )
         AutoSaveTextField(
             state = assistant,
             committed = assistantName,
-            label = "Assistant name",
+            label = stringResource(R.string.settings_assistant_name),
             onCommit = { value ->
                 val name = value.trim().ifBlank { SettingsRepository.DEFAULT_ASSISTANT_NAME }
                 assistant.replaceText(name, caretAtStart = true)
@@ -120,9 +122,9 @@ internal fun ChatSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Export media", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_export_media), style = MaterialTheme.typography.bodyLarge)
             Text(
-                "Includes attached images and audio in exported conversations.",
+                stringResource(R.string.settings_export_media_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -170,7 +172,9 @@ private fun AvatarPicker(
             onDismiss = { open = false },
         ) {
             MenuOption(
-                text = if (stamp == 0L) "Select image" else "Change image",
+                text = stringResource(
+                    if (stamp == 0L) R.string.settings_avatar_select_image else R.string.settings_avatar_change_image,
+                ),
                 trailingIcon = { Icon(ImageIcon, contentDescription = null) },
                 onClick = {
                     open = false
@@ -180,7 +184,7 @@ private fun AvatarPicker(
                 },
             )
             MenuOption(
-                text = "Remove",
+                text = stringResource(R.string.action_remove),
                 trailingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
                 enabled = stamp != 0L,
                 onClick = {

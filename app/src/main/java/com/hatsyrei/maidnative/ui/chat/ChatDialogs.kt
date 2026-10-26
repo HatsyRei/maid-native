@@ -27,9 +27,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
@@ -105,7 +107,7 @@ internal fun EditDialog(
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        text = if (revise) "Revise message" else "Edit message",
+                        text = stringResource(if (revise) R.string.dialog_revise_message else R.string.dialog_edit_message),
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     OutlinedTextField(
@@ -142,12 +144,12 @@ internal fun EditDialog(
                             .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.End,
                     ) {
-                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
                         TextButton(
                             onClick = { onConfirm(text.text.toString(), attachments, calls) },
                             enabled = text.text.isNotBlank() || attachments.isNotEmpty(),
                         ) {
-                            Text(if (revise) "Send" else "Save")
+                            Text(stringResource(if (revise) R.string.dialog_send else R.string.action_save))
                         }
                     }
                 }
@@ -169,11 +171,11 @@ internal fun ConfirmDialog(
         text = { Text(message) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

@@ -1,0 +1,39 @@
+<resources>
+    <string name="chat_conversations">Conversations</string>
+    <string name="chat_rename_title">Rename conversation</string>
+    <string name="chat_system_prompt">System prompt</string>
+    <string name="chat_system_prompt_description">Applies to this conversation, including messages already sent.</string>
+    <string name="chat_delete_message_title">Delete message</string>
+    <string name="chat_delete_message_confirm">Delete this message and everything below it? This can\'t be undone.</string>
+    <string name="chat_delete_conversation_title">Delete conversation</string>
+    <string name="chat_delete_conversation_confirm">Delete this conversation permanently? This can\'t be undone.</string>
+
+    <string name="chat_message_placeholder">Message</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_add_attachment">Add attachment</string>
+    <string name="chat_attach_image">Image</string>
+    <string name="chat_attach_audio">Audio</string>
+    <string name="chat_attach_text_file">Text file</string>
+    <string name="chat_link_file">Link file</string>
+    <string name="chat_new_file">New file</string>
+    <string name="chat_remove_item">Remove %1$s</string>
+
+    <string name="chat_system">System</string>
+    <string name="chat_edit_system_prompt">Edit system prompt</string>
+    <string name="chat_regenerate">Regenerate</string>
+    <string name="chat_revise">Revise</string>
+    <string name="chat_modify">Modify</string>
+    <string name="chat_previous_branch">Previous branch</string>
+    <string name="chat_next_branch">Next branch</string>
+    <string name="chat_show_reasoning">Show reasoning</string>
+    <string name="chat_hide_reasoning">Hide reasoning</string>
+    <plurals name="chat_footnote_tokens">
+        <item quantity="one">%1$s token</item>
+        <item quantity="other">%1$s tokens</item>
+    </plurals>
+    <string name="chat_footnote_stopped">stopped</string>
+
+    <string name="chat_select_model">select a model</string>
+    <string name="chat_no_matching_models">No matching models</string>
+    <string name="chat_search_models">Search models</string>
+</resources>

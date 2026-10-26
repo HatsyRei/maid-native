@@ -1,0 +1,59 @@
+<resources>
+    <!-- Chat drawer -->
+    <string name="drawer_title">Chats</string>
+    <string name="drawer_new_chat">New chat</string>
+    <string name="drawer_default_chat_title">New Chat</string>
+    <string name="drawer_empty">No chats yet</string>
+    <string name="drawer_more_actions">More chat actions</string>
+    <string name="drawer_export_all">Export all</string>
+    <string name="drawer_properties">Properties</string>
+
+    <!-- Chat dialogs -->
+    <string name="dialog_revise_message">Revise message</string>
+    <string name="dialog_edit_message">Edit message</string>
+    <string name="dialog_send">Send</string>
+
+    <!-- Chat properties -->
+    <string name="properties_conversation_size">Conversation size</string>
+    <string name="properties_average_speed">Average speed</string>
+    <string name="properties_average_response">Average response</string>
+    <string name="properties_time_to_first_token">Time to first token</string>
+    <string name="properties_linked_files">Linked files</string>
+    <plurals name="properties_partial_sample">
+        <item quantity="one">Averages cover %1$d of %2$d reply; metadata unavailable for the rest.</item>
+        <item quantity="other">Averages cover %1$d of %2$d replies; metadata unavailable for the rest.</item>
+    </plurals>
+    <string name="properties_size_grown">The conversation has grown since it was last counted; the next reply will update it.</string>
+    <string name="properties_size_shrunk">The conversation has shrunk since it was last counted; the next reply will update it.</string>
+    <plurals name="properties_tokens">
+        <item quantity="one">%1$s token</item>
+        <item quantity="other">%1$s tokens</item>
+    </plurals>
+    <string name="properties_at_least" translatable="false">≥ %1$s</string>
+    <string name="properties_at_most" translatable="false">≤ %1$s</string>
+
+    <!-- Attachment viewer -->
+    <string name="attachment_save_copy">Save a copy</string>
+    <string name="attachment_pause">Pause</string>
+    <string name="attachment_play">Play</string>
+    <string name="attachment_missing">This file is no longer available.</string>
+    <string name="attachment_truncated">… truncated</string>
+
+    <!-- Tool calls -->
+    <string name="toolcall_allow_all">Allow all (%1$d)</string>
+    <string name="toolcall_dont_ask_again">Don\'t ask again</string>
+    <string name="toolcall_running">Running…</string>
+    <string name="toolcall_hide_result">Hide tool result</string>
+    <string name="toolcall_show_result">Show tool result</string>
+    <string name="toolcall_arguments">Arguments</string>
+    <string name="toolcall_result">Result</string>
+    <string name="toolcall_unlink">Unlink %1$s</string>
+    <string name="toolcall_calls_header">Tool calls · %1$d</string>
+    <string name="toolcall_hide_calls">Hide tool calls</string>
+    <string name="toolcall_show_calls">Show tool calls</string>
+    <string name="toolcall_remove_call">Remove %1$s call</string>
+    <string name="toolcall_invalid_json">Must be a JSON object</string>
+
+    <!-- Common -->
+    <string name="common_dialog_pane_title">Dialog</string>
+</resources>

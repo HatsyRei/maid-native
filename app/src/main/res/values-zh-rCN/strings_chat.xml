@@ -1,0 +1,38 @@
+<resources>
+    <string name="chat_conversations">会话列表</string>
+    <string name="chat_rename_title">重命名会话</string>
+    <string name="chat_system_prompt">系统提示词</string>
+    <string name="chat_system_prompt_description">应用于当前会话，包括已经发送的消息。</string>
+    <string name="chat_delete_message_title">删除消息</string>
+    <string name="chat_delete_message_confirm">删除此消息及其后续全部消息？此操作无法撤销。</string>
+    <string name="chat_delete_conversation_title">删除会话</string>
+    <string name="chat_delete_conversation_confirm">永久删除此会话？此操作无法撤销。</string>
+
+    <string name="chat_message_placeholder">输入消息</string>
+    <string name="chat_send">发送</string>
+    <string name="chat_add_attachment">添加附件</string>
+    <string name="chat_attach_image">图片</string>
+    <string name="chat_attach_audio">音频</string>
+    <string name="chat_attach_text_file">文本文件</string>
+    <string name="chat_link_file">关联文件</string>
+    <string name="chat_new_file">新建文件</string>
+    <string name="chat_remove_item">移除 %1$s</string>
+
+    <string name="chat_system">系统</string>
+    <string name="chat_edit_system_prompt">编辑系统提示词</string>
+    <string name="chat_regenerate">重新生成</string>
+    <string name="chat_revise">修改后重发</string>
+    <string name="chat_modify">编辑</string>
+    <string name="chat_previous_branch">上一个分支</string>
+    <string name="chat_next_branch">下一个分支</string>
+    <string name="chat_show_reasoning">展开思考过程</string>
+    <string name="chat_hide_reasoning">收起思考过程</string>
+    <plurals name="chat_footnote_tokens">
+        <item quantity="other">%1$s Token</item>
+    </plurals>
+    <string name="chat_footnote_stopped">已停止</string>
+
+    <string name="chat_select_model">请选择模型</string>
+    <string name="chat_no_matching_models">没有匹配的模型</string>
+    <string name="chat_search_models">搜索模型</string>
+</resources>

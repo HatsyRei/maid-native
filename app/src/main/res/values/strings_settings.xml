@@ -1,0 +1,70 @@
+<resources>
+    <!-- Settings screen -->
+    <string name="settings_endpoint">Endpoint</string>
+    <string name="settings_saved_endpoints">Saved endpoints</string>
+    <string name="settings_base_url">Base URL</string>
+    <string name="settings_api_key_label">API key (optional for local endpoints)</string>
+    <string name="settings_api_key_unreadable">The stored API key can no longer be decrypted on this device. Enter it again to replace it.</string>
+    <string name="settings_allow_http">Allow HTTP endpoints</string>
+    <string name="settings_allow_http_summary">Unencrypted HTTP. Only enable on trusted networks. Local servers may need this.</string>
+    <string name="settings_model">Model</string>
+    <string name="settings_no_models">No models loaded. Tap the scan button or refresh to fetch /models.</string>
+    <string name="settings_refresh_models">Refresh models</string>
+    <string name="settings_thinking">Thinking</string>
+    <string name="settings_thinking_summary">Asks the endpoint to enable or disable the model\'s reasoning trace. Endpoints that don\'t support the request ignore it.</string>
+
+    <!-- Chat section -->
+    <string name="settings_chat">Chat</string>
+    <string name="settings_your_avatar">Your profile picture</string>
+    <string name="settings_your_name">Your name</string>
+    <string name="settings_assistant_avatar">Assistant profile picture</string>
+    <string name="settings_assistant_name">Assistant name</string>
+    <string name="settings_export_media">Export media</string>
+    <string name="settings_export_media_summary">Includes attached images and audio in exported conversations.</string>
+    <string name="settings_avatar_select_image">Select image</string>
+    <string name="settings_avatar_change_image">Change image</string>
+
+    <!-- Endpoint presets -->
+    <string name="preset_save_title">Save endpoint</string>
+    <string name="preset_rename_title">Rename preset</string>
+    <string name="preset_delete_title">Delete preset</string>
+    <string name="preset_delete_message">\"%1$s\" and its stored API key will be removed from this device.</string>
+    <string name="preset_save_current">Save current endpoint</string>
+    <string name="preset_empty">Nothing saved yet. A preset keeps a Base URL and its API key together, so switching endpoints takes one tap.</string>
+    <string name="preset_key_unreadable">Key can\'t be decrypted — re-save</string>
+    <string name="preset_in_use">In use</string>
+    <string name="preset_options">Preset options</string>
+    <string name="preset_name_label">Preset name</string>
+    <string name="preset_replaces_existing">Replaces an existing preset</string>
+    <string name="preset_no_api_key">No API key</string>
+
+    <!-- Endpoint scan -->
+    <string name="scan_for_endpoint">Scan for endpoint</string>
+    <string name="scan_endpoint_found">Endpoint found</string>
+    <string name="scan_options_title">Scan options</string>
+    <string name="scan_options_summary">The local subnet is probed on this port for an OpenAI-compatible endpoint.</string>
+    <string name="scan_port">Port</string>
+    <string name="scan_port_invalid">Enter a port between 1 and 65535</string>
+    <string name="scan_subnet">Subnet</string>
+    <plurals name="scan_addresses_probed">
+        <item quantity="one">%1$d address probed</item>
+        <item quantity="other">%1$d addresses probed</item>
+    </plurals>
+    <string name="scan_action">Scan</string>
+
+    <!-- Theme -->
+    <string name="settings_app">App</string>
+    <string name="theme_accent">Accent</string>
+    <string name="theme_composer_background">Composer background</string>
+    <string name="theme_nameplate_none">None</string>
+    <string name="theme_nameplate_blossom">Blossom</string>
+    <string name="theme_nameplate_twilight">Twilight</string>
+    <string name="theme_choose">Choose</string>
+    <string name="theme_choose_image">Choose an image</string>
+    <string name="theme_composer_hint">Fades out while you type. Images are cropped to the pill and copied into the app.</string>
+
+    <!-- Colour picker -->
+    <string name="color_selected">Selected</string>
+    <string name="color_picker_title">Accent colour</string>
+    <string name="color_select">Select</string>
+</resources>

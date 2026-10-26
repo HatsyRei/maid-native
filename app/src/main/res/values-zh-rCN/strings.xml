@@ -1,0 +1,20 @@
+<resources>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_close">关闭</string>
+    <string name="action_copy">复制</string>
+    <string name="action_back">返回</string>
+    <string name="action_remove">移除</string>
+    <string name="action_change">更改</string>
+    <string name="action_allow">允许</string>
+    <string name="action_deny">拒绝</string>
+    <string name="action_import">导入</string>
+    <string name="action_export">导出</string>
+    <string name="settings">设置</string>
+
+    <string name="language_title">语言</string>
+    <string name="language_app_language">应用语言</string>
+    <string name="language_system">跟随系统</string>
+</resources>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sampling -->
+    <string name="sampling_group_sampling">采样参数</string>
+    <string name="sampling_group_penalty">惩罚参数</string>
+    <string name="sampling_auto">自动</string>
+    <string name="sampling_temperature">温度</string>
+    <string name="sampling_temperature_summary">数值越高，输出越随机。</string>
+    <string name="sampling_top_p_summary">累计概率阈值。</string>
+    <string name="sampling_top_k_summary">从前 K 个 Token 中采样。</string>
+    <string name="sampling_min_p_summary">相对最高概率 Token 的阈值。</string>
+    <string name="sampling_frequency_penalty">频率惩罚</string>
+    <string name="sampling_frequency_penalty_summary">降低频繁重复的概率。</string>
+    <string name="sampling_presence_penalty">存在惩罚</string>
+    <string name="sampling_presence_penalty_summary">鼓励转向新的话题。</string>
+
+    <!-- Tools -->
+    <string name="tool_tools">工具</string>
+    <string name="tool_chip_count">工具 · %1$d</string>
+    <string name="tool_get_datetime">日期和时间</string>
+    <string name="tool_get_datetime_summary">当前日期和时间。</string>
+    <string name="tool_roll_dice">掷骰子</string>
+    <string name="tool_roll_dice_summary">支持 2d6 或 1d20+5 等写法。</string>
+    <string name="tool_fetch_url">获取网页</string>
+    <string name="tool_fetch_url_summary">读取网页内容。</string>
+    <string name="tool_run_javascript_summary">在沙盒中运行代码。</string>
+    <string name="tool_files">文件</string>
+    <string name="tool_files_summary">为会话关联文件。</string>
+    <string name="tool_effect_network">网络</string>
+    <string name="tool_effect_writes">写入权限</string>
+    <string name="tool_policy_off">关闭</string>
+    <string name="tool_policy_ask">询问</string>
+    <string name="tool_policy_allow">允许</string>
+
+    <!-- MCP -->
+    <string name="mcp_servers">MCP 服务器</string>
+    <string name="mcp_empty">添加支持 Streamable HTTP 的模型上下文协议（MCP）服务器中的工具。</string>
+    <string name="mcp_add_server">添加服务器</string>
+    <string name="mcp_delete_server">删除服务器</string>
+    <string name="mcp_delete_server_message">将从此设备删除“%1$s”及其保存的访问令牌。</string>
+    <plurals name="mcp_server_tools">
+        <item quantity="other">已启用 %1$d / %2$d 个工具</item>
+    </plurals>
+    <string name="mcp_token_unreadable_short">访问令牌无法解密，请重新输入</string>
+    <string name="mcp_add_mcp_server">添加 MCP 服务器</string>
+    <string name="mcp_edit_mcp_server">编辑 MCP 服务器</string>
+    <string name="mcp_name">名称</string>
+    <string name="mcp_name_taken">已有服务器使用此名称</string>
+    <string name="mcp_prefix_hint">工具名称将带有 %1$s__ 前缀</string>
+    <string name="mcp_url_invalid">请输入 http 或 https URL</string>
+    <string name="mcp_url_unencrypted">未加密：仅用于可信网络</string>
+    <string name="mcp_bearer_token">Bearer 令牌（可选）</string>
+    <string name="mcp_token_unreadable">保存的访问令牌无法解密，请重新输入。</string>
+    <string name="mcp_connect">连接</string>
+    <string name="mcp_refresh_tools">刷新工具</string>
+    <string name="mcp_no_tools">服务器未列出任何工具。</string>
+    <string name="mcp_trust_server">信任此服务器</string>
+    <string name="mcp_trust_server_summary">运行工具时无需询问。</string>
+</resources>

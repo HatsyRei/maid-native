@@ -46,8 +46,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.tree.MessageNode
 import com.hatsyrei.maidnative.ui.icons.AddIcon
@@ -157,16 +159,18 @@ internal fun DrawerContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Chats",
+                        text = stringResource(R.string.drawer_title),
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    DrawerActionChip("New chat", AddIcon, onClick = onNewChat)
+                    DrawerActionChip(stringResource(R.string.drawer_new_chat), AddIcon, onClick = onNewChat)
                     DrawerOverflowMenu(onImport = onImport, onBackupAll = onBackupAll)
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+                // New chats store the English default; show it in the UI language everywhere.
+                val defaultTitle = stringResource(R.string.drawer_default_chat_title)
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = LIST_BOTTOM_INSET),
@@ -174,7 +178,7 @@ internal fun DrawerContent(
                     if (roots.isEmpty()) {
                         item {
                             Text(
-                                text = "No chats yet",
+                                text = stringResource(R.string.drawer_empty),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(24.dp),
@@ -182,7 +186,9 @@ internal fun DrawerContent(
                         }
                     }
                     items(roots, key = { it.id }) { root ->
-                        val title = chatTitle(root)
+                        val title = chatTitle(root).let {
+                            if (it == ConversationDefaults.CHAT_TITLE) defaultTitle else it
+                        }
                         DrawerChatItem(
                             id = root.id,
                             title = title,
@@ -246,11 +252,11 @@ private fun DrawerOverflowMenu(onImport: () -> Unit, onBackupAll: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "More chat actions")
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.drawer_more_actions))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Import") },
+                text = { Text(stringResource(R.string.action_import)) },
                 trailingIcon = {
                     Icon(
                         FolderOpenIcon,
@@ -265,7 +271,7 @@ private fun DrawerOverflowMenu(onImport: () -> Unit, onBackupAll: () -> Unit) {
                 },
             )
             DropdownMenuItem(
-                text = { Text("Export all") },
+                text = { Text(stringResource(R.string.drawer_export_all)) },
                 trailingIcon = {
                     Icon(
                         SaveAltIcon,
@@ -333,22 +339,22 @@ private fun DrawerChatItem(
             onDismiss = menu::close,
         ) {
             MenuOption(
-                text = "Rename",
+                text = stringResource(R.string.action_rename),
                 trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = { menu.close(); onRename() },
             )
             MenuOption(
-                text = "Export",
+                text = stringResource(R.string.action_export),
                 trailingIcon = { Icon(FileDownloadIcon, contentDescription = null) },
                 onClick = { menu.close(); onExport() },
             )
             MenuOption(
-                text = "Properties",
+                text = stringResource(R.string.drawer_properties),
                 trailingIcon = { Icon(InfoOutlineIcon, contentDescription = null) },
                 onClick = { menu.close(); onProperties() },
             )
             MenuOption(
-                text = "Delete",
+                text = stringResource(R.string.action_delete),
                 textColor = MaterialTheme.colorScheme.error,
                 trailingIcon = {
                     Icon(

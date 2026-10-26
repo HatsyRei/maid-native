@@ -56,9 +56,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Reasoning
 import com.hatsyrei.maidnative.domain.stats
@@ -133,7 +136,7 @@ internal fun SystemPromptCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "System",
+                text = stringResource(R.string.chat_system),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
@@ -145,7 +148,7 @@ internal fun SystemPromptCard(
             ) {
                 Icon(
                     Icons.Filled.Edit,
-                    contentDescription = "Edit system prompt",
+                    contentDescription = stringResource(R.string.chat_edit_system_prompt),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -223,27 +226,27 @@ internal fun MessageItem(
                 // need a usable model on top of an idle stream.
                 if (node.role == "assistant") {
                     MenuOption(
-                        text = "Regenerate",
+                        text = stringResource(R.string.chat_regenerate),
                         trailingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                         enabled = !busy && ready,
                         onClick = { closeMenu(); onRegenerate() },
                     )
                 } else {
                     MenuOption(
-                        text = "Revise",
+                        text = stringResource(R.string.chat_revise),
                         trailingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
                         enabled = !busy && ready,
                         onClick = { closeMenu(); onRequestEdit(true) },
                     )
                 }
                 MenuOption(
-                    text = "Modify",
+                    text = stringResource(R.string.chat_modify),
                     trailingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                     enabled = !busy,
                     onClick = { closeMenu(); onRequestEdit(false) },
                 )
                 MenuOption(
-                    text = "Copy",
+                    text = stringResource(R.string.action_copy),
                     trailingIcon = { Icon(ContentCopyIcon, contentDescription = null) },
                     onClick = {
                         closeMenu()
@@ -260,7 +263,7 @@ internal fun MessageItem(
                     },
                 )
                 MenuOption(
-                    text = "Delete",
+                    text = stringResource(R.string.action_delete),
                     textColor = MaterialTheme.colorScheme.error,
                     trailingIcon = {
                         Icon(
@@ -286,7 +289,7 @@ internal fun MessageItem(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "Previous branch",
+                            contentDescription = stringResource(R.string.chat_previous_branch),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -303,7 +306,7 @@ internal fun MessageItem(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "Next branch",
+                            contentDescription = stringResource(R.string.chat_next_branch),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -344,7 +347,9 @@ internal fun MessageItem(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = if (reasoningExpanded) "Hide reasoning" else "Show reasoning",
+                    text = stringResource(
+                        if (reasoningExpanded) R.string.chat_hide_reasoning else R.string.chat_show_reasoning,
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -408,8 +413,17 @@ internal fun MessageItem(
         // message of a pre-stats conversation would be noise, and a reply still
         // streaming has no counts yet, so this doubles as a done marker.
         if (node.role == "assistant") {
-            val footnote = remember(node.metadata, node.content) {
-                formatTurnFootnote(node.stats(), node.content)
+            val resources = LocalResources.current
+            val stopped = stringResource(R.string.chat_footnote_stopped)
+            val footnote = remember(node.metadata, node.content, resources, stopped) {
+                formatTurnFootnote(
+                    node.stats(),
+                    node.content,
+                    tokens = { count, formatted ->
+                        resources.getQuantityString(R.plurals.chat_footnote_tokens, count, formatted)
+                    },
+                    stopped = stopped,
+                )
             }
             if (footnote != null) {
                 Text(

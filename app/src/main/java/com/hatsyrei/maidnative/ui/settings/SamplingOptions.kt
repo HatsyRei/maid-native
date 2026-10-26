@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.ui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -39,9 +40,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.SamplingParam
 import com.hatsyrei.maidnative.ui.common.AppDialog
@@ -50,17 +53,17 @@ import com.hatsyrei.maidnative.ui.icons.RepeatIcon
 import com.hatsyrei.maidnative.ui.icons.TuneIcon
 
 internal enum class SamplingGroup(
-    val title: String,
+    @StringRes val title: Int,
     val icon: ImageVector,
     val params: List<SamplingParam>,
 ) {
     SAMPLING(
-        "Sampling",
+        R.string.sampling_group_sampling,
         TuneIcon,
         listOf(SamplingParam.TEMPERATURE, SamplingParam.TOP_P, SamplingParam.TOP_K, SamplingParam.MIN_P),
     ),
     PENALTIES(
-        "Penalty",
+        R.string.sampling_group_penalty,
         RepeatIcon,
         listOf(SamplingParam.FREQUENCY_PENALTY, SamplingParam.PRESENCE_PENALTY),
     ),
@@ -71,9 +74,10 @@ internal enum class SamplingGroup(
 internal fun SamplingChip(group: SamplingGroup, sampling: Sampling, onClick: () -> Unit) {
     val overrides = group.params.count { sampling[it] != null }
     val active = overrides > 0
+    val title = stringResource(group.title)
     AssistChip(
         onClick = onClick,
-        label = { Text(if (active) "${group.title} · $overrides" else group.title) },
+        label = { Text(if (active) stringResource(R.string.sampling_chip_count, title, overrides) else title) },
         leadingIcon = { Icon(group.icon, contentDescription = null) },
         // Filled when something is overridden, so the screen says at a glance
         // whether requests carry anything beyond the endpoint's own settings.
@@ -107,7 +111,7 @@ internal fun SamplingDialog(
 
     AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text(group.title) },
+        title = { Text(stringResource(group.title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 group.params.forEach { param ->
@@ -116,10 +120,10 @@ internal fun SamplingDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(draft) }) { Text("Save") }
+            TextButton(onClick = { onConfirm(draft) }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -151,16 +155,19 @@ private fun SamplingRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(param.label, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(samplingLabel(param)), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    param.summary,
+                    stringResource(samplingSummary(param)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            ValuePill(text = if (enabled) param.format(current) else "Auto", active = enabled)
+            ValuePill(
+                text = if (enabled) param.format(current) else stringResource(R.string.sampling_auto),
+                active = enabled,
+            )
         }
 
         AnimatedVisibility(
@@ -178,6 +185,27 @@ private fun SamplingRow(
             )
         }
     }
+}
+
+@StringRes
+private fun samplingLabel(param: SamplingParam): Int = when (param) {
+    SamplingParam.TEMPERATURE -> R.string.sampling_temperature
+    SamplingParam.TOP_P -> R.string.sampling_top_p
+    SamplingParam.TOP_K -> R.string.sampling_top_k
+    SamplingParam.MIN_P -> R.string.sampling_min_p
+    SamplingParam.FREQUENCY_PENALTY -> R.string.sampling_frequency_penalty
+    SamplingParam.PRESENCE_PENALTY -> R.string.sampling_presence_penalty
+}
+
+/** Kept short enough to fit one line beside the value pill. */
+@StringRes
+private fun samplingSummary(param: SamplingParam): Int = when (param) {
+    SamplingParam.TEMPERATURE -> R.string.sampling_temperature_summary
+    SamplingParam.TOP_P -> R.string.sampling_top_p_summary
+    SamplingParam.TOP_K -> R.string.sampling_top_k_summary
+    SamplingParam.MIN_P -> R.string.sampling_min_p_summary
+    SamplingParam.FREQUENCY_PENALTY -> R.string.sampling_frequency_penalty_summary
+    SamplingParam.PRESENCE_PENALTY -> R.string.sampling_presence_penalty_summary
 }
 
 /** "Auto" in an outline while the endpoint decides; the user's value, filled, once overridden. */

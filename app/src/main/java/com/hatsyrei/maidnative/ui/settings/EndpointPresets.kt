@@ -36,8 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository.EndpointPreset
 import com.hatsyrei.maidnative.ui.common.TextInputDialog
 
@@ -66,12 +68,12 @@ internal fun EndpointPresetSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.navigationBarsPadding()) {
             Text(
-                text = "Saved endpoints",
+                text = stringResource(R.string.settings_saved_endpoints),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
             )
             ListItem(
-                headlineContent = { Text("Save current endpoint") },
+                headlineContent = { Text(stringResource(R.string.preset_save_current)) },
                 supportingContent = {
                     Text(activeBaseURL, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
@@ -82,8 +84,7 @@ internal fun EndpointPresetSheet(
             HorizontalDivider()
             if (presets.isEmpty()) {
                 Text(
-                    text = "Nothing saved yet. A preset keeps a Base URL and its API key " +
-                        "together, so switching endpoints takes one tap.",
+                    text = stringResource(R.string.preset_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
@@ -133,10 +134,14 @@ private fun PresetRow(
             Column {
                 Text(preset.baseURL, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (preset.keyReadable) {
-                    Text(maskKey(preset.apiKey), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        maskKey(preset.apiKey, stringResource(R.string.preset_no_api_key)),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 } else {
                     Text(
-                        "Key can't be decrypted — re-save",
+                        stringResource(R.string.preset_key_unreadable),
                         color = MaterialTheme.colorScheme.error,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -148,7 +153,7 @@ private fun PresetRow(
             if (active) {
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = "In use",
+                    contentDescription = stringResource(R.string.preset_in_use),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             } else {
@@ -158,11 +163,11 @@ private fun PresetRow(
         trailingContent = {
             Box {
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Preset options")
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.preset_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Rename") },
+                        text = { Text(stringResource(R.string.action_rename)) },
                         trailingIcon = {
                             Icon(
                                 Icons.Filled.Edit,
@@ -177,7 +182,7 @@ private fun PresetRow(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                         trailingIcon = {
                             Icon(
                                 Icons.Filled.Delete,
@@ -214,18 +219,19 @@ internal fun PresetNameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
+    val replacesExisting = stringResource(R.string.preset_replaces_existing)
     TextInputDialog(
         title = title,
         initial = initial,
         confirmLabel = confirmLabel,
         onDismiss = onDismiss,
         onConfirm = onConfirm,
-        label = "Preset name",
+        label = stringResource(R.string.preset_name_label),
         // Returns "" rather than nothing so the slot stays occupied, and the
         // warning appearing doesn't resize the dialog.
         supportingText = { name ->
             if (takenNames.any { it.equals(name, ignoreCase = true) }) {
-                "Replaces an existing preset"
+                replacesExisting
             } else {
                 ""
             }
@@ -238,8 +244,8 @@ internal fun defaultPresetName(baseURL: String): String =
     baseURL.substringAfter("://").substringBefore("/").substringBefore(":").ifBlank { "Endpoint" }
 
 /** Never renders a key that could be read off the screen; short keys show no digits at all. */
-private fun maskKey(key: String): String = when {
-    key.isEmpty() -> "No API key"
+private fun maskKey(key: String, noKey: String): String = when {
+    key.isEmpty() -> noKey
     key.length <= 8 -> "••••"
     else -> "••••" + key.takeLast(4)
 }

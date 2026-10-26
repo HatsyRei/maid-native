@@ -10,8 +10,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.ChatStats
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.ui.common.AppDialog
@@ -39,12 +42,12 @@ internal fun ChatPropertiesDialog(
         text = {
             Column {
                 StatRow(
-                    "Conversation size",
+                    stringResource(R.string.properties_conversation_size),
                     stats.conversationTokens.tokens(stats.sizeAccuracy),
                 )
-                StatRow("Average speed", stats.tokensPerSecond.tokensPerSecond())
-                StatRow("Average response", stats.averageResponseMs.duration())
-                StatRow("Time to first token", stats.averageTtftMs.duration())
+                StatRow(stringResource(R.string.properties_average_speed), stats.tokensPerSecond.tokensPerSecond())
+                StatRow(stringResource(R.string.properties_average_response), stats.averageResponseMs.duration())
+                StatRow(stringResource(R.string.properties_time_to_first_token), stats.averageTtftMs.duration())
                 val notes = stats.notes()
                 if (notes.isNotEmpty()) {
                     Column(
@@ -56,7 +59,7 @@ internal fun ChatPropertiesDialog(
                 }
                 if (files.isNotEmpty()) {
                     Text(
-                        text = "Linked files",
+                        text = stringResource(R.string.properties_linked_files),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
@@ -66,7 +69,7 @@ internal fun ChatPropertiesDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         },
     )
 }
@@ -111,32 +114,36 @@ private fun Note(text: String) {
 }
 
 /** Everything the figures above need qualified, in the order they appear. */
-private fun ChatStats.notes(): List<String> = buildList {
-    sizeNote()?.let { add(it) }
-    if (partialSample) {
-        add(
-            "Averages cover $statsTurns of $assistantMessages replies; " +
-                "metadata unavailable for the rest.",
-        )
+@Composable
+private fun ChatStats.notes(): List<String> {
+    val size = sizeNote()
+    val partial = if (partialSample) {
+        pluralStringResource(R.plurals.properties_partial_sample, assistantMessages, statsTurns, assistantMessages)
+    } else {
+        null
     }
+    return listOfNotNull(size, partial)
 }
 
+@Composable
 private fun ChatStats.sizeNote(): String? {
     if (conversationTokens == null) return null
     return when (sizeAccuracy) {
         ChatStats.SizeAccuracy.EXACT -> null
-        ChatStats.SizeAccuracy.AT_LEAST ->
-            "The conversation has grown since it was last counted; the next reply will update it."
-        ChatStats.SizeAccuracy.AT_MOST ->
-            "The conversation has shrunk since it was last counted; the next reply will update it."
+        ChatStats.SizeAccuracy.AT_LEAST -> stringResource(R.string.properties_size_grown)
+        ChatStats.SizeAccuracy.AT_MOST -> stringResource(R.string.properties_size_shrunk)
     }
 }
 
-private fun Int?.tokens(accuracy: ChatStats.SizeAccuracy): String = when {
-    this == null -> UNKNOWN
-    accuracy == ChatStats.SizeAccuracy.AT_LEAST -> "\u2265 ${formatted()} tokens"
-    accuracy == ChatStats.SizeAccuracy.AT_MOST -> "\u2264 ${formatted()} tokens"
-    else -> "${formatted()} tokens"
+@Composable
+private fun Int?.tokens(accuracy: ChatStats.SizeAccuracy): String {
+    if (this == null) return UNKNOWN
+    val count = pluralStringResource(R.plurals.properties_tokens, this, formatted())
+    return when (accuracy) {
+        ChatStats.SizeAccuracy.AT_LEAST -> stringResource(R.string.properties_at_least, count)
+        ChatStats.SizeAccuracy.AT_MOST -> stringResource(R.string.properties_at_most, count)
+        else -> count
+    }
 }
 
 private fun Double?.tokensPerSecond(): String =

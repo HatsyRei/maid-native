@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,14 +32,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 
-/** Accent colour + composer pill artwork. */
+/** App-wide preferences: language, accent colour, composer pill artwork. */
 @Composable
-internal fun ThemeSection(
+internal fun AppSection(
     accentColor: Int,
     nameplate: String,
     actions: SettingsActions,
@@ -47,12 +49,18 @@ internal fun ThemeSection(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri -> uri?.let(actions.importNameplate) }
 
-    Text("Theme", style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.settings_app), style = MaterialTheme.typography.titleMedium)
 
-    Label("Accent")
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Label(stringResource(R.string.language_title))
+        Spacer(Modifier.width(12.dp))
+        LanguagePicker()
+    }
+
+    Label(stringResource(R.string.theme_accent))
     AccentPicker(selected = accentColor, onSelect = actions.setAccentColor)
 
-    Label("Composer background")
+    Label(stringResource(R.string.theme_composer_background))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -62,19 +70,19 @@ internal fun ThemeSection(
         NameplateOption(
             selected = nameplate == SettingsRepository.NAMEPLATE_NONE,
             onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_NONE) },
-            label = "None",
+            label = stringResource(R.string.theme_nameplate_none),
         )
         NameplateOption(
             painter = painterResource(R.drawable.nameplate_blossom),
             selected = nameplate == SettingsRepository.NAMEPLATE_BLOSSOM,
             onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_BLOSSOM) },
-            label = "Blossom",
+            label = stringResource(R.string.theme_nameplate_blossom),
         )
         NameplateOption(
             painter = painterResource(R.drawable.nameplate_twilight),
             selected = nameplate == SettingsRepository.NAMEPLATE_TWILIGHT,
             onClick = { actions.setNameplate(SettingsRepository.NAMEPLATE_TWILIGHT) },
-            label = "Twilight",
+            label = stringResource(R.string.theme_nameplate_twilight),
         )
         val custom = nameplate == SettingsRepository.NAMEPLATE_CUSTOM
         NameplateOption(
@@ -85,12 +93,12 @@ internal fun ThemeSection(
             onClick = {
                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
-            label = if (custom) "Change" else "Choose",
+            label = stringResource(if (custom) R.string.action_change else R.string.theme_choose),
             icon = !custom,
         )
     }
     Text(
-        "Fades out while you type. Images are cropped to the pill and copied into the app.",
+        stringResource(R.string.theme_composer_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -146,7 +154,7 @@ private fun NameplateOption(
             if (icon) {
                 Icon(
                     Icons.Filled.Add,
-                    contentDescription = "Choose an image",
+                    contentDescription = stringResource(R.string.theme_choose_image),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )

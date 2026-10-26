@@ -40,11 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.ToolCall
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
@@ -72,7 +74,7 @@ internal fun ToolCallsBlock(
                 onClick = { onApprove(waiting.map { it.id }, true, false) },
                 modifier = Modifier.align(Alignment.End),
             ) {
-                Text("Allow all (${waiting.size})")
+                Text(stringResource(R.string.toolcall_allow_all, waiting.size))
             }
         }
     }
@@ -90,7 +92,7 @@ private fun ApprovalRow(call: ToolCall, onApprove: (ids: List<String>, allow: Bo
         Column(modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 6.dp)) {
             ToolHeader(call)
             if (call.arguments.isNotBlank() && call.arguments != "{}") {
-                ToolDetail(label = "Arguments", text = prettyJson(call.arguments))
+                ToolDetail(label = stringResource(R.string.toolcall_arguments), text = prettyJson(call.arguments))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
@@ -100,12 +102,18 @@ private fun ApprovalRow(call: ToolCall, onApprove: (ids: List<String>, allow: Bo
                         .toggleable(value = always, role = Role.Checkbox, onValueChange = { always = it }),
                 ) {
                     Checkbox(checked = always, onCheckedChange = null, modifier = Modifier.padding(end = 8.dp))
-                    Text("Don't ask again", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.toolcall_dont_ask_again),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                    )
                 }
                 TextButton(onClick = { onApprove(listOf(call.id), false, false) }) {
-                    Text("Deny", color = colors.error)
+                    Text(stringResource(R.string.action_deny), color = colors.error)
                 }
-                TextButton(onClick = { onApprove(listOf(call.id), true, always) }) { Text("Allow") }
+                TextButton(onClick = { onApprove(listOf(call.id), true, always) }) {
+                    Text(stringResource(R.string.action_allow))
+                }
             }
         }
     }
@@ -126,14 +134,16 @@ private fun ToolCallRow(call: ToolCall) {
             ToolHeader(call) {
                 if (running) {
                     Text(
-                        text = "Running…",
+                        text = stringResource(R.string.toolcall_running),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     Icon(
                         if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                        contentDescription = if (expanded) "Hide tool result" else "Show tool result",
+                        contentDescription = stringResource(
+                            if (expanded) R.string.toolcall_hide_result else R.string.toolcall_show_result,
+                        ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
@@ -141,9 +151,9 @@ private fun ToolCallRow(call: ToolCall) {
             }
             if (expanded) {
                 if (call.arguments.isNotBlank() && call.arguments != "{}") {
-                    ToolDetail(label = "Arguments", text = call.arguments)
+                    ToolDetail(label = stringResource(R.string.toolcall_arguments), text = call.arguments)
                 }
-                ToolDetail(label = "Result", text = call.result.orEmpty())
+                ToolDetail(label = stringResource(R.string.toolcall_result), text = call.result.orEmpty())
             }
         }
     }
@@ -232,7 +242,7 @@ internal fun LinkedFileRows(
                     IconButton(onClick = { onUnlink(file) }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             CloseIcon,
-                            contentDescription = "Unlink ${file.name}",
+                            contentDescription = stringResource(R.string.toolcall_unlink, file.name),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp),
                         )
@@ -273,14 +283,16 @@ internal fun ToolCallChips(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Tool calls · ${calls.size}",
+                text = stringResource(R.string.toolcall_calls_header, calls.size),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                contentDescription = if (expanded) "Hide tool calls" else "Show tool calls",
+                contentDescription = stringResource(
+                    if (expanded) R.string.toolcall_hide_calls else R.string.toolcall_show_calls,
+                ),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
             )
@@ -301,7 +313,7 @@ internal fun ToolCallChips(
                     EditChip(
                         label = "$key · ${call.name}",
                         unused = key !in present,
-                        removeDescription = "Remove ${call.name} call",
+                        removeDescription = stringResource(R.string.toolcall_remove_call, call.name),
                         onOpen = { editing = key },
                         onRemove = { onRemove(key) },
                     )
@@ -383,16 +395,16 @@ private fun ToolCallDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     state = arguments,
-                    label = { Text("Arguments") },
+                    label = { Text(stringResource(R.string.toolcall_arguments)) },
                     textStyle = mono,
                     isError = !argumentsValid,
-                    supportingText = if (argumentsValid) null else { { Text("Must be a JSON object") } },
+                    supportingText = if (argumentsValid) null else { { Text(stringResource(R.string.toolcall_invalid_json)) } },
                     lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     state = result,
-                    label = { Text("Result") },
+                    label = { Text(stringResource(R.string.toolcall_result)) },
                     textStyle = mono,
                     lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 8),
                     modifier = Modifier.fillMaxWidth(),
@@ -404,11 +416,11 @@ private fun ToolCallDialog(
                 onClick = { onConfirm(call.copy(arguments = argumentsText, result = result.text.toString())) },
                 enabled = argumentsValid,
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

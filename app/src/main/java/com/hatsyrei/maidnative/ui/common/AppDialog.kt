@@ -29,12 +29,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.hatsyrei.maidnative.R
 
 /**
  * The app's card dialog, used in place of Material's `AlertDialog`.
@@ -58,6 +60,7 @@ internal fun AppDialog(
     neutralButton: (@Composable () -> Unit)? = null,
     text: @Composable () -> Unit,
 ) {
+    val pane = stringResource(R.string.common_dialog_pane_title)
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
@@ -73,7 +76,7 @@ internal fun AppDialog(
                 modifier = Modifier
                     .widthIn(max = 560.dp)
                     .fillMaxWidth()
-                    .semantics { paneTitle = "Dialog" },
+                    .semantics { paneTitle = pane },
                 shape = AlertDialogDefaults.shape,
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 tonalElevation = AlertDialogDefaults.TonalElevation,

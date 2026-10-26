@@ -2,11 +2,14 @@ package com.hatsyrei.maidnative.ui.chat
 
 import android.app.Application
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.db.MaidDatabase
 import com.hatsyrei.maidnative.data.db.MessageRepository
+import com.hatsyrei.maidnative.data.prefs.AppLocale
 import com.hatsyrei.maidnative.data.prefs.SecretUnavailableException
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
@@ -142,6 +145,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val attachmentStore = AttachmentStore(app)
     private val documents = LinkedDocuments(app.contentResolver)
     private val legacyFile = File(app.filesDir, "messages.json")
+
+    // Below Android 13 the application context keeps the system language.
+    private fun text(@StringRes id: Int, vararg args: Any?): String =
+        AppLocale.wrap(getApplication()).getString(id, *args)
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -283,7 +290,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         it.copy(
                             models = emptyList(),
                             modalities = emptyMap(),
-                            error = if (silent) it.error else CLEARTEXT_BLOCKED,
+                            error = if (silent) it.error else text(R.string.error_cleartext_blocked),
                         )
                     }
                     return@launch
@@ -341,8 +348,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val dropped = settingsRepo.setBaseURL(value.trim()) ?: return@launch
         _state.update {
             it.copy(
-                credentialNotice = "API key cleared: it was saved for $dropped, and this " +
-                    "endpoint is somewhere else. Re-enter the key if it belongs here.",
+                credentialNotice = text(R.string.notice_key_cleared_moved, dropped),
             )
         }
     }
@@ -381,8 +387,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (!preset.keyReadable) {
             _state.update {
                 it.copy(
-                    credentialNotice = "\"${preset.name}\" holds a key this device can no longer " +
-                        "decrypt. Re-enter it and save the preset again.",
+                    credentialNotice = text(R.string.notice_preset_key_unreadable, preset.name),
                 )
             }
             return@launch
@@ -407,8 +412,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun Throwable.notice(): String = when (this) {
-        is SecretUnavailableException -> message ?: "The API key could not be stored securely."
-        else -> "The API key could not be saved: ${message ?: this::class.java.simpleName}"
+        is SecretUnavailableException -> message ?: text(R.string.notice_key_insecure)
+        else -> text(R.string.notice_key_save_failed, message ?: this::class.java.simpleName)
     }
 
     /** Copies the picked image into app storage, then selects it. */
@@ -419,7 +424,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (imported) {
             settingsRepo.setCustomNameplate(System.currentTimeMillis())
         } else {
-            _state.update { it.copy(error = "That image could not be loaded.") }
+            _state.update { it.copy(error = text(R.string.error_image_load)) }
         }
     }
 
@@ -431,7 +436,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (imported) {
             settingsRepo.setAvatar(role, System.currentTimeMillis())
         } else {
-            _state.update { it.copy(error = "That image could not be loaded.") }
+            _state.update { it.copy(error = text(R.string.error_image_load)) }
         }
     }
 
@@ -474,16 +479,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     if (dropped != null) {
                         _state.update {
                             it.copy(
-                                credentialNotice = "API key cleared: it was saved for $dropped, " +
-                                    "and the scan found a different endpoint.",
+                                credentialNotice = text(R.string.notice_key_cleared_scan, dropped),
                             )
                         }
                     }
                 } else {
                     _state.update {
                         it.copy(
-                            error = "No OpenAI-compatible endpoint answered on port $port " +
-                                "in the local /$prefixLength.",
+                            error = text(R.string.error_scan_none, port, prefixLength),
                         )
                     }
                 }
@@ -566,14 +569,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val nodes = _state.value.mappings.values.filter { it.root == rootId }
-                if (nodes.isEmpty()) error("Conversation is empty.")
+                if (nodes.isEmpty()) error(text(R.string.error_conversation_empty))
                 val media = _state.value.settings.exportMedia
                 fileStore.write(
                     uri,
                     MessageStore.encodeExport(nodes) { attachmentStore.exportRecord(it, media) },
                 )
             }.onFailure { failure ->
-                _state.update { it.copy(error = "Export failed: ${failure.message}") }
+                _state.update { it.copy(error = text(R.string.error_export_failed, failure.message)) }
             }
         }
     }
@@ -595,7 +598,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 fileStore.backup(treeUri, files)
             }.onFailure { failure ->
-                _state.update { it.copy(error = "Backup failed: ${failure.message}") }
+                _state.update { it.copy(error = text(R.string.error_backup_failed, failure.message)) }
             }
         }
     }
@@ -695,7 +698,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun linkFile(uri: Uri, created: Boolean) {
         viewModelScope.launch {
             val file = withContext(Dispatchers.IO) { runCatching { documents.link(uri, created) } }.getOrElse { failure ->
-                _state.update { it.copy(error = "That file could not be linked: ${failure.message}") }
+                _state.update { it.copy(error = text(R.string.error_link_failed, failure.message)) }
                 return@launch
             }
             _state.update { s ->
@@ -736,7 +739,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val bytes = documents.read(file.uri, PREVIEW_BYTES)
             val body = String(bytes, 0, minOf(bytes.size, PREVIEW_BYTES), Charsets.UTF_8)
-            if (bytes.size > PREVIEW_BYTES) "$body\n\n… truncated" else body
+            if (bytes.size > PREVIEW_BYTES) "$body\n\n${text(R.string.attachment_truncated)}" else body
         }.getOrNull()
     }
 
@@ -753,13 +756,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val source = File(attachment.path)
-                if (!source.isFile) error("File is no longer available.")
+                if (!source.isFile) error(text(R.string.error_file_gone))
                 fileStore.write(uri, source)
             }.onFailure { failure ->
                 // The picker already created the document, so a failed write
                 // would otherwise leave an empty file behind.
                 fileStore.discard(uri)
-                _state.update { it.copy(error = "Save failed: ${failure.message}") }
+                _state.update { it.copy(error = text(R.string.error_save_failed, failure.message)) }
             }
         }
     }
@@ -989,8 +992,5 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val PREVIEW_BYTES = 256 * 1024
-        const val CLEARTEXT_BLOCKED =
-            "Blocked: this endpoint uses plain HTTP. " +
-                "Turn on \"Allow HTTP endpoints\" in Settings to use it."
     }
 }

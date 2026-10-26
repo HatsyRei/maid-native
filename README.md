@@ -108,6 +108,10 @@ server.
 - **Personalisation** — AMOLED-true-black theme with a custom accent colour,
   composer nameplate art (bundled or your own image), and custom user /
   assistant display names and profile pictures.
+- **English and Simplified Chinese** interface, switchable in Settings or the
+  system's per-app language screen (Android 13+). The Chinese translation is
+  based on [@billertwerson-gif](https://github.com/billertwerson-gif)'s work in
+  [#2](https://github.com/HatsyRei/maid-native/pull/2).
 
 ---
 
@@ -119,6 +123,10 @@ and behaviour it mirrors goes to:
   — the original React Native app.
 - [HatsyRei/maid](https://github.com/HatsyRei/maid) — the React Native fork this
   port was made from, and the parity reference used throughout.
+
+The Simplified Chinese translation is based on the catalog contributed by
+[@billertwerson-gif](https://github.com/billertwerson-gif) in
+[#2](https://github.com/HatsyRei/maid-native/pull/2).
 
 See [SPEC.md](SPEC.md) for the full port specification and the record of the
 migration (now closed — milestones M0–M5 complete). This repo is a self-contained

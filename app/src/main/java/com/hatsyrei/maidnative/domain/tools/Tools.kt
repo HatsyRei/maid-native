@@ -168,16 +168,16 @@ interface ToolSwitch {
     val effects: Set<ToolEffect> get() = emptySet()
 }
 
-enum class ToolEffect(val label: String) {
-    NETWORK("Network"),
-    WRITES("Write access"),
+enum class ToolEffect {
+    NETWORK,
+    WRITES,
 }
 
 /** Whether the model is offered a tool, and whether each call waits for the user. */
-enum class ToolPolicy(val label: String) {
-    OFF("Off"),
-    ASK("Ask"),
-    ALLOW("Allow"),
+enum class ToolPolicy {
+    OFF,
+    ASK,
+    ALLOW,
 }
 
 /** A function the model may call, executed on the device. */

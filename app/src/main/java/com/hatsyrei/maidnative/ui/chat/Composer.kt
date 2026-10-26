@@ -74,6 +74,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupPositionProvider
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.Modalities
 import com.hatsyrei.maidnative.domain.TextFiles
@@ -244,7 +246,7 @@ internal fun Composer(
                         ) {
                             if (text.isEmpty()) {
                                 Text(
-                                    text = "Message",
+                                    text = stringResource(R.string.chat_message_placeholder),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -295,7 +297,7 @@ internal fun Composer(
                                 } else {
                                     Icon(
                                         ArrowUpwardIcon,
-                                        contentDescription = "Send",
+                                        contentDescription = stringResource(R.string.chat_send),
                                         tint = arrowTint,
                                     )
                                 }
@@ -391,7 +393,7 @@ private fun AttachButton(
         IconButton(onClick = { open = true }, enabled = enabled) {
             Icon(
                 AddIcon,
-                contentDescription = "Add attachment",
+                contentDescription = stringResource(R.string.chat_add_attachment),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -405,7 +407,7 @@ private fun AttachButton(
             modifier = Modifier.widthIn(min = 148.dp, max = 176.dp),
         ) {
             MenuOption(
-                text = "Image",
+                text = stringResource(R.string.chat_attach_image),
                 trailingIcon = { Icon(ImageIcon, contentDescription = null) },
                 enabled = modalities.vision.permitted,
                 onClick = {
@@ -416,7 +418,7 @@ private fun AttachButton(
                 },
             )
             MenuOption(
-                text = "Audio",
+                text = stringResource(R.string.chat_attach_audio),
                 trailingIcon = { Icon(AudiotrackIcon, contentDescription = null) },
                 enabled = modalities.audio.permitted,
                 onClick = {
@@ -425,7 +427,7 @@ private fun AttachButton(
                 },
             )
             MenuOption(
-                text = "Text file",
+                text = stringResource(R.string.chat_attach_text_file),
                 trailingIcon = { Icon(DescriptionIcon, contentDescription = null) },
                 onClick = {
                     open = false
@@ -435,7 +437,7 @@ private fun AttachButton(
             if (fileTools) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                 MenuOption(
-                    text = "Link file",
+                    text = stringResource(R.string.chat_link_file),
                     trailingIcon = { Icon(FolderOpenIcon, contentDescription = null) },
                     onClick = {
                         open = false
@@ -443,7 +445,7 @@ private fun AttachButton(
                     },
                 )
                 MenuOption(
-                    text = "New file",
+                    text = stringResource(R.string.chat_new_file),
                     trailingIcon = { Icon(Icons.Filled.Create, contentDescription = null) },
                     onClick = {
                         open = false
@@ -473,7 +475,7 @@ internal fun AttachmentChips(
         for (file in files) {
             RemovableChip(
                 label = file.name,
-                removeDescription = "Remove ${file.name}",
+                removeDescription = stringResource(R.string.chat_remove_item, file.name),
                 onRemove = { onRemoveFile(file) },
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -483,7 +485,7 @@ internal fun AttachmentChips(
         for (attachment in attachments) {
             RemovableChip(
                 label = attachment.name,
-                removeDescription = "Remove ${attachment.name}",
+                removeDescription = stringResource(R.string.chat_remove_item, attachment.name),
                 onRemove = { onRemove(attachment) },
                 onOpen = onOpen?.let { { it(attachment) } },
             )

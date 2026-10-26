@@ -35,9 +35,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.ui.common.AppDialog
@@ -79,8 +82,8 @@ internal fun ScanButton(
                 strokeWidth = 2.dp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            succeeded -> Icon(Icons.Filled.Check, contentDescription = "Endpoint found")
-            else -> Icon(Icons.Filled.Search, contentDescription = "Scan for endpoint")
+            succeeded -> Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.scan_endpoint_found))
+            else -> Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.scan_for_endpoint))
         }
     }
 }
@@ -102,12 +105,11 @@ internal fun ScanOptionsDialog(
 
     AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Scan options") },
+        title = { Text(stringResource(R.string.scan_options_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "The local subnet is probed on this port for an " +
-                        "OpenAI-compatible endpoint.",
+                    stringResource(R.string.scan_options_summary),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -121,7 +123,7 @@ internal fun ScanOptionsDialog(
                     OutlinedTextField(
                         state = portText,
                         inputTransformation = PORT_INPUT,
-                        label = { Text("Port") },
+                        label = { Text(stringResource(R.string.scan_port)) },
                         lineLimits = TextFieldLineLimits.SingleLine,
                         isError = !portValid,
                         keyboardOptions = KeyboardOptions(
@@ -129,7 +131,7 @@ internal fun ScanOptionsDialog(
                             imeAction = ImeAction.Done,
                         ),
                         supportingText = {
-                            Text(if (portValid) "" else "Enter a port between 1 and 65535")
+                            Text(if (portValid) "" else stringResource(R.string.scan_port_invalid))
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -154,7 +156,7 @@ internal fun ScanOptionsDialog(
                 }
 
                 Text(
-                    "Subnet",
+                    stringResource(R.string.scan_subnet),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -178,8 +180,9 @@ internal fun ScanOptionsDialog(
                         )
                     }
                 }
+                val hosts = hostCount(prefix).toInt()
                 Text(
-                    "${hostCount(prefix)} addresses probed",
+                    pluralStringResource(R.plurals.scan_addresses_probed, hosts, hosts),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -190,11 +193,11 @@ internal fun ScanOptionsDialog(
                 onClick = { onConfirm(parsedPort ?: EndpointScanner.DEFAULT_PORT, prefix) },
                 enabled = portValid,
             ) {
-                Text("Scan")
+                Text(stringResource(R.string.scan_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

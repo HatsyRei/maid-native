@@ -48,7 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ChatStats
@@ -208,9 +210,9 @@ fun ChatScreen(
         )
 
         is ChatDialog.Rename -> TextInputDialog(
-            title = "Rename conversation",
+            title = stringResource(R.string.chat_rename_title),
             initial = current.initial,
-            confirmLabel = "Rename",
+            confirmLabel = stringResource(R.string.action_rename),
             onDismiss = dismiss,
             onConfirm = { title ->
                 actions.renameChat(current.id, title)
@@ -219,21 +221,21 @@ fun ChatScreen(
         )
 
         is ChatDialog.SystemPrompt -> TextInputDialog(
-            title = "System prompt",
+            title = stringResource(R.string.chat_system_prompt),
             initial = current.initial,
-            confirmLabel = "Save",
+            confirmLabel = stringResource(R.string.action_save),
             onDismiss = dismiss,
             onConfirm = { text ->
                 actions.setSystemPrompt(text)
                 dismiss()
             },
-            description = "Applies to this conversation, including messages already sent.",
+            description = stringResource(R.string.chat_system_prompt_description),
             multiline = true,
         )
 
         is ChatDialog.DeleteMessage -> ConfirmDialog(
-            title = "Delete message",
-            message = "Delete this message and everything below it? This can't be undone.",
+            title = stringResource(R.string.chat_delete_message_title),
+            message = stringResource(R.string.chat_delete_message_confirm),
             onDismiss = dismiss,
             onConfirm = {
                 actions.deleteMessage(current.id)
@@ -242,8 +244,8 @@ fun ChatScreen(
         )
 
         is ChatDialog.DeleteChat -> ConfirmDialog(
-            title = "Delete conversation",
-            message = "Delete this conversation permanently? This can't be undone.",
+            title = stringResource(R.string.chat_delete_conversation_title),
+            message = stringResource(R.string.chat_delete_conversation_confirm),
             onDismiss = dismiss,
             onConfirm = {
                 actions.deleteChat(current.id)
@@ -304,7 +306,7 @@ private fun ChatScaffold(
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Conversations")
+                        Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.chat_conversations))
                     }
                 },
                 title = {
@@ -320,7 +322,7 @@ private fun ChatScaffold(
                     IconButton(onClick = actions.openSettings) {
                         Icon(
                             Icons.Filled.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = stringResource(R.string.settings),
                             modifier = Modifier.size(18.dp),
                         )
                     }

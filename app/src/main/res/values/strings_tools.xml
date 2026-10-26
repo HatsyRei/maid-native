@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sampling -->
+    <string name="sampling_group_sampling">Sampling</string>
+    <string name="sampling_group_penalty">Penalty</string>
+    <string name="sampling_chip_count" translatable="false">%1$s · %2$d</string>
+    <string name="sampling_auto">Auto</string>
+    <string name="sampling_temperature">Temperature</string>
+    <string name="sampling_temperature_summary">Higher is more random.</string>
+    <string name="sampling_top_p" translatable="false">Top P</string>
+    <string name="sampling_top_p_summary">Cumulative probability cutoff.</string>
+    <string name="sampling_top_k" translatable="false">Top K</string>
+    <string name="sampling_top_k_summary">Sample from the top K tokens.</string>
+    <string name="sampling_min_p" translatable="false">Min P</string>
+    <string name="sampling_min_p_summary">Cutoff relative to the top token.</string>
+    <string name="sampling_frequency_penalty">Frequency penalty</string>
+    <string name="sampling_frequency_penalty_summary">Discourages frequent repeats.</string>
+    <string name="sampling_presence_penalty">Presence penalty</string>
+    <string name="sampling_presence_penalty_summary">Nudges toward new topics.</string>
+
+    <!-- Tools -->
+    <string name="tool_tools">Tools</string>
+    <string name="tool_chip_count">Tools · %1$d</string>
+    <string name="tool_get_datetime">Date &amp; time</string>
+    <string name="tool_get_datetime_summary">Current date and time.</string>
+    <string name="tool_roll_dice">Dice roller</string>
+    <string name="tool_roll_dice_summary">Rolls like 2d6 or 1d20+5.</string>
+    <string name="tool_fetch_url">Fetch URL</string>
+    <string name="tool_fetch_url_summary">Reads a web page.</string>
+    <string name="tool_run_javascript" translatable="false">JavaScript</string>
+    <string name="tool_run_javascript_summary">Runs code in a sandbox.</string>
+    <string name="tool_files">Files</string>
+    <string name="tool_files_summary">Link files to a chat.</string>
+    <string name="tool_effect_network">Network</string>
+    <string name="tool_effect_writes">Write access</string>
+    <string name="tool_policy_off">Off</string>
+    <string name="tool_policy_ask">Ask</string>
+    <string name="tool_policy_allow">Allow</string>
+
+    <!-- MCP -->
+    <string name="mcp_chip" translatable="false">MCP</string>
+    <string name="mcp_chip_count" translatable="false">MCP · %1$d</string>
+    <string name="mcp_servers">MCP servers</string>
+    <string name="mcp_empty">Add tools from Model Context Protocol servers that speak Streamable HTTP.</string>
+    <string name="mcp_add_server">Add server</string>
+    <string name="mcp_delete_server">Delete server</string>
+    <string name="mcp_delete_server_message">\"%1$s\" and its stored token will be removed from this device.</string>
+    <plurals name="mcp_server_tools">
+        <item quantity="one">%1$d of %2$d tool</item>
+        <item quantity="other">%1$d of %2$d tools</item>
+    </plurals>
+    <string name="mcp_token_unreadable_short">Token can\'t be decrypted — enter it again</string>
+    <string name="mcp_add_mcp_server">Add MCP server</string>
+    <string name="mcp_edit_mcp_server">Edit MCP server</string>
+    <string name="mcp_name">Name</string>
+    <string name="mcp_name_taken">Another server has this name</string>
+    <string name="mcp_prefix_hint">Tools are prefixed with %1$s__</string>
+    <string name="mcp_url" translatable="false">URL</string>
+    <string name="mcp_url_invalid">Enter an http or https URL</string>
+    <string name="mcp_url_unencrypted">Unencrypted: trusted networks only</string>
+    <string name="mcp_bearer_token">Bearer token (optional)</string>
+    <string name="mcp_token_unreadable">The saved token can\'t be decrypted. Enter it again.</string>
+    <string name="mcp_connect">Connect</string>
+    <string name="mcp_refresh_tools">Refresh tools</string>
+    <string name="mcp_no_tools">The server lists no tools.</string>
+    <string name="mcp_trust_server">Trust this server</string>
+    <string name="mcp_trust_server_summary">Run tools without asking.</string>
+</resources>

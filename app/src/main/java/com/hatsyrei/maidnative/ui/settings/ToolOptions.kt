@@ -1,5 +1,6 @@
 package com.hatsyrei.maidnative.ui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,9 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.tools.FetchUrl
 import com.hatsyrei.maidnative.domain.tools.FileTools
 import com.hatsyrei.maidnative.domain.tools.GetDatetime
@@ -57,7 +60,9 @@ internal fun ToolsChip(enabled: Set<String>, onClick: () -> Unit) {
     val active = count > 0
     AssistChip(
         onClick = onClick,
-        label = { Text(if (active) "Tools · $count" else "Tools") },
+        label = {
+            Text(if (active) stringResource(R.string.tool_chip_count, count) else stringResource(R.string.tool_tools))
+        },
         // The wrench fills its box more than the other chip glyphs, so it runs a size down.
         leadingIcon = { Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(16.dp)) },
         // Filled for the same reason as the sampling chip: requests carry more than the chat.
@@ -96,7 +101,7 @@ internal fun ToolsDialog(
 
     AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tools") },
+        title = { Text(stringResource(R.string.tool_tools)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Tools.switches.forEach { tool ->
@@ -105,10 +110,10 @@ internal fun ToolsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(draft) }) { Text("Save") }
+            TextButton(onClick = { onConfirm(draft) }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -139,7 +144,7 @@ internal fun ToolRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    tool.label,
+                    toolLabel(tool),
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -148,7 +153,7 @@ internal fun ToolRow(
                 tool.effects.forEach { EffectTag(it) }
             }
             Text(
-                tool.summary,
+                toolSummary(tool),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
                 maxLines = 1,
@@ -173,7 +178,9 @@ internal fun ToolRow(
                                 activeContentColor = colors.onSurfaceVariant,
                             ),
                             icon = {},
-                            label = { Text(choice.label, style = MaterialTheme.typography.labelMedium) },
+                            label = {
+                                Text(stringResource(policyLabel(choice)), style = MaterialTheme.typography.labelMedium)
+                            },
                             modifier = Modifier.height(32.dp),
                         )
                     }
@@ -191,7 +198,7 @@ private fun EffectTag(effect: ToolEffect) {
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
         Text(
-            effect.label,
+            stringResource(effectLabel(effect)),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
         )
@@ -205,4 +212,38 @@ private fun toolIcon(tool: ToolSwitch): ImageVector = when (tool) {
     RunJavaScript -> CodeIcon
     FileTools -> DescriptionIcon
     else -> Icons.Filled.Build
+}
+
+// MCP tools keep the server's own text.
+@Composable
+private fun toolLabel(tool: ToolSwitch): String = when (tool) {
+    GetDatetime -> stringResource(R.string.tool_get_datetime)
+    RollDice -> stringResource(R.string.tool_roll_dice)
+    FetchUrl -> stringResource(R.string.tool_fetch_url)
+    RunJavaScript -> stringResource(R.string.tool_run_javascript)
+    FileTools -> stringResource(R.string.tool_files)
+    else -> tool.label
+}
+
+@Composable
+private fun toolSummary(tool: ToolSwitch): String = when (tool) {
+    GetDatetime -> stringResource(R.string.tool_get_datetime_summary)
+    RollDice -> stringResource(R.string.tool_roll_dice_summary)
+    FetchUrl -> stringResource(R.string.tool_fetch_url_summary)
+    RunJavaScript -> stringResource(R.string.tool_run_javascript_summary)
+    FileTools -> stringResource(R.string.tool_files_summary)
+    else -> tool.summary
+}
+
+@StringRes
+private fun effectLabel(effect: ToolEffect): Int = when (effect) {
+    ToolEffect.NETWORK -> R.string.tool_effect_network
+    ToolEffect.WRITES -> R.string.tool_effect_writes
+}
+
+@StringRes
+private fun policyLabel(policy: ToolPolicy): Int = when (policy) {
+    ToolPolicy.OFF -> R.string.tool_policy_off
+    ToolPolicy.ASK -> R.string.tool_policy_ask
+    ToolPolicy.ALLOW -> R.string.tool_policy_allow
 }

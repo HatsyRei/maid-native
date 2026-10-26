@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupPositionProvider
+import com.hatsyrei.maidnative.R
 
 // Roughly what the 320dp menu shows without scrolling.
 private const val SEARCH_THRESHOLD = 8
@@ -73,7 +75,8 @@ internal fun ModelSelector(
     // Re-keys the position provider so the popup re-places itself when the keyboard moves.
     var visibleBottom by remember { mutableIntStateOf(0) }
     val hostView = LocalView.current
-    val label = selected.ifEmpty { "select a model" }
+    val placeholder = stringResource(R.string.chat_select_model)
+    val label = selected.ifEmpty { placeholder }
     Box {
         Surface(
             onClick = {
@@ -135,7 +138,7 @@ internal fun ModelSelector(
             }
             if (shown.isEmpty()) {
                 Text(
-                    text = "No matching models",
+                    text = stringResource(R.string.chat_no_matching_models),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(12.dp),
@@ -206,7 +209,7 @@ private fun ModelSearchField(state: TextFieldState, hostView: View, onFrameChang
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (state.text.isEmpty()) {
                         Text(
-                            text = "Search models",
+                            text = stringResource(R.string.chat_search_models),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.ui.icons.AudiotrackIcon
@@ -87,6 +89,7 @@ internal fun AttachmentViewer(
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(attachment.mime),
     ) { uri -> uri?.let(onSave) }
+    val truncated = stringResource(R.string.attachment_truncated)
 
     ViewerDialog(
         name = attachment.name,
@@ -97,7 +100,7 @@ internal fun AttachmentViewer(
                 onClick = { saveLauncher.launch(attachment.name) },
                 enabled = available,
             ) {
-                Icon(SaveAltIcon, contentDescription = "Save a copy")
+                Icon(SaveAltIcon, contentDescription = stringResource(R.string.attachment_save_copy))
             }
         },
     ) {
@@ -105,7 +108,7 @@ internal fun AttachmentViewer(
             Attachment.Kind.IMAGE -> ImagePane(attachment)
             Attachment.Kind.AUDIO -> AudioPane(attachment)
             Attachment.Kind.TEXT -> TextPane(attachment.path) {
-                withContext(Dispatchers.IO) { readCapped(attachment.path) }
+                withContext(Dispatchers.IO) { readCapped(attachment.path, truncated) }
             }
         }
     }
@@ -167,7 +170,7 @@ private fun ViewerDialog(
                     )
                     actions()
                     IconButton(onClick = onDismiss) {
-                        Icon(CloseIcon, contentDescription = "Close")
+                        Icon(CloseIcon, contentDescription = stringResource(R.string.action_close))
                     }
                 }
             }
@@ -295,7 +298,9 @@ private fun AudioPane(attachment: Attachment) {
                 ) {
                     Icon(
                         if (playing) PauseIcon else Icons.Filled.PlayArrow,
-                        contentDescription = if (playing) "Pause" else "Play",
+                        contentDescription = stringResource(
+                            if (playing) R.string.attachment_pause else R.string.attachment_play,
+                        ),
                         modifier = Modifier.size(32.dp),
                     )
                 }
@@ -344,7 +349,7 @@ private fun TextPane(key: String, load: suspend () -> String?) {
 @Composable
 private fun Missing() {
     Text(
-        text = "This file is no longer available.",
+        text = stringResource(R.string.attachment_missing),
         style = MaterialTheme.typography.bodyMedium,
     )
 }
@@ -364,7 +369,7 @@ private fun decodeCapped(path: String): ImageBitmap? = runCatching {
     BitmapFactory.decodeFile(path, options)?.asImageBitmap()
 }.getOrNull()
 
-private fun readCapped(path: String): String? = runCatching {
+private fun readCapped(path: String, truncatedNote: String): String? = runCatching {
     val file = File(path)
     if (!file.isFile) return null
     val buffer = ByteArray(MAX_PREVIEW_BYTES)
@@ -377,7 +382,7 @@ private fun readCapped(path: String): String? = runCatching {
         }
     }
     val body = buffer.copyOf(read).toString(Charsets.UTF_8)
-    if (file.length() > MAX_PREVIEW_BYTES) "$body\n\n… truncated" else body
+    if (file.length() > MAX_PREVIEW_BYTES) "$body\n\n$truncatedNote" else body
 }.getOrNull()
 
 private const val VIEWER_PX = 1440

@@ -27,7 +27,12 @@ internal fun formatTokensPerSecond(rate: Double): String =
  * no rate either. A stopped reply never shows a rate, and shows a count only
  * where the endpoint had already sent one mid-stream.
  */
-internal fun formatTurnFootnote(stats: TurnStats, content: String): String? {
+internal fun formatTurnFootnote(
+    stats: TurnStats,
+    content: String,
+    tokens: (count: Int, formatted: String) -> String = { _, formatted -> "$formatted tokens" },
+    stopped: String = "stopped",
+): String? {
     val parts = buildList {
         stats.completionTokens?.let {
             val qualifier = when (stats.bound(content)) {
@@ -35,12 +40,12 @@ internal fun formatTurnFootnote(stats: TurnStats, content: String): String? {
                 TurnStats.Bound.AT_MOST -> "\u2264 "
                 TurnStats.Bound.EXACT -> ""
             }
-            add("$qualifier${it.formatted()} tokens")
+            add(qualifier + tokens(it, it.formatted()))
         }
         stats.genMs?.let { add(it.duration()) }
         stats.tokensPerSecond(content)?.let { add(formatTokensPerSecond(it)) }
         // Otherwise a stopped reply reads as a slow one.
-        if (stats.stopped) add("stopped")
+        if (stats.stopped) add(stopped)
     }
     return parts.joinToString(" \u00b7 ").ifEmpty { null }
 }

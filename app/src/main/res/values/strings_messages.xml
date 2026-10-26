@@ -1,0 +1,17 @@
+<resources>
+    <!-- Notices and errors the view model raises. -->
+    <string name="notice_key_cleared_moved">API key cleared: it was saved for %1$s, and this endpoint is somewhere else. Re-enter the key if it belongs here.</string>
+    <string name="notice_key_cleared_scan">API key cleared: it was saved for %1$s, and the scan found a different endpoint.</string>
+    <string name="notice_preset_key_unreadable">\"%1$s\" holds a key this device can no longer decrypt. Re-enter it and save the preset again.</string>
+    <string name="notice_key_insecure">The API key could not be stored securely.</string>
+    <string name="notice_key_save_failed">The API key could not be saved: %1$s</string>
+    <string name="error_image_load">That image could not be loaded.</string>
+    <string name="error_scan_none">No OpenAI-compatible endpoint answered on port %1$s in the local /%2$s.</string>
+    <string name="error_conversation_empty">Conversation is empty.</string>
+    <string name="error_export_failed">Export failed: %1$s</string>
+    <string name="error_backup_failed">Backup failed: %1$s</string>
+    <string name="error_link_failed">That file could not be linked: %1$s</string>
+    <string name="error_file_gone">File is no longer available.</string>
+    <string name="error_save_failed">Save failed: %1$s</string>
+    <string name="error_cleartext_blocked">Blocked: this endpoint uses plain HTTP. Turn on \"Allow HTTP endpoints\" in Settings to use it.</string>
+</resources>

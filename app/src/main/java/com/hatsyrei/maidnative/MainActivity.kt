@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative
 
 import android.content.ComponentCallbacks2
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -22,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hatsyrei.maidnative.data.prefs.AppLocale
 import com.hatsyrei.maidnative.ui.chat.ChatActions
 import com.hatsyrei.maidnative.ui.chat.ChatScreen
 import com.hatsyrei.maidnative.ui.chat.ChatViewModel
@@ -36,6 +38,10 @@ import com.hatsyrei.maidnative.ui.theme.rememberNameplate
 class MainActivity : ComponentActivity() {
 
     private val viewModel: ChatViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

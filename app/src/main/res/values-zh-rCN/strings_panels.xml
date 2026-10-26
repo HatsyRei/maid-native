@@ -1,0 +1,55 @@
+<resources>
+    <!-- Chat drawer -->
+    <string name="drawer_title">会话</string>
+    <string name="drawer_new_chat">新建会话</string>
+    <string name="drawer_default_chat_title">新会话</string>
+    <string name="drawer_empty">暂无会话</string>
+    <string name="drawer_more_actions">更多会话操作</string>
+    <string name="drawer_export_all">导出全部</string>
+    <string name="drawer_properties">属性</string>
+
+    <!-- Chat dialogs -->
+    <string name="dialog_revise_message">修改消息后重发</string>
+    <string name="dialog_edit_message">编辑消息</string>
+    <string name="dialog_send">发送</string>
+
+    <!-- Chat properties -->
+    <string name="properties_conversation_size">上下文大小</string>
+    <string name="properties_average_speed">平均速度</string>
+    <string name="properties_average_response">平均响应时间</string>
+    <string name="properties_time_to_first_token">首个 Token 延迟</string>
+    <string name="properties_linked_files">关联的文件</string>
+    <plurals name="properties_partial_sample">
+        <item quantity="other">平均值来自 %2$d 条回复中的 %1$d 条，其余回复缺少统计信息。</item>
+    </plurals>
+    <string name="properties_size_grown">会话内容比上次计数时增加了，下次回复会更新计数。</string>
+    <string name="properties_size_shrunk">会话内容比上次计数时减少了，下次回复会更新计数。</string>
+    <plurals name="properties_tokens">
+        <item quantity="other">%1$s Token</item>
+    </plurals>
+
+    <!-- Attachment viewer -->
+    <string name="attachment_save_copy">另存副本</string>
+    <string name="attachment_pause">暂停</string>
+    <string name="attachment_play">播放</string>
+    <string name="attachment_missing">此文件已不可用。</string>
+    <string name="attachment_truncated">…（已截断）</string>
+
+    <!-- Tool calls -->
+    <string name="toolcall_allow_all">全部允许（%1$d）</string>
+    <string name="toolcall_dont_ask_again">不再询问</string>
+    <string name="toolcall_running">运行中…</string>
+    <string name="toolcall_hide_result">收起工具结果</string>
+    <string name="toolcall_show_result">展开工具结果</string>
+    <string name="toolcall_arguments">参数</string>
+    <string name="toolcall_result">结果</string>
+    <string name="toolcall_unlink">取消关联 %1$s</string>
+    <string name="toolcall_calls_header">工具调用 · %1$d</string>
+    <string name="toolcall_hide_calls">收起工具调用</string>
+    <string name="toolcall_show_calls">展开工具调用</string>
+    <string name="toolcall_remove_call">移除 %1$s 调用</string>
+    <string name="toolcall_invalid_json">必须是 JSON 对象</string>
+
+    <!-- Common -->
+    <string name="common_dialog_pane_title">对话框</string>
+</resources>

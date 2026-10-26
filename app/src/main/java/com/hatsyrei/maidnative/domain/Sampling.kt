@@ -13,66 +13,51 @@ import kotlin.math.roundToInt
  */
 enum class SamplingParam(
     val wire: String,
-    val label: String,
     val min: Float,
     val max: Float,
     val fallback: Float,
     val integral: Boolean = false,
     /** Outside the OpenAI spec: a strict endpoint rejects the whole request over it. */
     val extension: Boolean = false,
-    /** Kept short enough to fit one line beside the value pill. */
-    val summary: String,
 ) {
     TEMPERATURE(
         wire = "temperature",
-        label = "Temperature",
         min = 0f,
         max = 2f,
         fallback = 0.8f,
-        summary = "Higher is more random.",
     ),
     TOP_P(
         wire = "top_p",
-        label = "Top P",
         min = 0f,
         max = 1f,
         fallback = 0.95f,
-        summary = "Cumulative probability cutoff.",
     ),
     TOP_K(
         wire = "top_k",
-        label = "Top K",
         min = 0f,
         max = 100f,
         fallback = 40f,
         integral = true,
         extension = true,
-        summary = "Sample from the top K tokens.",
     ),
     MIN_P(
         wire = "min_p",
-        label = "Min P",
         min = 0f,
         max = 1f,
         fallback = 0.05f,
         extension = true,
-        summary = "Cutoff relative to the top token.",
     ),
     FREQUENCY_PENALTY(
         wire = "frequency_penalty",
-        label = "Frequency penalty",
         min = -2f,
         max = 2f,
         fallback = 0f,
-        summary = "Discourages frequent repeats.",
     ),
     PRESENCE_PENALTY(
         wire = "presence_penalty",
-        label = "Presence penalty",
         min = -2f,
         max = 2f,
         fallback = 0f,
-        summary = "Nudges toward new topics.",
     ),
     ;
 

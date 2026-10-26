@@ -41,8 +41,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.ui.common.AppDialog
 
 /** Material 200-level tones: bright enough to stay legible on the AMOLED canvas. */
@@ -135,7 +137,7 @@ private fun Swatch(
         if (selected) {
             Icon(
                 Icons.Filled.Check,
-                contentDescription = "Selected",
+                contentDescription = stringResource(R.string.color_selected),
                 tint = if (color.luminance() > 0.45f) Color.Black else Color.White,
                 modifier = Modifier.size(20.dp),
             )
@@ -159,7 +161,7 @@ private fun ColorPickerDialog(
 
     AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Accent colour") },
+        title = { Text(stringResource(R.string.color_picker_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(
@@ -181,8 +183,12 @@ private fun ColorPickerDialog(
                 HueSlider(hue = hue, onChange = { hue = it })
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(color) }) { Text("Select") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(color) }) { Text(stringResource(R.string.color_select)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
     )
 }
 
