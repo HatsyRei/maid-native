@@ -15,8 +15,8 @@ android {
         applicationId = "com.hatsyrei.maidnative"
         minSdk = 26
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.9.0"
+        versionCode = 24
+        versionName = "1.9.1"
 
         // androidx.graphics and DataStore ship small native libs; only arm64 devices are targeted.
         ndk {
