@@ -109,12 +109,13 @@ internal fun MenuOption(
 
 /**
  * The shared popup chrome for every menu in the app: rounded container surface
- * plus the option-list padding. [modifier] sizes (and, for long lists, scrolls)
- * the option column.
+ * plus the option-list padding. [modifier] sizes the whole menu; [header] spans
+ * its full width above the padded options.
  */
 @Composable
 internal fun MenuSurface(
     modifier: Modifier = Modifier,
+    header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -123,10 +124,13 @@ internal fun MenuSurface(
         tonalElevation = 3.dp,
         shadowElevation = 6.dp,
     ) {
-        Column(
-            modifier = modifier.padding(horizontal = 6.dp, vertical = 8.dp),
-            content = content,
-        )
+        Column(modifier) {
+            header?.invoke()
+            Column(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                content = content,
+            )
+        }
     }
 }
 
@@ -264,6 +268,7 @@ internal fun MenuPopup(
     transformOrigin: TransformOrigin,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val visibility = remember { MutableTransitionState(false) }
@@ -283,7 +288,7 @@ internal fun MenuPopup(
             // Hold full size and let the fade carry the exit, then snap back.
             exit = fadeOut(tween(75)) + scaleOut(tween(1, delayMillis = 74), 0.8f, transformOrigin),
         ) {
-            MenuSurface(modifier, content)
+            MenuSurface(modifier, header, content)
         }
     }
 }
