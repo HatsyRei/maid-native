@@ -155,6 +155,7 @@ fun SettingsScreen(
                     label = stringResource(R.string.settings_base_url),
                     onCommit = actions.setBaseURL,
                     modifier = Modifier.weight(1f),
+                    placeholder = "http://127.0.0.1:9931/v1",
                     // A URL is not prose: autocorrect, suggestions and sentence
                     // capitalisation only ever corrupt what the user typed.
                     keyboardOptions = KeyboardOptions(
@@ -461,6 +462,7 @@ internal fun AutoSaveTextField(
     modifier: Modifier = Modifier,
     secure: Boolean = false,
     caretAtStart: Boolean = false,
+    placeholder: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
 ) {
     // Adopt values the store writes behind the field's back (a scan result, a
@@ -517,6 +519,7 @@ internal fun AutoSaveTextField(
         OutlinedTextField(
             state = state,
             label = { Text(label) },
+            placeholder = placeholder?.let { { Text(it) } },
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = keyboardOptions,
             onKeyboardAction = onKeyboardAction,

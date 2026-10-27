@@ -1,6 +1,7 @@
 package com.hatsyrei.maidnative.data.prefs
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.MutablePreferences
@@ -29,7 +30,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "settings",
+    produceMigrations = { listOf(SettingsRepository.PinBaseUrl) },
+)
 
 /** Endpoint/model settings persisted via Jetpack DataStore (replaces the RN app's AsyncStorage + use-stored-* hooks). */
 class SettingsRepository(private val context: Context) {
@@ -127,7 +131,7 @@ class SettingsRepository(private val context: Context) {
             apiKeyUnreadable = apiKey == null,
             // Absent means the user has never been asked. An endpoint that was
             // already configured over HTTP predates the toggle and keeps
-            // working; a fresh install sits on the HTTPS default and starts off.
+            // working; a fresh install has no endpoint yet and starts off.
             allowCleartext = prefs[KEY_ALLOW_CLEARTEXT] ?: Endpoints.isCleartext(baseURL),
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
@@ -485,7 +489,29 @@ class SettingsRepository(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
+        /** No endpoint until the user names one; the field only suggests a local server. */
+        const val DEFAULT_BASE_URL = ""
+
+        /** The default before there was none; installs that never changed it still rely on it. */
+        private const val LEGACY_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
+        /**
+         * Writes the Base URL down once, so changing [DEFAULT_BASE_URL] cannot
+         * silently repoint an install (and the API key bound to its origin).
+         * A store holding any setting predates the empty default and was relying
+         * on [LEGACY_DEFAULT_BASE_URL]; an empty store is a fresh install.
+         */
+        internal val PinBaseUrl = object : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences) = currentData[KEY_BASE_URL] == null
+
+            override suspend fun migrate(currentData: Preferences): Preferences =
+                currentData.toMutablePreferences().apply {
+                    this[KEY_BASE_URL] =
+                        if (currentData.asMap().isEmpty()) DEFAULT_BASE_URL else LEGACY_DEFAULT_BASE_URL
+                }
+
+            override suspend fun cleanUp() = Unit
+        }
         const val DEFAULT_SYSTEM_PROMPT = ConversationDefaults.SYSTEM_PROMPT
 
         const val DEFAULT_USER_NAME = "User"

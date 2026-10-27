@@ -58,7 +58,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 Derived from the current RN app. Each item is a parity target for the native app.
 
 ### 4.1 Endpoint & model
-- [x] OpenAI-compatible base URL (default `https://api.openai.com/v1`), editable, with a reset-to-default button.
+- [x] OpenAI-compatible base URL (default `https://api.openai.com/v1`), editable, with a reset-to-default button. *(Since 2026-10-27 fresh installs start with no endpoint; the field's placeholder suggests `http://127.0.0.1:9931/v1`, and plain HTTP still needs "Allow HTTP endpoints". A one-time DataStore migration pins installs that relied on the old default to it.)*
 - [x] API key (required only for the official OpenAI endpoint; `local-openai-compatible` placeholder allowed otherwise).
 - [–] ~~Custom default headers (key/value map).~~ **Dropped 2026-07-29** — unused in practice. The RN app exposes an editor for it; neither of us has ever populated it. Not worth the settings-screen surface area.
 - [–] ~~Custom request parameters (arbitrary map merged into the completion body; UUID-keyed rows in the editor).~~ **Dropped 2026-07-29** — same reason. Note that `OpenAiClient` still *accepts* a parameters map, so only the editor UI is cancelled; wiring a caller back up later is cheap if a real need appears.
