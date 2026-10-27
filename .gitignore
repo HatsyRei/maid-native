@@ -19,6 +19,7 @@ release/
 # Keystores
 *.jks
 *.keystore
+*.p12
 keystore.properties
 
 # OS / editor cruft

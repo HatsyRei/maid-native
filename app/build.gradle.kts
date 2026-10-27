@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+// Release signing comes from the git-ignored keystore.properties at the repo root
+// (see keystore.properties.example). Without it the release APK is left unsigned,
+// which is what F-Droid's build server expects.
+val keystoreProperties = rootProject.file("keystore.properties").takeIf { it.isFile }?.let { file ->
+    Properties().apply { file.inputStream().use { load(it) } }
 }
 
 android {
@@ -24,12 +33,24 @@ android {
         }
     }
 
+    signingConfigs {
+        if (keystoreProperties != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // Use the auto-generated debug signing key for release builds.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+            // A commit hash stamped into the APK; the source is public anyway.
+            vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -44,6 +65,14 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // AGP otherwise embeds the dependency list in the APK signing block, encrypted
+    // to a Google key and readable only by Play. It is ~8 KB of padding to anyone
+    // else, and F-Droid's scanner rejects it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     // The in-app language switch needs every language in the install, not just the device's.
@@ -63,7 +92,6 @@ android {
                 "DebugProbesKt.bin",
                 "kotlin/**.kotlin_builtins",
                 "META-INF/*.version",
-                "META-INF/version-control-info.textproto",
             )
         }
     }

@@ -159,7 +159,7 @@ local toolchain (falls back to `~/.local/jdks/jdk-21` and `~/android-sdk` if
 ```bash
 ./build.sh            # clean + release APK (same as `./build.sh release`)
 ./build.sh debug      # clean + debug APK -> app/build/outputs/apk/debug/
-./build.sh release    # clean + signed release APK (arm64-v8a, minified)
+./build.sh release    # clean + release APK (arm64-v8a, minified; signed if keystore.properties exists)
 ./build.sh test       # clean + unit tests
 ./build.sh install    # clean + release APK + adb install to a connected device
 ```
@@ -178,17 +178,26 @@ If `ANDROID_HOME` is not exported, create `local.properties`:
 sdk.dir=/home/<you>/android-sdk
 ```
 
-> **Signing note:** the release build is signed with the SDK's auto-generated
-> debug key (`~/.android/debug.keystore`, alias `androiddebugkey`) — see
-> `signingConfig = signingConfigs.getByName("debug")` in `app/build.gradle.kts`.
-> No keystore or credential lives in this repo. Debug and release therefore
-> share one certificate, so you can install one over the other without
-> uninstalling first.
->
-> That key is per-machine, so release APKs built from different clones are not
-> upgrade-compatible, and a debug-signed APK cannot be published to Play. A real
-> release key (path + credentials loaded from a git-ignored `keystore.properties`)
-> would be a prerequisite for distribution.
+### Signing
+
+Release builds are signed only when a git-ignored `keystore.properties` exists at
+the repo root; copy [`keystore.properties.example`](keystore.properties.example)
+and point it at the release keystore. Without it, `assembleRelease` produces an
+unsigned `app-release-unsigned.apk` (which is how F-Droid builds it), and
+`./build.sh install` refuses to run. No keystore or credential lives in this
+repo.
+
+Every release is signed with the same key, so each APK updates the last one in
+place. Its certificate SHA-256 fingerprint is:
+
+```
+2C:32:38:36:47:CE:D7:16:D4:3A:9F:15:A2:39:FE:2F:BD:F0:A7:93:97:28:8C:39:05:26:0C:B8:6C:9E:A0:3E
+```
+
+Check a download with `apksigner verify --print-certs app-release.apk`, or with
+AppVerifier on the device. (The certificate's name reads `CN=Android Debug`
+because the key was first generated as an SDK debug key. It is unique to this
+project; only the name is generic.)
 
 ## Status
 

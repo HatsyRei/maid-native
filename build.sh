@@ -44,6 +44,15 @@ echo "ANDROID_HOME=${ANDROID_HOME:-<unset (relying on local.properties)>}"
 
 # --- Task selection --------------------------------------------------------
 TARGET="${1:-release}"
+
+if [[ ( "$TARGET" == "release" || "$TARGET" == "install" ) && ! -f keystore.properties ]]; then
+  if [[ "$TARGET" == "install" ]]; then
+    echo "keystore.properties is missing: an unsigned APK cannot be installed (see README, Signing)." >&2
+    exit 1
+  fi
+  echo "WARNING: keystore.properties is missing; the release APK will be unsigned." >&2
+fi
+
 case "$TARGET" in
   debug)   GRADLE_TASK="clean :app:assembleDebug" ;;
   release) GRADLE_TASK="clean :app:assembleRelease" ;;
