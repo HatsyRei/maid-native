@@ -69,15 +69,13 @@ echo "==> ./gradlew $GRADLE_TASK --no-daemon"
 ./gradlew $GRADLE_TASK --no-daemon
 
 # --- Signing ---------------------------------------------------------------
-# apksigner rather than AGP, which cannot attach the key-rotation lineage. The
-# signature is v3 only (minSdk 28) and rotated for every supported API level, so
-# installs signed by the original key accept it. Alignment is kept as built, so
-# F-Droid can copy this signature onto its own unsigned build.
+# apksigner signs the APK Gradle built, keeping its alignment so F-Droid can copy
+# the signature onto its own unsigned build.
 prop() { sed -n "s/^$1=//p" keystore.properties | tail -n 1; }
 
 sign_release() {
   local key
-  for key in storeFile storePassword keyAlias keyPassword lineageFile; do
+  for key in storeFile storePassword keyAlias keyPassword; do
     if [[ -z "$(prop "$key")" ]]; then
       echo "keystore.properties has no $key (see keystore.properties.example)." >&2
       exit 1
@@ -93,15 +91,22 @@ sign_release() {
     exit 1
   fi
 
+  # Optional lineageFile: lets installs signed with this project's pre-1.10.1 key
+  # accept the update.
+  local lineage=()
+  if [[ -n "$(prop lineageFile)" ]]; then
+    lineage=(--lineage "$(prop lineageFile)" --rotation-min-sdk-version 28)
+  fi
+
   local out=app/build/outputs/apk/release
   echo "==> apksigner sign $out/app-release.apk"
   KS_PASS="$(prop storePassword)" KEY_PASS="$(prop keyPassword)" "$apksigner" sign \
     --ks "$(prop storeFile)" --ks-key-alias "$(prop keyAlias)" \
     --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
-    --lineage "$(prop lineageFile)" \
+    "${lineage[@]}" \
     --v1-signing-enabled false --v2-signing-enabled false \
     --v3-signing-enabled true --v4-signing-enabled false \
-    --rotation-min-sdk-version 28 --alignment-preserved \
+    --alignment-preserved \
     --out "$out/app-release.apk" "$out/app-release-unsigned.apk"
   "$apksigner" verify --print-certs "$out/app-release.apk" | grep -E 'certificate (DN|SHA-256)'
 }

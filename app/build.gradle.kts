@@ -5,9 +5,7 @@ plugins {
 }
 
 // The release APK is always built unsigned, which is also what F-Droid's build server
-// expects. build.sh signs it with apksigner: AGP cannot attach the key-rotation
-// lineage, and an APK signed by the current key without it would not update installs
-// signed by the original one.
+// expects; build.sh signs it with apksigner.
 android {
     namespace = "com.hatsyrei.maidnative"
     // 37 is the floor imposed by markdown-renderer since 0.43.0. targetSdk stays at 36
@@ -17,7 +15,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hatsyrei.maidnative"
-        // 28 is the floor for a v3-only signature, which carries the key-rotation lineage.
+        // 28: release APKs carry only a v3 signature (see build.sh).
         minSdk = 28
         targetSdk = 36
         versionCode = 26
