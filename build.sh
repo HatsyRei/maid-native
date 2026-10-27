@@ -3,7 +3,7 @@
 # Clean build helper for the Maid Native experimental app.
 #
 # Usage:
-#   ./build.sh              # clean + assemble signed release APK (default)
+#   ./build.sh              # clean + assemble and sign the release APK (default)
 #   ./build.sh debug        # clean + assemble debug APK
 #   ./build.sh test         # clean + run unit tests
 #   ./build.sh install      # clean + assemble release + install to a connected device
@@ -67,6 +67,48 @@ esac
 echo "==> ./gradlew $GRADLE_TASK --no-daemon"
 # shellcheck disable=SC2086
 ./gradlew $GRADLE_TASK --no-daemon
+
+# --- Signing ---------------------------------------------------------------
+# apksigner rather than AGP, which cannot attach the key-rotation lineage. The
+# signature is v3 only (minSdk 28) and rotated for every supported API level, so
+# installs signed by the original key accept it. Alignment is kept as built, so
+# F-Droid can copy this signature onto its own unsigned build.
+prop() { sed -n "s/^$1=//p" keystore.properties | tail -n 1; }
+
+sign_release() {
+  local key
+  for key in storeFile storePassword keyAlias keyPassword lineageFile; do
+    if [[ -z "$(prop "$key")" ]]; then
+      echo "keystore.properties has no $key (see keystore.properties.example)." >&2
+      exit 1
+    fi
+  done
+
+  local sdk="${ANDROID_HOME:-}"
+  [[ -n "$sdk" ]] || sdk="$(sed -n 's/^sdk\.dir=//p' local.properties 2>/dev/null)"
+  local apksigner
+  apksigner="$(ls -d "$sdk"/build-tools/*/ 2>/dev/null | sort -V | tail -n 1)apksigner"
+  if [[ ! -x "$apksigner" ]]; then
+    echo "apksigner not found under $sdk/build-tools." >&2
+    exit 1
+  fi
+
+  local out=app/build/outputs/apk/release
+  echo "==> apksigner sign $out/app-release.apk"
+  KS_PASS="$(prop storePassword)" KEY_PASS="$(prop keyPassword)" "$apksigner" sign \
+    --ks "$(prop storeFile)" --ks-key-alias "$(prop keyAlias)" \
+    --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+    --lineage "$(prop lineageFile)" \
+    --v1-signing-enabled false --v2-signing-enabled false \
+    --v3-signing-enabled true --v4-signing-enabled false \
+    --rotation-min-sdk-version 28 --alignment-preserved \
+    --out "$out/app-release.apk" "$out/app-release-unsigned.apk"
+  "$apksigner" verify --print-certs "$out/app-release.apk" | grep -E 'certificate (DN|SHA-256)'
+}
+
+if [[ ( "$TARGET" == "release" || "$TARGET" == "install" ) && -f keystore.properties ]]; then
+  sign_release
+fi
 
 # --- Post-build ------------------------------------------------------------
 if [[ "$TARGET" == "install" ]]; then

@@ -1,0 +1,2 @@
+- New signing key, with a proof of rotation from the old one built into the APK, so existing installs update in place. The new fingerprint is listed in the README.
+- Android 9 or newer is now required (was Android 8).

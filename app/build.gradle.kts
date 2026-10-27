@@ -1,18 +1,13 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
 
-// Release signing comes from the git-ignored keystore.properties at the repo root
-// (see keystore.properties.example). Without it the release APK is left unsigned,
-// which is what F-Droid's build server expects.
-val keystoreProperties = rootProject.file("keystore.properties").takeIf { it.isFile }?.let { file ->
-    Properties().apply { file.inputStream().use { load(it) } }
-}
-
+// The release APK is always built unsigned, which is also what F-Droid's build server
+// expects. build.sh signs it with apksigner: AGP cannot attach the key-rotation
+// lineage, and an APK signed by the current key without it would not update installs
+// signed by the original one.
 android {
     namespace = "com.hatsyrei.maidnative"
     // 37 is the floor imposed by markdown-renderer since 0.43.0. targetSdk stays at 36
@@ -22,10 +17,11 @@ android {
 
     defaultConfig {
         applicationId = "com.hatsyrei.maidnative"
-        minSdk = 26
+        // 28 is the floor for a v3-only signature, which carries the key-rotation lineage.
+        minSdk = 28
         targetSdk = 36
-        versionCode = 25
-        versionName = "1.10.0"
+        versionCode = 26
+        versionName = "1.10.1"
 
         // androidx.graphics and DataStore ship small native libs; only arm64 devices are targeted.
         ndk {
@@ -33,22 +29,10 @@ android {
         }
     }
 
-    signingConfigs {
-        if (keystoreProperties != null) {
-            create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.findByName("release")
             // A commit hash stamped into the APK; the source is public anyway.
             vcsInfo.include = false
             proguardFiles(
@@ -86,6 +70,11 @@ android {
     }
 
     packaging {
+        // AGP stores dex uncompressed from minSdk 28 on, which nearly doubles the
+        // download (APKs are fetched as-is from GitHub and F-Droid). Keep it compressed.
+        dex {
+            useLegacyPackaging = true
+        }
         resources {
             // Coroutines debug agent, kotlin-reflect metadata and library version stamps: unused at runtime.
             excludes += listOf(

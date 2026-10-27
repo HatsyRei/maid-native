@@ -169,7 +169,7 @@ Or drive Gradle directly:
 ```bash
 ./gradlew assembleDebug      # debug APK -> app/build/outputs/apk/debug/
 ./gradlew installDebug       # install to a connected device/emulator
-./gradlew assembleRelease    # release APK (minified, arm64-v8a only)
+./gradlew assembleRelease    # unsigned release APK (minified, arm64-v8a only)
 ```
 
 If `ANDROID_HOME` is not exported, create `local.properties`:
@@ -180,24 +180,36 @@ sdk.dir=/home/<you>/android-sdk
 
 ### Signing
 
-Release builds are signed only when a git-ignored `keystore.properties` exists at
-the repo root; copy [`keystore.properties.example`](keystore.properties.example)
-and point it at the release keystore. Without it, `assembleRelease` produces an
-unsigned `app-release-unsigned.apk` (which is how F-Droid builds it), and
-`./build.sh install` refuses to run. No keystore or credential lives in this
-repo.
+Gradle always builds the release APK unsigned (which is how F-Droid builds it);
+`./build.sh release` then signs it with `apksigner`, when a git-ignored
+`keystore.properties` exists at the repo root. Copy
+[`keystore.properties.example`](keystore.properties.example) and point it at the
+release keystore and its rotation lineage. Without it the release APK stays
+unsigned, and `./build.sh install` refuses to run. No keystore or credential
+lives in this repo.
 
-Every release is signed with the same key, so each APK updates the last one in
-place. Its certificate SHA-256 fingerprint is:
+Every release is signed so that each APK updates the last one in place. Since
+1.10.1 the signing certificate's SHA-256 fingerprint is:
+
+```
+9B:67:9E:75:9B:F8:50:90:53:ED:F2:5B:60:3C:D7:69:1D:4C:77:87:0A:30:2E:D7:4F:26:EE:92:2D:4A:E6:BC
+```
+
+Releases up to 1.10.0 were signed with an earlier key, whose certificate was
+named `CN=Android Debug` because it was first generated as an SDK debug key:
 
 ```
 2C:32:38:36:47:CE:D7:16:D4:3A:9F:15:A2:39:FE:2F:BD:F0:A7:93:97:28:8C:39:05:26:0C:B8:6C:9E:A0:3E
 ```
 
-Check a download with `apksigner verify --print-certs app-release.apk`, or with
-AppVerifier on the device. (The certificate's name reads `CN=Android Debug`
-because the key was first generated as an SDK debug key. It is unique to this
-project; only the name is generic.)
+That key signed a proof of rotation to the current one, embedded in every APK
+from 1.10.1 on (APK Signature Scheme v3), so existing installs update without
+reinstalling. This is also why the minimum Android version is 9 (API 28): a
+v3-only signature is what lets the rotation apply on every supported device.
+
+Check a download with `apksigner verify --print-certs app-release.apk` (and
+`apksigner lineage --in app-release.apk --print-certs` for the rotation), or with
+AppVerifier on the device.
 
 ## Status
 
