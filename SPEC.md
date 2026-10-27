@@ -48,7 +48,7 @@ Target: native Android (Kotlin + Jetpack Compose), Android-only, side-by-side wi
 ### Toolchain (prototype, verified locally)
 - JDK 21 (`~/.local/jdks/jdk-21`), compiling to JVM 17 bytecode (no separate toolchain provisioning).
 - Android SDK: compileSdk **37**, targetSdk **36**, minSdk **26** (the floor of `androidx.javascriptengine`, used by the JavaScript tool). compileSdk is the floor imposed by markdown-renderer `0.46.0`; targetSdk is held at 36 deliberately, since compiling against newer APIs is independent of opting in to new runtime behaviour.
-- Gradle **9.8.1**, AGP **9.4.1**, Kotlin **2.4.21**, KSP **2.3.12**, Compose BOM **2026.09.00**, Room **2.8.5**, OkHttp **5.5.0**.
+- Gradle **9.8.2**, AGP **9.4.1**, Kotlin **2.4.21**, KSP **2.3.12**, Compose BOM **2026.09.00**, Room **2.8.5**, OkHttp **5.5.1**.
 - AGP 9 supplies **built-in Kotlin**, so `org.jetbrains.kotlin.android` is no longer applied (it is incompatible with AGP 9's new DSL). AGP pins KGP/KSP to its own baseline, so our higher versions are declared on the root `buildscript` classpath (`kotlin-gradle-plugin`, `symbol-processing-gradle-plugin`).
 - `androidx.compose.material:material-icons-core` is now an explicit dependency; recent `material3` no longer brings it in transitively.
 - `applicationId = com.hatsyrei.maidnative` (distinct from `com.hatsyrei.maid`) → installs **side-by-side**.
@@ -151,7 +151,7 @@ None of these block the sign-off above; each is either an enhancement beyond RN 
 - **Tree logic regressions** — mitigate with test-first port (M1).
 - **Markdown fidelity** — Markwon vs Compose renderer differ from the RN lib; budget a styling pass.
 - **SSE edge cases** — reconnect/retry/`[DONE]`/partial-chunk framing re-owned; cover with tests against a mock server.
-- **Version drift** — AGP/Gradle/Compose pinned in `gradle/libs.versions.toml`; upgrades are deliberate.
+- **Version drift** — Gradle pinned in `gradle/wrapper/gradle-wrapper.properties`, AGP/Compose and libraries in `gradle/libs.versions.toml`; upgrades are deliberate.
 
 ## 9. Prototype build/deploy
 
@@ -245,6 +245,7 @@ Concrete bugs and visual-parity gaps noted while exercising the prototype on-dev
   - **UI.** A waiting call's row opens with its arguments (pretty-printed), a **Don't ask again** checkbox and **Deny** / **Allow**; two or more waiting add **Allow all (n)**. Deny returns `{"error": "The user declined this call"}` as the call's result, which is all that records it: the row is otherwise a normal finished call, so expanding it shows the denial and **Modify** can still edit it. **Don't ask again** sets the tool to Allow in Settings (for MCP, adds it to `trustedTools`), stops asking for it for the rest of the reply, and allows its other waiting calls. Stop drops waiting calls with their markers, like running ones.
 
 ### Dependencies / tech debt
+- [x] **Dependency refresh — 2026-10-27.** Gradle `9.8.1` → `9.8.2`, DataStore `1.2.1` → `1.3.0`, OkHttp `5.5.0` → `5.5.1`. No source changes. AGP stays on `9.4.1`: `9.5.0` is not on Google Maven yet (latest is `9.5.0-rc02`). Everything else was already on the latest stable release.
 - [x] **Dependency refresh — 2026-10-17.** Gradle `9.8.0` → `9.8.1`, Kotlin `2.4.20` → `2.4.21`, markdown-renderer `0.45.0` → `0.46.0`, Coil `3.6.0` → `3.6.3` (now what markdown-renderer-coil3 `0.46.0` resolves). Everything else was already on the latest stable release.
 - [x] **Dependency refresh — 2026-10-05.** Gradle `9.7.1` → `9.8.0`, Compose BOM `2026.08.00` → `2026.09.00`, `core-ktx` `1.19.0` → `1.19.1`, Room `2.8.4` → `2.8.5`, org.json (tests) `20250517` → `20260814`. No source changes. Coil stays on `3.6.0` (`3.6.3` exists) because markdown-renderer-coil3 `0.45.0` still resolves `3.6.0`, and bumping `coil-network-okhttp` alone would mix Coil module versions. Everything else was already on the latest stable release.
 - [x] **Dependency refresh to current stable — 1.4.3 (2026-08-25).** Everything moved to its latest *stable* release: Gradle `9.5.0` → `9.7.1`, AGP `9.3.1` → `9.3.2`, KSP `2.3.10` → `2.3.11`, Compose BOM `2026.06.01` → `2026.08.00`, coroutines `1.9.0` → `1.11.0`, DataStore `1.1.1` → `1.2.1`, OkHttp `4.12.0` → `5.5.0`, markdown-renderer `0.43.0` → `0.44.0`. Kotlin `2.4.10`, Room `2.8.4`, `core-ktx 1.19.0`, `lifecycle 2.11.0`, `activity-compose 1.13.0` were already current. Nothing prerelease was taken, which is why AGP stays on `9.3.x` (`9.4.0-rc01`/`9.5.0-alpha` exist), material3 on `1.4.0` (`1.5.0` is alpha-only) and DataStore on `1.2.x` (`1.3.0` is alpha-only).
