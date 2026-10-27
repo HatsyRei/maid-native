@@ -18,8 +18,8 @@ server.
 <tr>
 <td width="25%"><a href="docs/screenshots/chat-multimodal.png"><img src="docs/screenshots/chat-multimodal.png" width="100%" alt="Chat with an image attachment, a Markdown reply and its generation-stats footnote" /></a></td>
 <td width="25%"><a href="docs/screenshots/drawer.png"><img src="docs/screenshots/drawer.png" width="100%" alt="Chat drawer with saved conversations, a New chat action and an overflow menu" /></a></td>
-<td width="25%"><a href="docs/screenshots/settings-endpoint.png"><img src="docs/screenshots/settings-endpoint.png" width="100%" alt="Endpoint, model, sampling and thinking settings" /></a></td>
-<td width="25%"><a href="docs/screenshots/settings-theme.png"><img src="docs/screenshots/settings-theme.png" width="100%" alt="Theme accent, composer background and profile settings" /></a></td>
+<td width="25%"><a href="docs/screenshots/settings-endpoint.png"><img src="docs/screenshots/settings-endpoint.png" width="100%" alt="Endpoint, model, sampling, penalty, tools, MCP and thinking settings" /></a></td>
+<td width="25%"><a href="docs/screenshots/settings-theme.png"><img src="docs/screenshots/settings-theme.png" width="100%" alt="App language, accent, composer background and profile settings" /></a></td>
 </tr>
 <tr>
 <td align="center"><sub><b>Multimodal chat</b></sub></td>
