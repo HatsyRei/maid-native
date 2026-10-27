@@ -1,0 +1,4 @@
+- New installs start without an endpoint: enter your server's Base URL in Settings. Existing setups are unchanged.
+- Release APKs no longer carry Google's encrypted dependency list (~8 KB smaller).
+- The signing certificate fingerprint is now listed in the README, so downloads can be verified.
+- Updated Gradle, DataStore and OkHttp.
