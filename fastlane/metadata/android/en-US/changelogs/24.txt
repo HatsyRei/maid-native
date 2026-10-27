@@ -1,0 +1,3 @@
+- Model picker shows a search bar when the endpoint returns more than 8 models.
+- App language: Simplified Chinese is now available, thanks to @billertwerson-gif.
+- Minor jank fixes.

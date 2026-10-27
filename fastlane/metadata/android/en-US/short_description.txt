@@ -1,0 +1,1 @@
+Lightweight chat client for llama.cpp and other OpenAI-compatible servers
