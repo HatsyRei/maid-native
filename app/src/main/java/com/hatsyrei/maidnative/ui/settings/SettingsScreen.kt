@@ -238,7 +238,14 @@ fun SettingsScreen(
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
-                    onClick = actions.refreshModels,
+                    onClick = {
+                        // An uncommitted edit refetches by itself once its write lands;
+                        // fetching now would still hit the old endpoint.
+                        val pending = baseURL.text.toString().trim() != state.settings.baseURL ||
+                            apiKey.text.toString() != state.settings.apiKey
+                        focusManager.clearFocus()
+                        if (!pending) actions.refreshModels()
+                    },
                     enabled = !state.refreshingModels,
                     label = { Text(stringResource(R.string.settings_refresh_models)) },
                     leadingIcon = {
