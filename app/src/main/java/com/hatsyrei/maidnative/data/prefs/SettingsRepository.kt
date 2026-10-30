@@ -129,10 +129,7 @@ class SettingsRepository(private val context: Context) {
             baseURL = baseURL,
             apiKey = apiKey ?: "",
             apiKeyUnreadable = apiKey == null,
-            // Absent means the user has never been asked. An endpoint that was
-            // already configured over HTTP predates the toggle and keeps
-            // working; a fresh install has no endpoint yet and starts off.
-            allowCleartext = prefs[KEY_ALLOW_CLEARTEXT] ?: Endpoints.isCleartext(baseURL),
+            allowCleartext = prefs[KEY_ALLOW_CLEARTEXT] ?: false,
             model = prefs[KEY_MODEL] ?: "",
             systemPrompt = prefs[KEY_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT,
             reasoning = prefs[KEY_REASONING] ?: true,
