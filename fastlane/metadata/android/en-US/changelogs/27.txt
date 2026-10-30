@@ -1,0 +1,2 @@
+- "Allow HTTP endpoints" now stays off until you turn it on, even after typing an http:// Base URL. Setups that relied on it being on by default need to turn it on once.
+- Refresh models now uses the Base URL and API key as typed, even when the keyboard was closed with Back.
