@@ -257,11 +257,9 @@ fun ChatScreen(
             // Keyed on the tree, so a streamed token (which replaces the state
             // object but not `mappings`) cannot re-run the scan, and the chat
             // the user never inspects is never scanned at all.
-            val stats = remember(state.mappings, current.id) {
-                ChatStats.of(MessageTree.getConversation(state.mappings, current.id))
-            }
-            val files = remember(state.mappings, current.id) {
-                LinkedFileStore.inThread(MessageTree.getConversation(state.mappings, current.id))
+            val (stats, files) = remember(state.mappings, current.id) {
+                val thread = MessageTree.getConversation(state.mappings, current.id)
+                ChatStats.of(thread) to LinkedFileStore.inThread(thread)
             }
             ChatPropertiesDialog(
                 title = current.title,
