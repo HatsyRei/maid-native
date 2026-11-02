@@ -2,6 +2,7 @@ package com.hatsyrei.maidnative.domain.tools
 
 import androidx.compose.runtime.Immutable
 import com.hatsyrei.maidnative.data.optStringOrNull
+import com.hatsyrei.maidnative.data.remote.Endpoints
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -29,6 +30,9 @@ data class McpServer(
     val trustedTools: Set<String> = emptySet(),
 ) {
     val prefix: String get() = Mcp.prefix(name)
+
+    /** Plain HTTP, which "Allow HTTP endpoints" governs as it does the chat endpoint. */
+    val cleartext: Boolean get() = Endpoints.isCleartext(url)
 
     fun policy(tool: String): ToolPolicy = when {
         tool in disabledTools -> ToolPolicy.OFF
@@ -99,18 +103,20 @@ object Mcp {
     }
 
     /** The tools [servers] offer: enabled servers, less the tools switched off. */
-    fun tools(servers: List<McpServer>, caller: McpCaller): List<Tool> = offered(servers)
-        .map { (server, info) -> McpTool(server, info, caller) }
-        .distinctBy { it.name }
+    fun tools(servers: List<McpServer>, allowCleartext: Boolean, caller: McpCaller): List<Tool> =
+        offered(servers, allowCleartext)
+            .map { (server, info) -> McpTool(server, info, caller) }
+            .distinctBy { it.name }
 
     /** The offered tools that wait for the user, by the name the model calls them: server id to server-side name. */
-    fun asking(servers: List<McpServer>): Map<String, Pair<String, String>> = offered(servers)
-        .filter { (server, info) -> server.policy(info.name) == ToolPolicy.ASK }
-        .associate { (server, info) -> toolName(server.prefix, info.name) to (server.id to info.name) }
+    fun asking(servers: List<McpServer>, allowCleartext: Boolean): Map<String, Pair<String, String>> =
+        offered(servers, allowCleartext)
+            .filter { (server, info) -> server.policy(info.name) == ToolPolicy.ASK }
+            .associate { (server, info) -> toolName(server.prefix, info.name) to (server.id to info.name) }
 
-    private fun offered(servers: List<McpServer>): List<Pair<McpServer, McpToolInfo>> = servers
+    private fun offered(servers: List<McpServer>, allowCleartext: Boolean): List<Pair<McpServer, McpToolInfo>> = servers
         // A token that can't be decrypted would turn into unauthenticated requests.
-        .filter { it.enabled && it.tokenReadable }
+        .filter { it.enabled && it.tokenReadable && (allowCleartext || !it.cleartext) }
         .flatMap { server ->
             server.tools.filter { it.name !in server.disabledTools }.map { server to it }
         }

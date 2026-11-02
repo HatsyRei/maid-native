@@ -47,14 +47,27 @@ class McpTest {
         val on = server("Dice", dice, weather).copy(disabledTools = setOf("get_weather"))
         val off = server("Other").copy(enabled = false)
         val locked = server("Locked").copy(tokenReadable = false)
-        val names = Mcp.tools(listOf(on, off, locked)) { _, _, _ -> JSONObject() }.map { it.name }
+        val names = Mcp.tools(listOf(on, off, locked), allowCleartext = true) { _, _, _ -> JSONObject() }.map { it.name }
         assertEquals(listOf("dice__roll_d20"), names)
+    }
+
+    @Test
+    fun `plain HTTP servers are offered only when HTTP is allowed, loopback included`() {
+        val local = server("Local")
+        val remote = server("Remote").copy(url = "https://mcp.example.com/mcp")
+        val none = McpCaller { _, _, _ -> JSONObject() }
+        assertEquals(listOf("remote__roll_d20"), Mcp.tools(listOf(local, remote), allowCleartext = false, none).map { it.name })
+        assertEquals(
+            listOf("local__roll_d20", "remote__roll_d20"),
+            Mcp.tools(listOf(local, remote), allowCleartext = true, none).map { it.name },
+        )
+        assertEquals(setOf("remote__roll_d20"), Mcp.asking(listOf(local, remote), allowCleartext = false).keys)
     }
 
     @Test
     fun `a call goes to the server under the tool's own name`() = runBlocking {
         var called: Pair<String, String>? = null
-        val tool = Mcp.tools(listOf(server())) { s, name, args ->
+        val tool = Mcp.tools(listOf(server()), allowCleartext = true) { s, name, args ->
             called = s.id to name + args
             JSONObject().put("content", JSONArray().put(JSONObject().put("type", "text").put("text", "17")))
         }.single()
@@ -72,13 +85,13 @@ class McpTest {
         assertEquals(ToolPolicy.ASK, server.policy("roll_d20"))
         assertEquals(ToolPolicy.ALLOW, server.policy("get_weather"))
         assertEquals(ToolPolicy.OFF, server.policy("off"))
-        assertEquals(mapOf("dice__roll_d20" to ("Dice" to "roll_d20")), Mcp.asking(listOf(server)))
+        assertEquals(mapOf("dice__roll_d20" to ("Dice" to "roll_d20")), Mcp.asking(listOf(server), allowCleartext = true))
 
         val trusted = server.copy(trusted = true)
         assertEquals(ToolPolicy.ALLOW, trusted.policy("roll_d20"))
         assertEquals(ToolPolicy.OFF, trusted.policy("off"))
-        assertTrue(Mcp.asking(listOf(trusted)).isEmpty())
-        assertTrue(Mcp.asking(listOf(server.copy(enabled = false))).isEmpty())
+        assertTrue(Mcp.asking(listOf(trusted), allowCleartext = true).isEmpty())
+        assertTrue(Mcp.asking(listOf(server.copy(enabled = false)), allowCleartext = true).isEmpty())
     }
 
     @Test
@@ -113,7 +126,7 @@ class McpTest {
 
     @Test
     fun `an error result reaches the model as an error`(): Unit = runBlocking {
-        val tool = Mcp.tools(listOf(server())) { _, _, _ ->
+        val tool = Mcp.tools(listOf(server()), allowCleartext = true) { _, _, _ ->
             JSONObject()
                 .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", "Unknown tool: nope")))
                 .put("isError", true)

@@ -30,6 +30,7 @@ import com.hatsyrei.maidnative.domain.tools.FileTools
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.LinkedFileStore
 import com.hatsyrei.maidnative.domain.tools.Mcp
+import com.hatsyrei.maidnative.domain.tools.McpException
 import com.hatsyrei.maidnative.domain.tools.McpServer
 import com.hatsyrei.maidnative.domain.tools.McpToolInfo
 import com.hatsyrei.maidnative.domain.tools.RunJavaScript
@@ -332,7 +333,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * True when [url] is plain HTTP and the user has not allowed that.
      *
-     * Only [refreshModels] consults this. Configuring an endpoint — typing one,
+     * Consulted only where an endpoint is contacted: [refreshModels] and
+     * [listMcpTools] (requests leave out such MCP servers' tools the same way).
+     * Configuring an endpoint — typing one,
      * applying a preset, adopting a scan result — is always allowed to succeed,
      * so the app never silently discards a URL the user asked for; the refusal
      * lands once, at the point the endpoint is actually contacted, where the
@@ -371,8 +374,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun setMcpServers(servers: List<McpServer>) =
         viewModelScope.launch { guardCredentials { settingsRepo.setMcpServers(servers) } }
 
-    /** For the server dialog, which shows what failed; throws rather than reporting through [state]. */
-    suspend fun listMcpTools(url: String, token: String): List<McpToolInfo> = mcp.listTools(url, token)
+    /**
+     * For the server dialog, which shows what failed; throws rather than reporting through [state].
+     * A plain HTTP server is refused here just as [refreshModels] refuses the chat endpoint.
+     */
+    suspend fun listMcpTools(url: String, token: String): List<McpToolInfo> {
+        if (cleartextBlocked(url)) throw McpException(text(R.string.mcp_url_cleartext_blocked))
+        return mcp.listTools(url, token)
+    }
 
     fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
@@ -895,12 +904,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         askTargets = buildMap {
             builtIns.filter { it.name in s.askTools }.forEach { put(it.name, AskTarget.Switch(it.name)) }
             if (FileTools.name in s.askTools) fileTools.forEach { put(it.name, AskTarget.Switch(FileTools.name)) }
-            Mcp.asking(servers).forEach { (name, owner) -> put(name, AskTarget.Server(owner.first, owner.second)) }
+            Mcp.asking(servers, s.allowCleartext).forEach { (name, owner) ->
+                put(name, AskTarget.Server(owner.first, owner.second))
+            }
         }
         stream.start(
             config = OpenAiClient.Config(s.baseURL, s.apiKey, s.model, s.reasoning, s.sampling),
             conversation = conversation,
-            tools = builtIns + Mcp.tools(servers, mcp) + fileTools,
+            tools = builtIns + Mcp.tools(servers, s.allowCleartext, mcp) + fileTools,
             ask = askTargets.keys,
             onUpdate = { update ->
                 _streaming.update { live ->

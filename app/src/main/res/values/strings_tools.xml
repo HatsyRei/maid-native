@@ -57,7 +57,8 @@
     <string name="mcp_prefix_hint">Tools are prefixed with %1$s__</string>
     <string name="mcp_url" translatable="false">URL</string>
     <string name="mcp_url_invalid">Enter an http or https URL</string>
-    <string name="mcp_url_unencrypted">Unencrypted: trusted networks only</string>
+    <string name="mcp_url_cleartext_blocked">HTTP is off in Settings</string>
+    <string name="mcp_http_blocked_short">HTTP is off</string>
     <string name="mcp_bearer_token">Bearer token (optional)</string>
     <string name="mcp_token_unreadable">The saved token can\'t be decrypted. Enter it again.</string>
     <string name="mcp_connect">Connect</string>

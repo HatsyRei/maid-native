@@ -392,6 +392,7 @@ fun SettingsScreen(
     if (showMcp) {
         McpDialog(
             servers = mcpServers,
+            allowCleartext = state.settings.allowCleartext,
             listTools = actions.listMcpTools,
             onSave = actions.setMcpServers,
             onDismiss = { showMcp = false },

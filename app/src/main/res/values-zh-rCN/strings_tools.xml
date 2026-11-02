@@ -48,7 +48,8 @@
     <string name="mcp_name_taken">已有服务器使用此名称</string>
     <string name="mcp_prefix_hint">工具名称将带有 %1$s__ 前缀</string>
     <string name="mcp_url_invalid">请输入 http 或 https URL</string>
-    <string name="mcp_url_unencrypted">未加密：仅用于可信网络</string>
+    <string name="mcp_url_cleartext_blocked">设置中已关闭 HTTP</string>
+    <string name="mcp_http_blocked_short">HTTP 已关闭</string>
     <string name="mcp_bearer_token">Bearer 令牌（可选）</string>
     <string name="mcp_token_unreadable">保存的访问令牌无法解密，请重新输入。</string>
     <string name="mcp_connect">连接</string>

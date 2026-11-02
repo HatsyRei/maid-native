@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.R
+import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.domain.tools.Mcp
 import com.hatsyrei.maidnative.domain.tools.McpServer
 import com.hatsyrei.maidnative.domain.tools.McpToolInfo
@@ -92,6 +93,7 @@ internal fun McpChip(servers: List<McpServer>, onClick: () -> Unit) {
 @Composable
 internal fun McpDialog(
     servers: List<McpServer>,
+    allowCleartext: Boolean,
     listTools: suspend (url: String, token: String) -> List<McpToolInfo>,
     onSave: (List<McpServer>) -> Unit,
     onDismiss: () -> Unit,
@@ -112,6 +114,7 @@ internal fun McpDialog(
         McpServerDialog(
             server = server,
             isNew = saved.none { it.id == server.id },
+            allowCleartext = allowCleartext,
             takenPrefixes = saved.filter { it.id != server.id }.mapTo(HashSet()) { it.prefix },
             listTools = listTools,
             onDismiss = { editing = null },
@@ -159,6 +162,7 @@ internal fun McpDialog(
                 saved.forEach { server ->
                     ServerRow(
                         server = server,
+                        blocked = server.cleartext && !allowCleartext,
                         enabled = toggles[server.id] ?: server.enabled,
                         onToggle = { on -> toggles = toggles + (server.id to on) },
                         onEdit = { editing = server },
@@ -195,7 +199,13 @@ internal fun McpDialog(
 }
 
 @Composable
-private fun ServerRow(server: McpServer, enabled: Boolean, onToggle: (Boolean) -> Unit, onEdit: () -> Unit) {
+private fun ServerRow(
+    server: McpServer,
+    blocked: Boolean,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val on = server.tools.count { it.name !in server.disabledTools }
     Row(
@@ -214,14 +224,16 @@ private fun ServerRow(server: McpServer, enabled: Boolean, onToggle: (Boolean) -
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            // Either keeps the server out of requests, so it reads as an error, not a tool count.
+            val problem = when {
+                !server.tokenReadable -> stringResource(R.string.mcp_token_unreadable_short)
+                blocked -> stringResource(R.string.mcp_http_blocked_short)
+                else -> null
+            }
             Text(
-                if (server.tokenReadable) {
-                    pluralStringResource(R.plurals.mcp_server_tools, server.tools.size, on, server.tools.size)
-                } else {
-                    stringResource(R.string.mcp_token_unreadable_short)
-                },
+                problem ?: pluralStringResource(R.plurals.mcp_server_tools, server.tools.size, on, server.tools.size),
                 style = MaterialTheme.typography.bodySmall,
-                color = if (server.tokenReadable) colors.onSurfaceVariant else colors.error,
+                color = if (problem == null) colors.onSurfaceVariant else colors.error,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -234,6 +246,7 @@ private fun ServerRow(server: McpServer, enabled: Boolean, onToggle: (Boolean) -
 private fun McpServerDialog(
     server: McpServer,
     isNew: Boolean,
+    allowCleartext: Boolean,
     takenPrefixes: Set<String>,
     listTools: suspend (url: String, token: String) -> List<McpToolInfo>,
     onDismiss: () -> Unit,
@@ -262,6 +275,7 @@ private fun McpServerDialog(
     val prefix = Mcp.prefix(newName)
     val nameTaken = newName.isNotEmpty() && prefix in takenPrefixes
     val parsedUrl = newUrl.toHttpUrlOrNull()
+    val blocked = !allowCleartext && Endpoints.isCleartext(newUrl)
     val listed = listedFor == (newUrl to newToken)
     val colors = MaterialTheme.colorScheme
 
@@ -291,7 +305,10 @@ private fun McpServerDialog(
     // Like the models list: fetched when the endpoint is committed, never retried on its own.
     fun commit() {
         val target = current()
-        if (target != attempted && target.first.toHttpUrlOrNull() != null) connect()
+        if (target == attempted || target.first.toHttpUrlOrNull() == null) return
+        // The URL field already says why; nothing is sent, the token least of all.
+        if (!allowCleartext && Endpoints.isCleartext(target.first)) return
+        connect()
     }
 
     AppDialog(
@@ -303,7 +320,7 @@ private fun McpServerDialog(
             val nameTakenHint = stringResource(R.string.mcp_name_taken)
             val prefixHint = stringResource(R.string.mcp_prefix_hint, prefix)
             val invalidUrlHint = stringResource(R.string.mcp_url_invalid)
-            val unencryptedHint = stringResource(R.string.mcp_url_unencrypted)
+            val blockedHint = stringResource(R.string.mcp_url_cleartext_blocked)
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 // A tap on empty space drops focus, as in Settings. Runs after any child handles the tap.
@@ -327,7 +344,7 @@ private fun McpServerDialog(
                     label = { Text(stringResource(R.string.mcp_url)) },
                     placeholder = { Text("http://127.0.0.1:8000/mcp") },
                     lineLimits = TextFieldLineLimits.SingleLine,
-                    isError = newUrl.isNotEmpty() && parsedUrl == null,
+                    isError = (newUrl.isNotEmpty() && parsedUrl == null) || blocked,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         autoCorrectEnabled = false,
@@ -336,8 +353,7 @@ private fun McpServerDialog(
                     ),
                     supportingText = when {
                         newUrl.isNotEmpty() && parsedUrl == null -> invalidUrlHint
-                        parsedUrl != null && !parsedUrl.isHttps && !isLoopback(parsedUrl.host) ->
-                            unencryptedHint
+                        blocked -> blockedHint
                         else -> null
                     }?.let { hint -> { Text(hint) } },
                     modifier = Modifier
@@ -371,7 +387,7 @@ private fun McpServerDialog(
                             focusManager.clearFocus()
                             if (!loading) connect()
                         },
-                        enabled = parsedUrl != null && !loading,
+                        enabled = parsedUrl != null && !blocked && !loading,
                     ) {
                         Text(stringResource(if (listedFor == null) R.string.mcp_connect else R.string.mcp_refresh_tools))
                     }
@@ -463,6 +479,3 @@ private fun McpServerDialog(
         },
     )
 }
-
-private fun isLoopback(host: String): Boolean =
-    host == "localhost" || host.startsWith("127.") || host == "::1"

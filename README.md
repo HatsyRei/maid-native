@@ -89,7 +89,9 @@ server.
   tools:
   - **Streamable HTTP** with an optional bearer token (encrypted at rest like
     API keys). Point it at a server on your network, in the cloud, or on the
-    phone itself (e.g. in Termux, at `http://127.0.0.1`).
+    phone itself (e.g. in Termux, at `http://127.0.0.1`). Plain `http://`
+    servers, local ones included, need **Allow HTTP endpoints**, the same
+    switch the chat endpoint uses.
   - **Tools are listed as soon as the URL is entered** and cached, so a reply
     never waits on the server just to know what it offers; **Refresh tools**
     picks up changes.
