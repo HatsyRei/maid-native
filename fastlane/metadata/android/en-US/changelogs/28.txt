@@ -1,0 +1,4 @@
+- MCP servers now follow "Allow HTTP endpoints" like the chat endpoint, local ones included. With it off, http:// servers show "HTTP is off" and their tools are left out of chats.
+- MCP servers can be saved before they can be reached. A failed tool listing now clears the list instead of keeping tools from the old address.
+- About 70 KB smaller, and all network requests share one connection pool.
+- Updated the Android Gradle Plugin.
