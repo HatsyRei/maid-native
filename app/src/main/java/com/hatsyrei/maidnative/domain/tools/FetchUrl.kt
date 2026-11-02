@@ -1,12 +1,12 @@
 package com.hatsyrei.maidnative.domain.tools
 
 import android.text.Html
+import com.hatsyrei.maidnative.data.remote.Http
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONArray
@@ -34,7 +34,7 @@ object FetchUrl : Tool {
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android) MaidNative"
 
     private val client by lazy {
-        OkHttpClient.Builder()
+        Http.client.newBuilder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)

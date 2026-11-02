@@ -16,7 +16,6 @@ import com.hatsyrei.maidnative.domain.tree.MessageNode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.sse.EventSource
@@ -40,7 +39,7 @@ class OpenAiClient {
     // so there is deliberately NO read timeout (a slow / "thinking" model must
     // not be cut off mid-generation). Connect is still bounded so an
     // unreachable host fails fast instead of holding the radio awake.
-    private val streamClient = OkHttpClient.Builder()
+    private val streamClient = Http.client.newBuilder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         // OkHttp follows an https -> http redirect by default. It strips the
@@ -52,9 +51,8 @@ class OpenAiClient {
         .followSslRedirects(false)
         .build()
 
-    // Non-streaming requests (the models list) reuse the streaming client's
-    // connection pool + dispatcher (cheap via newBuilder, which also inherits
-    // the redirect policy above) but add finite read and overall timeouts.
+    // Non-streaming requests (the models list) inherit the redirect policy
+    // above but add finite read and overall timeouts.
     // Without these the models GET would inherit readTimeout(0) and a half-open
     // connection could hang the request — and keep the socket/radio awake —
     // indefinitely.

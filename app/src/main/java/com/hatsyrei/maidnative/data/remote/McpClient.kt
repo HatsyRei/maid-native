@@ -12,7 +12,6 @@ import kotlinx.coroutines.sync.withLock
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class McpClient : McpCaller {
 
-    private val http = OkHttpClient.Builder()
+    private val http = Http.client.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .callTimeout(120, TimeUnit.SECONDS)

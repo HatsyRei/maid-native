@@ -11,7 +11,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Dispatcher
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
@@ -38,7 +37,7 @@ object EndpointScanner {
     private const val REQUEST_TIMEOUT_MS = 400L
     private const val CONCURRENCY = 64
 
-    private val client = OkHttpClient.Builder()
+    private val client = Http.client.newBuilder()
         .connectTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .callTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
