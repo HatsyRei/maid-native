@@ -73,12 +73,24 @@ android {
         dex {
             useLegacyPackaging = true
         }
+        // Same reasoning as dex; the one remaining lib is ~10 KB, extracted on install.
+        jniLibs {
+            useLegacyPackaging = true
+            // Only DataStore's multi-process mode loads this, and R8 strips that code path.
+            excludes += "**/libdatastore_shared_counter.so"
+        }
         resources {
             // Coroutines debug agent, kotlin-reflect metadata and library version stamps: unused at runtime.
             excludes += listOf(
                 "DebugProbesKt.bin",
                 "kotlin/**.kotlin_builtins",
                 "META-INF/*.version",
+            )
+            // Each AndroidX artifact ships the same Apache-2.0 text; annotation's copy is kept
+            // as the one notice. Protobuf's BSD notice differs and stays.
+            excludes += listOf(
+                "META-INF/androidx/{collection,concurrent,lifecycle,room}/**/LICENSE.txt",
+                "META-INF/androidx/datastore/{datastore-core-okio,datastore-preferences-proto}/LICENSE.txt",
             )
         }
     }
