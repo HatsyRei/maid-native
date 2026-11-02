@@ -260,8 +260,11 @@ private fun McpServerDialog(
     var disabled by remember { mutableStateOf(server.disabledTools) }
     var trusted by remember { mutableStateOf(server.trusted) }
     var trustedTools by remember { mutableStateOf(server.trustedTools) }
-    // The URL and token [tools] were listed with. Save waits for a listing of the current pair.
-    var listedFor by remember { mutableStateOf(if (isNew) null else server.url to server.token) }
+    // The URL and token [tools] were listed with. A server saved before it could be
+    // reached has no tools, and reads as never listed so the editor offers Connect.
+    var listedFor by remember {
+        mutableStateOf(if (isNew || server.tools.isEmpty()) null else server.url to server.token)
+    }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     // The pair last fetched, so leaving a field only fetches again once one of them changed.
@@ -276,11 +279,20 @@ private fun McpServerDialog(
     val nameTaken = newName.isNotEmpty() && prefix in takenPrefixes
     val parsedUrl = newUrl.toHttpUrlOrNull()
     val blocked = !allowCleartext && Endpoints.isCleartext(newUrl)
+    // [tools] describe the fields as typed only once listed for them; until then they are
+    // neither shown nor saved, however the fields changed.
     val listed = listedFor == (newUrl to newToken)
     val colors = MaterialTheme.colorScheme
 
     // Read from the fields rather than the composition's values, since focus callbacks can run before a recompose.
     fun current() = url.text.toString().trim() to token.text.toString().trim()
+
+    // As a failed models fetch empties the models list: what is shown is what Save keeps,
+    // so a list from another URL must not outlive a listing that failed. Cancel keeps the saved one.
+    fun forgetTools() {
+        tools = emptyList()
+        listedFor = null
+    }
 
     fun connect() {
         val target = current()
@@ -296,6 +308,7 @@ private fun McpServerDialog(
                 }
                 .onFailure {
                     if (it is CancellationException) throw it
+                    forgetTools()
                     error = it.message ?: it::class.java.simpleName
                 }
             loading = false
@@ -307,7 +320,13 @@ private fun McpServerDialog(
         val target = current()
         if (target == attempted || target.first.toHttpUrlOrNull() == null) return
         // The URL field already says why; nothing is sent, the token least of all.
-        if (!allowCleartext && Endpoints.isCleartext(target.first)) return
+        if (!allowCleartext && Endpoints.isCleartext(target.first)) {
+            attempted = target
+            job?.cancel()
+            loading = false
+            error = null
+            return
+        }
         connect()
     }
 
@@ -389,13 +408,13 @@ private fun McpServerDialog(
                         },
                         enabled = parsedUrl != null && !blocked && !loading,
                     ) {
-                        Text(stringResource(if (listedFor == null) R.string.mcp_connect else R.string.mcp_refresh_tools))
+                        Text(stringResource(if (listed) R.string.mcp_refresh_tools else R.string.mcp_connect))
                     }
                     if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
                 error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
-                if (listedFor != null) {
+                if (listed) {
                     Text(
                         stringResource(if (tools.isEmpty()) R.string.mcp_no_tools else R.string.tool_tools),
                         style = if (tools.isEmpty()) MaterialTheme.typography.bodySmall else MaterialTheme.typography.titleSmall,
@@ -449,6 +468,7 @@ private fun McpServerDialog(
             TextButton(
                 onClick = {
                     val tokenChanged = newToken != server.token
+                    val kept = if (listed) tools else emptyList()
                     onConfirm(
                         server.copy(
                             name = newName,
@@ -456,15 +476,17 @@ private fun McpServerDialog(
                             token = newToken,
                             storedToken = if (tokenChanged) "" else server.storedToken,
                             tokenReadable = tokenChanged || server.tokenReadable,
-                            tools = tools,
+                            tools = kept,
                             // Names the server no longer lists would only pile up.
-                            disabledTools = disabled.filterTo(HashSet()) { off -> tools.any { it.name == off } },
+                            disabledTools = disabled.filterTo(HashSet()) { off -> kept.any { it.name == off } },
                             trusted = trusted,
-                            trustedTools = trustedTools.filterTo(HashSet()) { on -> tools.any { it.name == on } },
+                            trustedTools = trustedTools.filterTo(HashSet()) { on -> kept.any { it.name == on } },
                         ),
                     )
                 },
-                enabled = newName.isNotEmpty() && !nameTaken && parsedUrl != null && listed && !loading,
+                // Reaching the server is not required: one that can't be listed yet (offline,
+                // failed, or plain HTTP while that is off) saves with no tools until Connect.
+                enabled = newName.isNotEmpty() && !nameTaken && parsedUrl != null && !loading,
             ) {
                 Text(stringResource(R.string.action_save))
             }
