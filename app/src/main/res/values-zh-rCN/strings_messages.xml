@@ -13,4 +13,7 @@
     <string name="error_file_gone">文件已不可用。</string>
     <string name="error_save_failed">保存失败：%1$s</string>
     <string name="error_cleartext_blocked">已拦截：此接口使用不加密的 HTTP。请在设置中开启“允许 HTTP 接口”后使用。</string>
+    <string name="error_http_status">接口返回 HTTP %1$d。</string>
+    <string name="error_request_failed">向接口发出的请求失败。</string>
+    <string name="error_scan_no_address">本机没有可用于扫描的局域网地址。</string>
 </resources>

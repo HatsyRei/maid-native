@@ -14,7 +14,9 @@ import com.hatsyrei.maidnative.data.prefs.SecretUnavailableException
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.data.remote.EndpointScanner
 import com.hatsyrei.maidnative.data.remote.Endpoints
+import com.hatsyrei.maidnative.data.remote.HttpStatusException
 import com.hatsyrei.maidnative.data.remote.McpClient
+import com.hatsyrei.maidnative.data.remote.NoLocalAddressException
 import com.hatsyrei.maidnative.data.remote.OpenAiClient
 import com.hatsyrei.maidnative.data.store.AttachmentStore
 import com.hatsyrei.maidnative.data.store.AvatarStore
@@ -150,6 +152,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // Below Android 13 the application context keeps the system language.
     private fun text(@StringRes id: Int, vararg args: Any?): String =
         AppLocale.wrap(getApplication()).getString(id, *args)
+
+    // Library messages (DNS, sockets, TLS) are passed through as worded.
+    private fun Throwable.userMessage(): String? = when (this) {
+        is HttpStatusException -> code?.let { text(R.string.error_http_status, it) } ?: text(R.string.error_request_failed)
+        is NoLocalAddressException -> text(R.string.error_scan_no_address)
+        else -> message
+    }
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -320,7 +329,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         it.copy(
                             models = emptyList(),
                             modalities = emptyMap(),
-                            error = if (silent) it.error else failure.message,
+                            error = if (silent) it.error else failure.userMessage(),
                         )
                     }
                 }
@@ -500,7 +509,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }.onFailure { failure ->
-                _state.update { it.copy(error = failure.message) }
+                _state.update { it.copy(error = failure.userMessage()) }
             }
             _state.update { it.copy(scanning = false) }
         }
@@ -928,7 +937,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             },
-            onError = { e -> _state.update { it.copy(error = e.message) } },
+            onError = { e -> _state.update { it.copy(error = e.userMessage()) } },
             onFinish = ::finishStreaming,
         )
     }

@@ -19,6 +19,8 @@ import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 
+class NoLocalAddressException : IOException("Could not determine local IP")
+
 /**
  * Local-network endpoint discovery, ported from the RN app's
  * `utilities/scan-endpoint.ts`. Probes `http://<host>:<port>/v1/models` across
@@ -63,7 +65,7 @@ object EndpointScanner {
         port: Int = DEFAULT_PORT,
         prefixLength: Int = DEFAULT_PREFIX_LENGTH,
     ): String? {
-        val ip = localIpv4() ?: throw IllegalStateException("Could not determine local IP")
+        val ip = localIpv4() ?: throw NoLocalAddressException()
 
         if (prefixLength >= 24) return probeAll(IpMath.buildSubnetTargets(ip, prefixLength), port)
 

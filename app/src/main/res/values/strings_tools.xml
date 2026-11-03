@@ -58,6 +58,9 @@
     <string name="mcp_url" translatable="false">URL</string>
     <string name="mcp_url_invalid">Enter an http or https URL</string>
     <string name="mcp_url_cleartext_blocked">HTTP is off in Settings</string>
+    <string name="mcp_error_not_json">The server\'s response is not JSON</string>
+    <string name="mcp_error_no_result">The server\'s response has no result</string>
+    <string name="mcp_error_stream_ended">The server ended the stream without a response</string>
     <string name="mcp_http_blocked_short">HTTP is off</string>
     <string name="mcp_bearer_token">Bearer token (optional)</string>
     <string name="mcp_token_unreadable">The saved token can\'t be decrypted. Enter it again.</string>

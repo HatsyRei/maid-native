@@ -29,6 +29,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToLong
 
+/** The endpoint refused a request; [code] is null when no response said why. */
+class HttpStatusException(val code: Int?) : IOException(if (code != null) "HTTP $code" else "Request failed")
+
 /**
  * OpenAI-compatible client (models + streaming chat completions). Replaces the
  * `openai` npm SDK over `expo/fetch`.
@@ -108,7 +111,7 @@ class OpenAiClient {
             .build()
         val entries = client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("models request failed: HTTP ${response.code}")
+                throw HttpStatusException(response.code)
             }
             val body = response.body.string()
             val data = JSONObject(body).optJSONArray("data") ?: JSONArray()
@@ -280,8 +283,7 @@ class OpenAiClient {
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                val code = response?.code
-                close(t ?: IOException("stream failed${if (code != null) " (HTTP $code)" else ""}"))
+                close(t ?: HttpStatusException(response?.code))
             }
         }
 

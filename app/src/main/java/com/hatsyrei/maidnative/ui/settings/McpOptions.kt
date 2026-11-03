@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.remote.Endpoints
 import com.hatsyrei.maidnative.domain.tools.Mcp
+import com.hatsyrei.maidnative.domain.tools.McpException
 import com.hatsyrei.maidnative.domain.tools.McpServer
 import com.hatsyrei.maidnative.domain.tools.McpToolInfo
 import com.hatsyrei.maidnative.domain.tools.ToolPolicy
@@ -243,6 +244,14 @@ private fun ServerRow(
 }
 
 @Composable
+private fun mcpErrorText(e: Throwable): String = when ((e as? McpException)?.reason) {
+    McpException.Reason.NOT_JSON -> stringResource(R.string.mcp_error_not_json)
+    McpException.Reason.NO_RESULT -> stringResource(R.string.mcp_error_no_result)
+    McpException.Reason.STREAM_ENDED -> stringResource(R.string.mcp_error_stream_ended)
+    null -> e.message ?: e::class.java.simpleName
+}
+
+@Composable
 private fun McpServerDialog(
     server: McpServer,
     isNew: Boolean,
@@ -266,7 +275,7 @@ private fun McpServerDialog(
         mutableStateOf(if (isNew || server.tools.isEmpty()) null else server.url to server.token)
     }
     var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<Throwable?>(null) }
     // The pair last fetched, so leaving a field only fetches again once one of them changed.
     var attempted by remember { mutableStateOf(listedFor) }
     var job by remember { mutableStateOf<Job?>(null) }
@@ -309,7 +318,7 @@ private fun McpServerDialog(
                 .onFailure {
                     if (it is CancellationException) throw it
                     forgetTools()
-                    error = it.message ?: it::class.java.simpleName
+                    error = it
                 }
             loading = false
         }
@@ -412,7 +421,7 @@ private fun McpServerDialog(
                     }
                     if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
-                error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                error?.let { Text(mcpErrorText(it), color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 if (listed) {
                     Text(

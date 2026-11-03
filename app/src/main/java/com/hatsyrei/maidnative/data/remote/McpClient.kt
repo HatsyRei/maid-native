@@ -139,10 +139,11 @@ class McpClient : McpCaller {
             answer(body.source(), id)
         } else {
             runCatching { JSONObject(body.string()) }.getOrNull()
-                ?: throw McpException("The server's response is not JSON")
+                ?: throw McpException("The server's response is not JSON", McpException.Reason.NOT_JSON)
         }
         message.optJSONObject("error")?.let { throw McpException(errorText(it)) }
-        return message.optJSONObject("result") ?: throw McpException("The server's response has no result")
+        return message.optJSONObject("result")
+            ?: throw McpException("The server's response has no result", McpException.Reason.NO_RESULT)
     }
 
     /** Reads SSE events up to the response to [id]; progress, logs and server requests on the way are skipped. */
@@ -160,7 +161,9 @@ class McpClient : McpCaller {
                         return message
                     }
                 }
-                if (line == null) throw McpException("The server ended the stream without a response")
+                if (line == null) {
+                    throw McpException("The server ended the stream without a response", McpException.Reason.STREAM_ENDED)
+                }
             } else if (line.startsWith("data:")) {
                 if (data.isNotEmpty()) data.append('\n')
                 data.append(line.substring(5).removePrefix(" "))

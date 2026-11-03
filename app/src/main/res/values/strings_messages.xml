@@ -14,4 +14,7 @@
     <string name="error_file_gone">File is no longer available.</string>
     <string name="error_save_failed">Save failed: %1$s</string>
     <string name="error_cleartext_blocked">Blocked: this endpoint uses plain HTTP. Turn on \"Allow HTTP endpoints\" in Settings to use it.</string>
+    <string name="error_http_status">The endpoint answered HTTP %1$d.</string>
+    <string name="error_request_failed">The request to the endpoint failed.</string>
+    <string name="error_scan_no_address">This device has no local network address to scan from.</string>
 </resources>

@@ -65,8 +65,11 @@ data class McpToolInfo(
         }
 }
 
-/** An MCP error: a failed request, or a tool that reported one. */
-class McpException(message: String) : IOException(message)
+/** An MCP error: a failed request, or a tool that reported one. [message] is what the model reads. */
+class McpException(message: String, val reason: Reason? = null) : IOException(message) {
+    /** Failures worded by this app, which the UI can show in the app language. */
+    enum class Reason { NOT_JSON, NO_RESULT, STREAM_ENDED }
+}
 
 /** Runs `tools/call` on a server and returns the call's `result`. */
 fun interface McpCaller {
