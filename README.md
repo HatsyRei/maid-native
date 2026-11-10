@@ -144,9 +144,9 @@ independently.
   point at a **JDK**, not a JRE — if `./gradlew` is invoked directly with a JRE
   on `PATH` the build fails; `build.sh` handles this for you.
 
-Gradle 9.8.2 is pinned by the wrapper in
+Gradle 9.9.0 is pinned by the wrapper in
 `gradle/wrapper/gradle-wrapper.properties`; the rest of the toolchain is pinned
-in `gradle/libs.versions.toml`: AGP 9.5.0, Kotlin 2.4.21, KSP 2.3.12, Compose
+in `gradle/libs.versions.toml`: AGP 9.5.1, Kotlin 2.4.21, KSP 2.3.12, Compose
 BOM 2026.09.00. AGP 9 supplies
 built-in Kotlin support, so the `org.jetbrains.kotlin.android` plugin is not
 applied; the Kotlin and KSP plugin versions are declared on the root
