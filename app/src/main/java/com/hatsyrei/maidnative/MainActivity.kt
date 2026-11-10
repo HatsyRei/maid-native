@@ -135,6 +135,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             renamePreset = viewModel::renamePreset,
             deletePreset = viewModel::deletePreset,
             setAccentColor = viewModel::setAccentColor,
+            setTintSurfaces = viewModel::setTintSurfaces,
             setAvatarSize = viewModel::setAvatarSize,
             setNameplate = viewModel::setNameplate,
             importNameplate = viewModel::importNameplate,

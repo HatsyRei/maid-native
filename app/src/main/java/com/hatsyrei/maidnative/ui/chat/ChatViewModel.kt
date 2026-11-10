@@ -179,6 +179,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 accentColor = it.accentColor,
                 nameplate = it.nameplate,
                 nameplateStamp = it.nameplateStamp,
+                tintSurfaces = it.tintSurfaces,
                 avatarSize = it.avatarSize,
             )
         }
@@ -401,6 +402,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
+    fun setTintSurfaces(enabled: Boolean) = viewModelScope.launch { settingsRepo.setTintSurfaces(enabled) }
     fun setAvatarSize(dp: Int) = viewModelScope.launch { settingsRepo.setAvatarSize(dp) }
     fun setUserName(value: String) = viewModelScope.launch { settingsRepo.setUserName(value) }
     fun setAssistantName(value: String) = viewModelScope.launch { settingsRepo.setAssistantName(value) }

@@ -75,6 +75,7 @@ import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import com.hatsyrei.maidnative.ui.markdown.StreamingMarkdownText
 import com.hatsyrei.maidnative.ui.theme.LocalChatAppearance
+import com.hatsyrei.maidnative.ui.theme.chatBubbleColor
 import com.mikepenz.markdown.model.StreamingMarkdownState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,7 +97,7 @@ private fun MessageCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow, shape)
+            .background(chatBubbleColor(), shape)
             // Darken (dim) the card while pressed as the long-press cue.
             .background(if (pressed) Color.Black.copy(alpha = 0.18f) else Color.Transparent, shape)
             .then(gestures)

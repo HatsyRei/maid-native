@@ -107,10 +107,10 @@ server.
     OAuth sign-in.
 - **Endpoint presets and a model-picker pill** for switching servers and models
   in a couple of taps.
-- **Personalisation** — AMOLED-true-black theme with a custom accent colour,
-  composer nameplate art (bundled or your own image), and custom user /
-  assistant display names and profile pictures, sized 30–42 dp in the
-  conversation or hidden altogether.
+- **Personalisation** — AMOLED-true-black theme with a custom accent colour
+  (optionally tinting every surface), composer nameplate art (bundled or
+  your own image), and custom user / assistant display names and profile
+  pictures, sized 30–42 dp in the conversation or hidden altogether.
 - **English and Simplified Chinese** interface, switchable in Settings or the
   system's per-app language screen (Android 13+). The Chinese translation is
   based on [@billertwerson-gif](https://github.com/billertwerson-gif)'s work in

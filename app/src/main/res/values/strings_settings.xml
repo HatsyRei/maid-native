@@ -58,6 +58,8 @@
     <!-- Theme -->
     <string name="settings_app">App</string>
     <string name="theme_accent">Accent</string>
+    <string name="theme_tint_surfaces">Tint surfaces</string>
+    <string name="theme_tint_surfaces_summary">Colours message cards, menus, dialogs and the composer with the accent.</string>
     <string name="theme_composer_background">Composer background</string>
     <string name="theme_nameplate_none">None</string>
     <string name="theme_nameplate_blossom">Blossom</string>

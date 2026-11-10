@@ -7,14 +7,16 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.ColorUtils
 
 /**
- * Rebuilds the primary family around [accent], and re-hues only the fills that
- * are meant to read as accented — the model pill and the selected chat entry.
+ * Rebuilds the primary family around [accent], and re-hues the fills that are
+ * meant to read as accented — the model pill and the selected chat entry.
  *
- * Menus, dialogs, the composer pill and every text tone deliberately keep the
- * tuned blue-neutral ramp from [Color]: those are chrome, not accent surfaces,
- * and tinting them makes the whole app swing colour with the seed.
+ * By default menus, dialogs, the composer pill and message cards keep the tuned
+ * blue-neutral ramp from [Color], so the chrome doesn't swing colour with the
+ * seed. [tintSurfaces] opts into re-hueing that whole ramp too; each tone keeps
+ * its saturation and lightness, so the surfaces still stack in the same order.
+ * Text tones are never re-hued.
  */
-internal fun ColorScheme.withAccent(accent: Color): ColorScheme {
+internal fun ColorScheme.withAccent(accent: Color, tintSurfaces: Boolean = false): ColorScheme {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(accent.toArgb(), hsl)
     val hue = hsl[0]
@@ -26,7 +28,8 @@ internal fun ColorScheme.withAccent(accent: Color): ColorScheme {
     // Light accents need a dark "on" colour and vice versa; 0.45 is where a mid
     // tone stops carrying black text comfortably.
     val onLight = accent.luminance() > 0.45f
-    return copy(
+    val surfaces = if (chromatic && tintSurfaces) withTintedSurfaces(hue) else this
+    return surfaces.copy(
         primary = accent,
         onPrimary = if (onLight) tone(hue, saturation, 0.12f) else tone(hue, saturation * 0.2f, 0.97f),
         primaryContainer = tone(hue, saturation, 0.24f),
@@ -39,6 +42,15 @@ internal fun ColorScheme.withAccent(accent: Color): ColorScheme {
         surfaceVariant = if (chromatic) surfaceVariant.rehue(hue) else surfaceVariant,
     )
 }
+
+/** The AMOLED blacks are fully desaturated, so [rehue] leaves them black. */
+private fun ColorScheme.withTintedSurfaces(hue: Float): ColorScheme = copy(
+    surfaceBright = surfaceBright.rehue(hue),
+    surfaceContainerLow = surfaceContainerLow.rehue(hue),
+    surfaceContainer = surfaceContainer.rehue(hue),
+    surfaceContainerHigh = surfaceContainerHigh.rehue(hue),
+    surfaceContainerHighest = surfaceContainerHighest.rehue(hue),
+)
 
 private fun tone(hue: Float, saturation: Float, lightness: Float): Color =
     Color(ColorUtils.HSLToColor(floatArrayOf(hue, saturation.coerceIn(0f, 1f), lightness)))

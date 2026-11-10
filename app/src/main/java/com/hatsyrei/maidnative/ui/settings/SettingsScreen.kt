@@ -311,6 +311,7 @@ fun SettingsScreen(
 
             AppSection(
                 accentColor = state.settings.accentColor,
+                tintSurfaces = state.settings.tintSurfaces,
                 nameplate = state.settings.nameplate,
                 actions = actions,
             )

@@ -78,8 +78,13 @@ fun MaidNativeTheme(
     theme: ThemeSettings = ThemeSettings(),
     content: @Composable () -> Unit,
 ) {
-    val colors = remember(theme.accentColor) {
-        if (theme.accentColor == 0) DarkColors else DarkColors.withAccent(Color(theme.accentColor))
+    val colors = remember(theme.accentColor, theme.tintSurfaces) {
+        // The built-in ramp is already blue, so the default accent needs no tinting.
+        if (theme.accentColor == 0) {
+            DarkColors
+        } else {
+            DarkColors.withAccent(Color(theme.accentColor), theme.tintSurfaces)
+        }
     }
     MaterialTheme(
         colorScheme = colors,
@@ -88,8 +93,9 @@ fun MaidNativeTheme(
         // Built here (above every state-reading composable) so the markdown
         // typography/padding/annotator are allocated once per activity instead
         // of once per bubble per recomposition.
-        val appearance = remember(theme.avatarSize) {
+        val appearance = remember(colors, theme.tintSurfaces, theme.avatarSize) {
             ChatAppearance(
+                bubbleColor = if (theme.tintSurfaces) liftedBubble(colors.surfaceContainerLow) else null,
                 avatarSize = theme.avatarSize.takeIf { it != SettingsRepository.AVATAR_HIDDEN }?.dp,
             )
         }
@@ -111,5 +117,6 @@ data class ThemeSettings(
      */
     val nameplate: String = SettingsRepository.NAMEPLATE_NONE,
     val nameplateStamp: Long = 0L,
+    val tintSurfaces: Boolean = false,
     val avatarSize: Int = SettingsRepository.DEFAULT_AVATAR_SIZE,
 )

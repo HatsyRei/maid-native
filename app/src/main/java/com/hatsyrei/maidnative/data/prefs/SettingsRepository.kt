@@ -82,6 +82,8 @@ class SettingsRepository(private val context: Context) {
         val exportMedia: Boolean = true,
         /** ARGB accent, or 0 for the built-in blue. */
         val accentColor: Int = 0,
+        /** Whether the neutral surfaces (cards, menus, dialogs, composer) take the accent's hue. */
+        val tintSurfaces: Boolean = false,
         /** Profile picture size on message cards in dp, or [AVATAR_HIDDEN] to show none. */
         val avatarSize: Int = DEFAULT_AVATAR_SIZE,
         /** Role labels shown on message cards. */
@@ -140,6 +142,7 @@ class SettingsRepository(private val context: Context) {
             askTools = prefs[KEY_ASK_TOOLS] ?: emptySet(),
             exportMedia = prefs[KEY_EXPORT_MEDIA] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
+            tintSurfaces = prefs[KEY_TINT_SURFACES] ?: false,
             avatarSize = normalizeAvatarSize(prefs[KEY_AVATAR_SIZE] ?: DEFAULT_AVATAR_SIZE),
             // A cleared field falls back to the default rather than a blank label.
             userName = prefs[KEY_USER_NAME]?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_NAME,
@@ -280,6 +283,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAccentColor(argb: Int) {
         context.dataStore.edit { it[KEY_ACCENT] = argb }
+    }
+
+    suspend fun setTintSurfaces(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_TINT_SURFACES] = enabled }
     }
 
     suspend fun setAvatarSize(dp: Int) {
@@ -557,6 +564,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ASK_TOOLS = stringSetPreferencesKey("ask-tools")
         private val KEY_EXPORT_MEDIA = booleanPreferencesKey("export-media")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
+        private val KEY_TINT_SURFACES = booleanPreferencesKey("tint-surfaces")
         private val KEY_AVATAR_SIZE = intPreferencesKey("avatar-size")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")
         private val KEY_ASSISTANT_NAME = stringPreferencesKey("assistant-name")
