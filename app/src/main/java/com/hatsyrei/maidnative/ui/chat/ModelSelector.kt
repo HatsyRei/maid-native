@@ -2,6 +2,8 @@ package com.hatsyrei.maidnative.ui.chat
 
 import android.graphics.Rect
 import android.view.View
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -45,22 +47,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.coerceAtMost
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupPositionProvider
 import com.hatsyrei.maidnative.R
 
 // Roughly what the 320dp menu shows without scrolling.
 private const val SEARCH_THRESHOLD = 8
+
+// Keeps the search field and the empty-result message usable for short names.
+private val MIN_MENU_WIDTH = 200.dp
+
+// Matches the settings screen padding, so a menu pushed to the edge lines up with the pill.
+private val MENU_MARGIN = 16.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,20 +109,50 @@ internal fun ModelSelector(
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(min = 88.dp, max = 200.dp),
+                    // Measured after the arrow so a tight top bar trims the text, not the icon.
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .widthIn(min = 88.dp, max = 224.dp),
                 )
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
             }
         }
-        val gapPx = with(LocalDensity.current) { 4.dp.roundToPx() }
-        val provider = remember(gapPx, visibleBottom) { CenteredBelowAnchorPositionProvider(gapPx) }
+        val text = query.text.toString()
+        val shown = remember(models, text) { filterModels(models, text) }
+        val optionStyle = MaterialTheme.typography.titleSmall
+        val measurer = rememberTextMeasurer()
+        val textWidths = remember(models, optionStyle, measurer) {
+            models.associateWith { measurer.measure(it, optionStyle, maxLines = 1).size.width }
+        }
+        val widestPx = remember(shown, textWidths) { shown.maxOfOrNull { textWidths.getValue(it) } ?: 0 }
+        val density = LocalDensity.current
+        val gapPx = with(density) { 4.dp.roundToPx() }
+        val maxMenuWidth = with(density) { LocalWindowInfo.current.containerSize.width.toDp() } - MENU_MARGIN * 2
+        // Option padding (12dp) plus menu padding (6dp) on each side.
+        val menuWidth = (with(density) { widestPx.toDp() } + 36.dp)
+            .coerceIn(MIN_MENU_WIDTH.coerceAtMost(maxMenuWidth), maxMenuWidth)
+        val animatedWidth = remember { Animatable(menuWidth, Dp.VectorConverter) }
+        var wasOpen by remember { mutableStateOf(false) }
+        LaunchedEffect(menuWidth, open) {
+            // Opening clears the query; jump to the full list's width instead of growing into it.
+            val animate = open && wasOpen
+            wasOpen = open
+            if (animate) animatedWidth.animateTo(menuWidth) else animatedWidth.snapTo(menuWidth)
+        }
+        val marginPx = with(density) { MENU_MARGIN.roundToPx() }
+        val provider = remember(gapPx, marginPx, visibleBottom) { BelowAnchorPositionProvider(gapPx, marginPx) }
         MenuPopup(
             expanded = open,
             popupPositionProvider = provider,
             transformOrigin = TransformOrigin(0.5f, 0f),
             onDismissRequest = { open = false },
             modifier = Modifier
-                .width(240.dp)
+                // Read during layout so the animation re-measures without recomposing.
+                .layout { measurable, constraints ->
+                    val w = animatedWidth.value.roundToPx()
+                    val placeable = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                }
                 .heightIn(max = 320.dp),
             header = if (models.size > SEARCH_THRESHOLD) {
                 { ModelSearchField(query, hostView, onFrameChange = { visibleBottom = it }) }
@@ -116,8 +160,6 @@ internal fun ModelSelector(
                 null
             },
         ) {
-            val text = query.text.toString()
-            val shown = remember(models, text) { filterModels(models, text) }
             // A fresh state per query so a narrowed list starts at its first match.
             val listState = remember(text) { LazyListState() }
             LazyColumn(state = listState) {
@@ -222,21 +264,29 @@ private fun ModelSearchField(state: TextFieldState, hostView: View, onFrameChang
 }
 
 /**
- * Centers the popup horizontally on the anchor and places it just below,
- * clamped inside the window. Anchors to the selector pill so the menu lines up
- * with the pill.
+ * Centers the popup on the anchor just below it, kept [margin] inside the window's
+ * edges; a pill near an edge therefore gets a menu flush with that margin.
  */
-private class CenteredBelowAnchorPositionProvider(private val gap: Int) : PopupPositionProvider {
+private class BelowAnchorPositionProvider(
+    private val gap: Int,
+    private val margin: Int,
+) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
     ): IntOffset {
-        val x = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+        val centered = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+        val maxX = windowSize.width - margin - popupContentSize.width
+        val x = if (maxX >= margin) {
+            centered.coerceIn(margin, maxX)
+        } else {
+            ((windowSize.width - popupContentSize.width) / 2).coerceAtLeast(0)
+        }
         val y = anchorBounds.bottom + gap
         return IntOffset(
-            x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+            x,
             y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
         )
     }
