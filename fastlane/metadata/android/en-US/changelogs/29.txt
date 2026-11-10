@@ -1,0 +1,4 @@
+- Profile pictures in the conversation can be resized from 30 to 42 dp, or hidden, with a slider in Chat settings. The default is now 36 dp (was 40).
+- New "Tint surfaces" option in App settings colours message cards, menus, dialogs and the composer with the accent.
+- The app's own network errors now follow the app language.
+- Updated Gradle and the Android Gradle Plugin.
