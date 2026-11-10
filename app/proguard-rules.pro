@@ -10,3 +10,10 @@
     public static void checkReturnedValueIsNotNull(java.lang.Object, java.lang.String);
     public static void checkFieldIsNotNull(java.lang.Object, java.lang.String);
 }
+
+# R8 9.5.x nondeterministically narrows this method's Continuation parameter to
+# ContinuationImpl, which breaks F-Droid's reproducible build. Pin its signature
+# and its synthetic accessor's.
+-keepclassmembers,allowobfuscation,allowshrinking class kotlinx.coroutines.flow.FlowKt__LimitKt {
+    static *** *emitAbort$FlowKt__LimitKt(...);
+}
