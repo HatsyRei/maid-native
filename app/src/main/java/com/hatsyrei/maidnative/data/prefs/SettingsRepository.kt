@@ -82,6 +82,8 @@ class SettingsRepository(private val context: Context) {
         val exportMedia: Boolean = true,
         /** ARGB accent, or 0 for the built-in blue. */
         val accentColor: Int = 0,
+        /** Profile picture size on message cards in dp, or [AVATAR_HIDDEN] to show none. */
+        val avatarSize: Int = DEFAULT_AVATAR_SIZE,
         /** Role labels shown on message cards. */
         val userName: String = DEFAULT_USER_NAME,
         val assistantName: String = DEFAULT_ASSISTANT_NAME,
@@ -138,6 +140,7 @@ class SettingsRepository(private val context: Context) {
             askTools = prefs[KEY_ASK_TOOLS] ?: emptySet(),
             exportMedia = prefs[KEY_EXPORT_MEDIA] ?: true,
             accentColor = prefs[KEY_ACCENT] ?: 0,
+            avatarSize = normalizeAvatarSize(prefs[KEY_AVATAR_SIZE] ?: DEFAULT_AVATAR_SIZE),
             // A cleared field falls back to the default rather than a blank label.
             userName = prefs[KEY_USER_NAME]?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_NAME,
             assistantName = prefs[KEY_ASSISTANT_NAME]?.takeIf { it.isNotBlank() }
@@ -277,6 +280,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAccentColor(argb: Int) {
         context.dataStore.edit { it[KEY_ACCENT] = argb }
+    }
+
+    suspend fun setAvatarSize(dp: Int) {
+        context.dataStore.edit { it[KEY_AVATAR_SIZE] = normalizeAvatarSize(dp) }
     }
 
     suspend fun setActiveChat(rootId: String?) {
@@ -520,6 +527,21 @@ class SettingsRepository(private val context: Context) {
         const val NAMEPLATE_CUSTOM = "custom"
         const val DEFAULT_NAMEPLATE = NAMEPLATE_NONE
 
+        const val AVATAR_HIDDEN = 0
+        const val MIN_AVATAR_SIZE = 30
+        const val MAX_AVATAR_SIZE = 42
+        const val AVATAR_SIZE_STEP = 2
+        const val DEFAULT_AVATAR_SIZE = 36
+
+        /** Snaps to the slider's grid; anything below its first stop means hidden. */
+        fun normalizeAvatarSize(dp: Int): Int = when {
+            dp < MIN_AVATAR_SIZE -> AVATAR_HIDDEN
+            else -> {
+                val clamped = dp.coerceAtMost(MAX_AVATAR_SIZE)
+                MIN_AVATAR_SIZE + (clamped - MIN_AVATAR_SIZE) / AVATAR_SIZE_STEP * AVATAR_SIZE_STEP
+            }
+        }
+
         const val MIN_PORT = 1
         const val MAX_PORT = 65535
 
@@ -535,6 +557,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ASK_TOOLS = stringSetPreferencesKey("ask-tools")
         private val KEY_EXPORT_MEDIA = booleanPreferencesKey("export-media")
         private val KEY_ACCENT = intPreferencesKey("accent-color")
+        private val KEY_AVATAR_SIZE = intPreferencesKey("avatar-size")
         private val KEY_USER_NAME = stringPreferencesKey("user-name")
         private val KEY_ASSISTANT_NAME = stringPreferencesKey("assistant-name")
         private val KEY_USER_AVATAR = longPreferencesKey("user-avatar-stamp")

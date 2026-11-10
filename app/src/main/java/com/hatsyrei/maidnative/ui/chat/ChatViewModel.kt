@@ -174,7 +174,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // Kept apart from [state] so the theme (which sits above the whole app) is
     // not recomposed by every streamed token.
     val theme: StateFlow<ThemeSettings> = settings
-        .map { ThemeSettings(it.accentColor, it.nameplate, it.nameplateStamp) }
+        .map {
+            ThemeSettings(
+                accentColor = it.accentColor,
+                nameplate = it.nameplate,
+                nameplateStamp = it.nameplateStamp,
+                avatarSize = it.avatarSize,
+            )
+        }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeSettings())
 
@@ -394,6 +401,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setExportMedia(enabled: Boolean) = viewModelScope.launch { settingsRepo.setExportMedia(enabled) }
     fun setAccentColor(argb: Int) = viewModelScope.launch { settingsRepo.setAccentColor(argb) }
+    fun setAvatarSize(dp: Int) = viewModelScope.launch { settingsRepo.setAvatarSize(dp) }
     fun setUserName(value: String) = viewModelScope.launch { settingsRepo.setUserName(value) }
     fun setAssistantName(value: String) = viewModelScope.launch { settingsRepo.setAssistantName(value) }
     fun setNameplate(value: String) = viewModelScope.launch { settingsRepo.setNameplate(value) }

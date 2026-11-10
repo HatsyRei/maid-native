@@ -322,6 +322,7 @@ fun SettingsScreen(
                 assistantName = state.settings.assistantName,
                 userAvatar = state.settings.userAvatar,
                 assistantAvatar = state.settings.assistantAvatar,
+                avatarSize = state.settings.avatarSize,
                 exportMedia = state.settings.exportMedia,
                 actions = actions,
             )

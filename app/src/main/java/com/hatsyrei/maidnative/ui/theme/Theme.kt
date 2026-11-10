@@ -3,9 +3,11 @@ package com.hatsyrei.maidnative.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.data.prefs.SettingsRepository
 import com.hatsyrei.maidnative.ui.markdown.ProvideChatMarkdownStyle
 
@@ -86,7 +88,14 @@ fun MaidNativeTheme(
         // Built here (above every state-reading composable) so the markdown
         // typography/padding/annotator are allocated once per activity instead
         // of once per bubble per recomposition.
-        ProvideChatMarkdownStyle(content)
+        val appearance = remember(theme.avatarSize) {
+            ChatAppearance(
+                avatarSize = theme.avatarSize.takeIf { it != SettingsRepository.AVATAR_HIDDEN }?.dp,
+            )
+        }
+        CompositionLocalProvider(LocalChatAppearance provides appearance) {
+            ProvideChatMarkdownStyle(content)
+        }
     }
 }
 
@@ -102,4 +111,5 @@ data class ThemeSettings(
      */
     val nameplate: String = SettingsRepository.NAMEPLATE_NONE,
     val nameplateStamp: Long = 0L,
+    val avatarSize: Int = SettingsRepository.DEFAULT_AVATAR_SIZE,
 )

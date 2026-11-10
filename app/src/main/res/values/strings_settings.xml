@@ -21,6 +21,9 @@
     <string name="settings_assistant_name">Assistant name</string>
     <string name="settings_export_media">Export media</string>
     <string name="settings_export_media_summary">Includes attached images and audio in exported conversations.</string>
+    <string name="settings_avatar_size">Profile picture size</string>
+    <string name="settings_avatar_size_value">%1$d dp</string>
+    <string name="settings_avatar_size_hidden">Hidden</string>
     <string name="settings_avatar_select_image">Select image</string>
     <string name="settings_avatar_change_image">Change image</string>
 

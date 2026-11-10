@@ -236,16 +236,20 @@ private fun ValuePill(text: String, active: Boolean) {
 /** A thin track and round thumb, in place of M3's tall bar thumb and gapped track. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SlimSlider(
+internal fun SlimSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier,
+    steps: Int = 0,
 ) {
     val colors = SliderDefaults.colors(inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     Slider(
         value = value,
         onValueChange = onValueChange,
         valueRange = valueRange,
+        steps = steps,
+        modifier = modifier,
         colors = colors,
         thumb = {
             Box(

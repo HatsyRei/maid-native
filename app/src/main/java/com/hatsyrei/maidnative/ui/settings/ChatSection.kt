@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,10 +29,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.hatsyrei.maidnative.R
@@ -41,6 +45,7 @@ import com.hatsyrei.maidnative.ui.chat.TapContextMenu
 import com.hatsyrei.maidnative.ui.common.Avatar
 import com.hatsyrei.maidnative.ui.common.rememberAvatar
 import com.hatsyrei.maidnative.ui.icons.ImageIcon
+import kotlin.math.roundToInt
 
 private val AVATAR_SIZE = 56.dp
 
@@ -51,6 +56,7 @@ internal fun ChatSection(
     assistantName: String,
     userAvatar: Long,
     assistantAvatar: Long,
+    avatarSize: Int,
     exportMedia: Boolean,
     actions: SettingsActions,
 ) {
@@ -116,6 +122,13 @@ internal fun ChatSection(
         )
     }
 
+    AvatarSizeSlider(
+        size = avatarSize,
+        preview = rememberAvatar(AvatarStore.Role.ASSISTANT, assistantAvatar),
+        name = assistant.text.toString(),
+        onChange = actions.setAvatarSize,
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -130,6 +143,62 @@ internal fun ChatSection(
             )
         }
         Switch(checked = exportMedia, onCheckedChange = actions.setExportMedia)
+    }
+}
+
+/**
+ * Size of the pictures on message cards. The stop below [SettingsRepository.MIN_AVATAR_SIZE]
+ * hides them; the preview box is fixed at the largest size so dragging doesn't shift the layout.
+ */
+@Composable
+private fun AvatarSizeSlider(
+    size: Int,
+    preview: Painter?,
+    name: String,
+    onChange: (Int) -> Unit,
+) {
+    val hiddenStop = SettingsRepository.MIN_AVATAR_SIZE - SettingsRepository.AVATAR_SIZE_STEP
+    val max = SettingsRepository.MAX_AVATAR_SIZE
+    var current by remember(size) { mutableIntStateOf(size) }
+    val hidden = current == SettingsRepository.AVATAR_HIDDEN
+    val label = if (hidden) {
+        stringResource(R.string.settings_avatar_size_hidden)
+    } else {
+        stringResource(R.string.settings_avatar_size_value, current)
+    }
+
+    // Grouped so the parent's 16dp item spacing doesn't separate the label from its slider.
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_avatar_size), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Box(modifier = Modifier.size(max.dp), contentAlignment = Alignment.Center) {
+                if (!hidden) Avatar(painter = preview, name = name, size = current.dp)
+            }
+        }
+        SlimSlider(
+            value = (if (hidden) hiddenStop else current).toFloat(),
+            onValueChange = { raw ->
+                val next = SettingsRepository.normalizeAvatarSize(raw.roundToInt())
+                if (next != current) {
+                    current = next
+                    onChange(next)
+                }
+            },
+            valueRange = hiddenStop.toFloat()..max.toFloat(),
+            steps = (max - hiddenStop) / SettingsRepository.AVATAR_SIZE_STEP - 1,
+            modifier = Modifier.semantics { stateDescription = label },
+        )
     }
 }
 

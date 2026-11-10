@@ -74,6 +74,7 @@ import com.hatsyrei.maidnative.ui.common.Avatar
 import com.hatsyrei.maidnative.ui.icons.ContentCopyIcon
 import com.hatsyrei.maidnative.ui.markdown.MarkdownText
 import com.hatsyrei.maidnative.ui.markdown.StreamingMarkdownText
+import com.hatsyrei.maidnative.ui.theme.LocalChatAppearance
 import com.mikepenz.markdown.model.StreamingMarkdownState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -545,8 +546,10 @@ private fun MessageHeader(
     Layout(
         content = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(painter = avatar, name = name, size = 40.dp)
-                Spacer(Modifier.width(12.dp))
+                LocalChatAppearance.current.avatarSize?.let { size ->
+                    Avatar(painter = avatar, name = name, size = size)
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,

@@ -33,6 +33,7 @@ class SettingsActions(
     val renamePreset: (id: String, name: String) -> Unit,
     val deletePreset: (String) -> Unit,
     val setAccentColor: (Int) -> Unit,
+    val setAvatarSize: (Int) -> Unit,
     val setNameplate: (String) -> Unit,
     val importNameplate: (Uri) -> Unit,
     val setUserName: (String) -> Unit,

@@ -21,6 +21,9 @@
     <string name="settings_assistant_name">助手名称</string>
     <string name="settings_export_media">导出媒体附件</string>
     <string name="settings_export_media_summary">导出会话时包含附加的图片和音频。</string>
+    <string name="settings_avatar_size">头像大小</string>
+    <string name="settings_avatar_size_value">%1$d dp</string>
+    <string name="settings_avatar_size_hidden">隐藏</string>
     <string name="settings_avatar_select_image">选择图片</string>
     <string name="settings_avatar_change_image">更换图片</string>
 
