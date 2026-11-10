@@ -18,8 +18,8 @@ android {
         // 28: release APKs carry only a v3 signature (see build.sh).
         minSdk = 28
         targetSdk = 36
-        versionCode = 29
-        versionName = "1.10.4"
+        versionCode = 30
+        versionName = "1.10.5"
 
         // androidx.graphics and DataStore ship small native libs; only arm64 devices are targeted.
         ndk {

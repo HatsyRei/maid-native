@@ -1,0 +1,1 @@
+- Reverted the Android Gradle Plugin to 9.5.0 so the F-Droid build is reproducible again. No app changes from 1.10.4.
