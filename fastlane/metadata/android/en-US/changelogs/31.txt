@@ -1,0 +1,2 @@
+- New "Prefill reply" in the composer's + menu starts the model's reply with your own text and lets it continue from there. Regenerate reuses it, and Revise and Modify can edit it. Works on llama.cpp; other endpoints may ignore or reject it.
+- The model list is now as wide as the longest model name, and the selector's arrow no longer shrinks.
