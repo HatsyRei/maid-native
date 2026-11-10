@@ -54,6 +54,7 @@ import com.hatsyrei.maidnative.R
 import com.hatsyrei.maidnative.data.store.AvatarStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ChatStats
+import com.hatsyrei.maidnative.domain.Prefill
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
 import com.hatsyrei.maidnative.domain.tools.LinkedFileStore
 import com.hatsyrei.maidnative.domain.tools.ToolText
@@ -198,12 +199,13 @@ fun ChatScreen(
             revise = current.revise,
             initialAttachments = current.attachments,
             initialCalls = current.calls,
+            initialPrefill = current.prefill,
             onDismiss = dismiss,
-            onConfirm = { text, attachments, calls ->
+            onConfirm = { text, attachments, calls, prefill ->
                 if (current.revise) {
-                    actions.revise(current.id, text, attachments)
+                    actions.revise(current.id, text, attachments, prefill)
                 } else {
-                    actions.edit(current.id, text, attachments, calls)
+                    actions.edit(current.id, text, attachments, calls, prefill)
                 }
                 dismiss()
             },
@@ -448,6 +450,7 @@ private fun ChatScaffold(
                                         revise,
                                         node.attachments,
                                         calls = node.toolCalls().takeIf { node.role == "assistant" },
+                                        prefill = Prefill.of(node),
                                     ),
                                 )
                             },
@@ -497,6 +500,8 @@ private fun ChatScaffold(
                 onOpenAttachment = onOpenAttachment,
                 onSubmit = actions.submit,
                 onStop = actions.stop,
+                prefill = state.pendingPrefill,
+                onPrefill = actions.setPrefill,
             )
         }
     }

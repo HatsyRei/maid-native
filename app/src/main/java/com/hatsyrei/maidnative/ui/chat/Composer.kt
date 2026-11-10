@@ -98,6 +98,7 @@ import com.hatsyrei.maidnative.ui.icons.AudiotrackIcon
 import com.hatsyrei.maidnative.ui.icons.CloseIcon
 import com.hatsyrei.maidnative.ui.icons.DescriptionIcon
 import com.hatsyrei.maidnative.ui.icons.FolderOpenIcon
+import com.hatsyrei.maidnative.ui.icons.FormatQuoteIcon
 import com.hatsyrei.maidnative.ui.icons.ImageIcon
 import com.hatsyrei.maidnative.ui.theme.LocalNameplate
 
@@ -152,12 +153,26 @@ internal fun Composer(
     onOpenAttachment: (Attachment) -> Unit,
     onSubmit: (String) -> Unit,
     onStop: () -> Unit,
+    prefill: String = "",
+    onPrefill: (String) -> Unit = {},
     nameplate: Painter? = LocalNameplate.current,
 ) {
     val input = rememberTextFieldState()
     val text = input.text
     val canSend = enabled && (text.isNotBlank() || attachments.isNotEmpty() || files.isNotEmpty())
     val active = busy || canSend
+
+    var editingPrefill by remember { mutableStateOf(false) }
+    if (editingPrefill) {
+        PrefillDialog(
+            initial = prefill,
+            onDismiss = { editingPrefill = false },
+            onConfirm = {
+                onPrefill(it)
+                editingPrefill = false
+            },
+        )
+    }
 
     // Read here rather than in the scaffold so an IME transition invalidates only
     // the composer.
@@ -169,7 +184,7 @@ internal fun Composer(
     // with it (focus, or any text present). The second factor fades it back IN
     // when the painter resolves, so the stored art arriving (settings load, or a
     // custom image finishing its off-thread decode) eases in instead of popping.
-    val hasChips = attachments.isNotEmpty() || files.isNotEmpty()
+    val hasChips = attachments.isNotEmpty() || files.isNotEmpty() || prefill.isNotEmpty()
     val engagementAlpha by animateFloatAsState(
         targetValue = if (focused || text.isNotEmpty() || hasChips) 0f else 1f,
         animationSpec = tween(700),
@@ -215,6 +230,9 @@ internal fun Composer(
                     onOpen = onOpenAttachment,
                     files = files,
                     onRemoveFile = onRemoveFile,
+                    prefill = prefill,
+                    onOpenPrefill = { editingPrefill = true },
+                    onRemovePrefill = { onPrefill("") },
                 )
             }
             Row(
@@ -228,6 +246,7 @@ internal fun Composer(
                     fileTools = fileTools,
                     onPick = onAttach,
                     onLink = onLinkFile,
+                    onPrefill = { editingPrefill = true },
                 )
                 BasicTextField(
                     state = input,
@@ -373,6 +392,7 @@ private fun AttachButton(
     fileTools: Boolean,
     onPick: (Uri, Attachment.Kind) -> Unit,
     onLink: (uri: Uri, created: Boolean) -> Unit,
+    onPrefill: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     // Opened over the keyboard, the menu must not take focus: the IME would
@@ -495,6 +515,15 @@ private fun AttachButton(
                     },
                 )
             }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+            MenuOption(
+                text = stringResource(R.string.chat_prefill),
+                trailingIcon = { Icon(FormatQuoteIcon, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onPrefill()
+                },
+            )
         }
     }
 }
@@ -507,12 +536,24 @@ internal fun AttachmentChips(
     onOpen: ((Attachment) -> Unit)? = null,
     files: List<LinkedFile> = emptyList(),
     onRemoveFile: (LinkedFile) -> Unit = {},
+    prefill: String = "",
+    onOpenPrefill: () -> Unit = {},
+    onRemovePrefill: () -> Unit = {},
 ) {
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (prefill.isNotEmpty()) {
+            RemovableChip(
+                label = prefill.replace('\n', ' '),
+                removeDescription = stringResource(R.string.chat_remove_item, stringResource(R.string.chat_prefill_name)),
+                onRemove = onRemovePrefill,
+                onOpen = onOpenPrefill,
+                leadingIcon = FormatQuoteIcon,
+            )
+        }
         // Tinted apart from attachments: the model gets to edit the user's own file, not a copy.
         for (file in files) {
             RemovableChip(

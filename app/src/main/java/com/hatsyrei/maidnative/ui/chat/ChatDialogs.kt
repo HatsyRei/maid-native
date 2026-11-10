@@ -36,6 +36,7 @@ import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.tools.ToolCalls
 import com.hatsyrei.maidnative.domain.tools.ToolText
 import com.hatsyrei.maidnative.ui.common.AppDialog
+import com.hatsyrei.maidnative.ui.common.TextInputDialog
 
 /** The (mutually exclusive) modal dialogs [ChatScreen] can show. */
 internal sealed interface ChatDialog {
@@ -46,6 +47,7 @@ internal sealed interface ChatDialog {
         val attachments: List<Attachment>,
         /** An assistant reply's tool calls; null for a message that cannot have any. */
         val calls: ToolCalls? = null,
+        val prefill: String = "",
     ) : ChatDialog
 
     data class Rename(val id: String, val initial: String) : ChatDialog
@@ -74,11 +76,24 @@ internal fun EditDialog(
     initialAttachments: List<Attachment>,
     initialCalls: ToolCalls?,
     onDismiss: () -> Unit,
-    onConfirm: (String, List<Attachment>, ToolCalls?) -> Unit,
+    onConfirm: (String, List<Attachment>, ToolCalls?, prefill: String) -> Unit,
+    initialPrefill: String = "",
 ) {
     val text = rememberTextFieldState(initial)
     var attachments by remember { mutableStateOf(initialAttachments) }
     var calls by remember { mutableStateOf(initialCalls) }
+    var prefill by remember { mutableStateOf(initialPrefill) }
+    var editingPrefill by remember { mutableStateOf(false) }
+    if (editingPrefill) {
+        PrefillDialog(
+            initial = prefill,
+            onDismiss = { editingPrefill = false },
+            onConfirm = {
+                prefill = it
+                editingPrefill = false
+            },
+        )
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -119,11 +134,14 @@ internal fun EditDialog(
                             .weight(1f, fill = false)
                             .padding(top = 16.dp),
                     )
-                    if (attachments.isNotEmpty()) {
+                    if (attachments.isNotEmpty() || prefill.isNotEmpty()) {
                         AttachmentChips(
                             attachments = attachments,
                             onRemove = { attachments = attachments - it },
                             modifier = Modifier.padding(top = 12.dp),
+                            prefill = prefill,
+                            onOpenPrefill = { editingPrefill = true },
+                            onRemovePrefill = { prefill = "" },
                         )
                     }
                     calls?.takeIf { it.isNotEmpty() }?.let { current ->
@@ -146,7 +164,7 @@ internal fun EditDialog(
                     ) {
                         TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
                         TextButton(
-                            onClick = { onConfirm(text.text.toString(), attachments, calls) },
+                            onClick = { onConfirm(text.text.toString(), attachments, calls, prefill) },
                             enabled = text.text.isNotBlank() || attachments.isNotEmpty(),
                         ) {
                             Text(stringResource(if (revise) R.string.dialog_send else R.string.action_save))
@@ -156,6 +174,23 @@ internal fun EditDialog(
             }
         }
     }
+}
+
+@Composable
+internal fun PrefillDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    TextInputDialog(
+        title = stringResource(R.string.chat_prefill),
+        initial = initial,
+        confirmLabel = stringResource(R.string.action_save),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        description = stringResource(R.string.chat_prefill_description),
+        multiline = true,
+    )
 }
 
 @Composable

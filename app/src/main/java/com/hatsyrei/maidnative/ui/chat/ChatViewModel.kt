@@ -27,6 +27,7 @@ import com.hatsyrei.maidnative.data.store.NameplateStore
 import com.hatsyrei.maidnative.domain.Attachment
 import com.hatsyrei.maidnative.domain.ConversationDefaults
 import com.hatsyrei.maidnative.domain.Modalities
+import com.hatsyrei.maidnative.domain.Prefill
 import com.hatsyrei.maidnative.domain.Sampling
 import com.hatsyrei.maidnative.domain.tools.FileTools
 import com.hatsyrei.maidnative.domain.tools.LinkedFile
@@ -74,6 +75,8 @@ data class ChatUiState(
     val pendingAttachments: List<Attachment> = emptyList(),
     /** Linked on the next message; the grant is already held. */
     val pendingFiles: List<LinkedFile> = emptyList(),
+    /** What the next reply is made to start with; empty for none. */
+    val pendingPrefill: String = "",
     val settings: SettingsRepository.Settings = SettingsRepository.Settings(),
     val busy: Boolean = false,
     val scanning: Boolean = false,
@@ -688,7 +691,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val userId = UUID.randomUUID().toString()
         next = MessageTree.addNode(
             next, userId, "user", prompt, rootId, parent, null,
-            metadata = LinkedFileStore.writeInto(files, emptyMap()),
+            metadata = Prefill.writeInto(_state.value.pendingPrefill, LinkedFileStore.writeInto(files, emptyMap())),
             attachments = pending,
         )
 
@@ -698,9 +701,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // The attachments now belong to the message, so the composer lets go of
         // them without deleting the files.
         _state.update {
-            it.copy(mappings = next, root = rootId, pendingAttachments = emptyList(), pendingFiles = emptyList())
+            it.copy(
+                mappings = next,
+                root = rootId,
+                pendingAttachments = emptyList(),
+                pendingFiles = emptyList(),
+                pendingPrefill = "",
+            )
         }
         startStream(rootId, responseId)
+    }
+
+    /** Stage what the next reply starts with; empty clears it. */
+    fun setPrefill(text: String) {
+        _state.update { it.copy(pendingPrefill = text) }
     }
 
     /** Copy a picked file into app storage and stage it on the next message. */
@@ -807,7 +821,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Revise a user message: branch a new version and regenerate the reply. */
-    fun revise(messageId: String, content: String, attachments: List<Attachment>) {
+    fun revise(messageId: String, content: String, attachments: List<Attachment>, prefill: String) {
         val text = content.trim()
         val node = _state.value.mappings[messageId] ?: return
         val files = node.linkedFiles()
@@ -817,7 +831,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // with the original are left alone, since the original still names them.
         var next = MessageTree.branchNode(
             _state.value.mappings, messageId, userId, text,
-            metadata = LinkedFileStore.writeInto(files, emptyMap()),
+            metadata = Prefill.writeInto(prefill.trim(), LinkedFileStore.writeInto(files, emptyMap())),
             attachments = attachments,
         )
         if (next === _state.value.mappings) return
@@ -837,6 +851,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         content: String,
         attachments: List<Attachment>,
         calls: ToolCalls?,
+        prefill: String,
     ) {
         val before = _state.value.mappings
         val text = content.trim()
@@ -846,7 +861,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 it,
                 messageId,
                 { text },
-                metadata = kept?.let { k -> { m -> ToolCallStore.writeInto(k, m) } },
+                metadata = { m ->
+                    // Only a user message carries one; an assistant reply's is always empty.
+                    Prefill.writeInto(prefill.trim(), kept?.let { k -> ToolCallStore.writeInto(k, m) } ?: m)
+                },
                 attachments = attachments,
             )
         }
@@ -932,6 +950,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             conversation = conversation,
             tools = builtIns + Mcp.tools(servers, s.allowCleartext, mcp) + fileTools,
             ask = askTargets.keys,
+            // Read off the message being answered, so a regenerated reply starts the same way.
+            prefill = Prefill.of(_state.value.mappings[responseId]?.parent?.let { _state.value.mappings[it] }),
             onUpdate = { update ->
                 _streaming.update { live ->
                     // Guards against a tick from a superseded job.

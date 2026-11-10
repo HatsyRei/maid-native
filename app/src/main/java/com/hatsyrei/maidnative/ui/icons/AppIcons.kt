@@ -223,6 +223,11 @@ val DnsIcon: ImageVector by lazy {
     )
 }
 
+/** Material `format_quote` (reply prefill). */
+val FormatQuoteIcon: ImageVector by lazy {
+    materialIcon("FormatQuote", "M6,17h3l2,-4V7H5v6h3zM14,17h3l2,-4V7h-6v6h3z")
+}
+
 private fun materialIcon(name: String, pathData: String): ImageVector =
     ImageVector.Builder(
         name = name,

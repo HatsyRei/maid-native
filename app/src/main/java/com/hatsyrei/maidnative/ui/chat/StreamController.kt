@@ -109,6 +109,8 @@ internal class StreamController(
         conversation: List<MessageNode>,
         tools: List<Tool>,
         ask: Set<String>,
+        /** Text the reply starts with; the model is asked to continue it. */
+        prefill: String = "",
         onUpdate: (StreamUpdate) -> Unit,
         onError: (Throwable) -> Unit,
         onFinish: () -> Unit,
@@ -116,6 +118,8 @@ internal class StreamController(
         reset()
         val gen = synchronized(lock) {
             this.ask.addAll(ask)
+            // Ahead of the first round's `roundStart`, so a reclassified trace never takes it.
+            content.append(prefill)
             // The thread as the endpoint is about to read it, which is what the
             // prompt count it returns will describe.
             promptChars = conversation.sumOf { it.content.length }
@@ -140,6 +144,8 @@ internal class StreamController(
                     delay(PUBLISH_INTERVAL_MS)
                 }
             }
+            // A prefill shows before the first token, which may be a while coming.
+            if (prefill.isNotEmpty()) pending.trySend(Unit)
 
             var failure: Throwable? = null
             while (true) {

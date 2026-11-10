@@ -16,6 +16,9 @@
     <string name="chat_attach_text_file">文本文件</string>
     <string name="chat_link_file">关联文件</string>
     <string name="chat_new_file">新建文件</string>
+    <string name="chat_prefill">预填回复</string>
+    <string name="chat_prefill_description">回复将以此文本开头，由模型接着续写。不支持预填的端点可能会忽略它或拒绝请求。</string>
+    <string name="chat_prefill_name">回复预填</string>
     <string name="chat_remove_item">移除 %1$s</string>
 
     <string name="chat_system">系统</string>

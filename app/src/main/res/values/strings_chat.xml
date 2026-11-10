@@ -16,6 +16,9 @@
     <string name="chat_attach_text_file">Text file</string>
     <string name="chat_link_file">Link file</string>
     <string name="chat_new_file">New file</string>
+    <string name="chat_prefill">Prefill reply</string>
+    <string name="chat_prefill_description">The reply starts with this text and the model continues it. Endpoints without prefill support may ignore it or reject the request.</string>
+    <string name="chat_prefill_name">Reply prefill</string>
     <string name="chat_remove_item">Remove %1$s</string>
 
     <string name="chat_system">System</string>

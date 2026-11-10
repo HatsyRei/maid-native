@@ -136,4 +136,28 @@ class ToolRequestTest {
         assertEquals("It is 2026.", messages.getJSONObject(3).getString("content"))
         assertFalse(json.toString().contains("{{tool:"))
     }
+
+    @Test
+    fun `a prefill is sent as a trailing assistant turn`() {
+        val json = request(
+            listOf(
+                MessageNode("u", "user", "Fruits?", "r"),
+                MessageNode("a", "assistant", "", "r", parent = "u"),
+            ),
+            pendingText = "Arr:",
+        )
+        assertEquals(listOf("user", "assistant"), roles(json))
+        assertEquals("Arr:", json.getJSONArray("messages").getJSONObject(1).getString("content"))
+    }
+
+    @Test
+    fun `a prefill leads the first tool round and is not repeated after it`() {
+        val json = request(
+            listOf(MessageNode("u", "user", "time?", "r")),
+            pendingText = "Arr:\n\n{{tool:1}}\n\n",
+            pendingCalls = calls,
+        )
+        assertEquals(listOf("user", "assistant", "tool"), roles(json))
+        assertEquals("Arr:", json.getJSONArray("messages").getJSONObject(1).getString("content").trim())
+    }
 }

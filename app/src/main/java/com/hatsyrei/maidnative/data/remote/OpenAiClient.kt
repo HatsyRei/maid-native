@@ -203,7 +203,11 @@ class OpenAiClient {
         config: Config,
         messages: List<MessageNode>,
         tools: List<Tool> = emptyList(),
-        /** The reply in flight so far (markers and all) and its finished calls, sent after [messages]. */
+        /**
+         * The reply in flight so far (prefill, markers and all) and its finished
+         * calls, sent after [messages]; any text after the last marker is sent
+         * as an assistant prefix for the model to continue.
+         */
         pendingText: String = "",
         pendingCalls: ToolCalls = emptyMap(),
         parameters: Map<String, Any?> = emptyMap(),
@@ -374,8 +378,12 @@ class OpenAiClient {
         ) {
             history.removeAt(history.size - 1)
         }
-        // The reply in flight ends on its markers, so it leaves no answer text yet.
-        history.addCalls(pendingText, pendingCalls)
+        // Text after the reply's last marker is a prefill (tool rounds end on
+        // their markers). Sent as a trailing assistant turn, which llama.cpp and
+        // similar backends continue rather than answer; streamed deltas then
+        // carry only the continuation.
+        val prefix = history.addCalls(pendingText, pendingCalls)
+        if (prefix.isNotBlank()) history += Turn("assistant", prefix)
 
         val payload = JSONObject()
             .put("model", config.model)

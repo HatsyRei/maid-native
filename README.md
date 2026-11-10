@@ -43,6 +43,9 @@ server.
   step between siblings with `‹ n/N ›` instead of a linear log.
 - **Media attachments** — images, audio and text files, gated on the model's
   reported modalities.
+- **Reply prefill** — start the model's reply with your own text and let it
+  continue from there (works on llama.cpp; other endpoints may ignore or
+  reject it).
 - **Chat import / export** — per-chat, multi-file import, and backup-all via the
   Storage Access Framework, in the RN-compatible JSON format.
 - **LAN endpoint discovery** — scan your subnet (configurable port and prefix)

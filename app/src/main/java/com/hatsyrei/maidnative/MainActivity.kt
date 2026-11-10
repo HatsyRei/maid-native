@@ -94,6 +94,7 @@ private fun MaidNativeApp(viewModel: ChatViewModel) {
             saveAttachment = viewModel::saveAttachment,
             linkFile = viewModel::linkFile,
             removePendingFile = viewModel::removePendingFile,
+            setPrefill = viewModel::setPrefill,
             unlinkFile = viewModel::unlinkFile,
             readFile = viewModel::readFile,
             newChat = viewModel::newChat,
