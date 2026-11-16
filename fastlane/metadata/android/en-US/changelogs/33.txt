@@ -1,0 +1,1 @@
+- Updated build tools (Android Gradle Plugin 9.5.1, KSP 2.3.14). No app changes from 1.11.1.
