@@ -1,5 +1,5 @@
 [versions]
-agp = "9.5.0"
+agp = "9.5.1"
 kotlin = "2.4.21"
 coreKtx = "1.19.1"
 lifecycleRuntimeKtx = "2.11.0"
@@ -14,7 +14,7 @@ markdownRenderer = "0.46.0"
 coil = "3.6.3"
 room = "2.8.5"
 # KSP moved to decoupled versioning at 2.3.0; no longer pinned to the Kotlin version.
-ksp = "2.3.12"
+ksp = "2.3.14"
 junit = "4.13.2"
 orgJson = "20260814"
 javascriptengine = "1.1.1"
